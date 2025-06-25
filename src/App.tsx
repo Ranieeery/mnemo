@@ -21,16 +21,14 @@ import {
 } from "./database";
 import {checkVideoToolsAvailable, ProcessedVideo, processVideo} from "./services/videoProcessor";
 import {formatDuration, isVideoFile} from "./utils/videoUtils";
-import {VideoTagsManager} from "./components/VideoTagsManager";
 import {Settings} from "./components/Settings";
-import SearchBar from "./components/Search/SearchBar";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
 import SearchProgressBar from "./components/Progress/SearchProgressBar";
-import NavigationButtons from "./components/Navigation/NavigationButtons";
 import TopBar from "./components/Navigation/TopBar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import ConfirmRemovalModal from "./components/Modals/ConfirmRemovalModal";
 import NextVideoModal from "./components/Modals/NextVideoModal";
+import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -1977,122 +1975,17 @@ function App() {
             </div>
 
             {/* Modal para detalhes do vídeo */}
-            {showVideoDetails && selectedVideo && (
-                <div className="fixed inset-0 flex items-center justify-center z-50">
-                    {/* Backdrop */}
-                    <div
-                        className="fixed inset-0 bg-black bg-opacity-50"
-                        onClick={handleCloseVideoDetails}
-                    ></div>
-
-                    {/* Modal Content */}
-                    <div className="relative bg-gray-800 rounded-lg shadow-lg max-w-lg w-full mx-4 p-6"
-                         onClick={(e) => e.stopPropagation()}>
-                        {/* Header */}
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-300">
-                                Video Details
-                            </h3>
-                            <button
-                                onClick={handleCloseVideoDetails}
-                                className="text-gray-400 hover:text-gray-200"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                          d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-
-                        {/* Video Thumbnail */}
-                        <div className="mb-4">
-                            {selectedVideo.thumbnail_path ? (
-                                <img
-                                    src={convertFileSrc(selectedVideo.thumbnail_path)}
-                                    alt={selectedVideo.title}
-                                    className="w-full h-auto rounded-lg"
-                                />
-                            ) : (
-                                <div className="w-full h-40 bg-gray-700 rounded-lg flex items-center justify-center">
-                                    <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor"
-                                         viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                    </svg>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Title and Description */}
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-300 mb-1">
-                                Title
-                            </label>
-                            <input
-                                type="text"
-                                value={editingTitle}
-                                onChange={(e) => setEditingTitle(e.target.value)}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                        </div>
-
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-300 mb-1">
-                                Description
-                            </label>
-                            <textarea
-                                value={editingDescription}
-                                onChange={(e) => setEditingDescription(e.target.value)}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                rows={3}
-                                placeholder="Add a description..."
-                            />
-                        </div>
-
-                        {/* Video Metadata */}
-                        <div className="mb-4 p-3 bg-gray-700 rounded-lg">
-                            <h4 className="text-sm font-medium text-gray-300 mb-2">Video Information</h4>
-                            <div className="space-y-1 text-sm text-gray-400">
-                                {selectedVideo.duration_seconds && selectedVideo.duration_seconds > 0 && (
-                                    <div>
-                                        <span
-                                            className="font-medium">Duration:</span> {formatDuration(selectedVideo.duration_seconds)}
-                                    </div>
-                                )}
-                                <div>
-                                    <span className="font-medium">File Path:</span>
-                                    <div className="break-all mt-1 text-xs">{selectedVideo.file_path}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Tags Section */}
-                        <VideoTagsManager video={selectedVideo}/>
-
-                        {/* Actions */}
-                        <div className="flex justify-end space-x-2">
-                            <button
-                                onClick={handleCancelEdit}
-                                className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
-                            >
-                                Reset
-                            </button>
-                            <button
-                                onClick={handleCloseVideoDetails}
-                                className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveVideoDetails}
-                                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-                            >
-                                Save Changes
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <VideoDetailsModal
+                show={showVideoDetails}
+                video={selectedVideo}
+                editingTitle={editingTitle}
+                editingDescription={editingDescription}
+                onClose={handleCloseVideoDetails}
+                onSave={handleSaveVideoDetails}
+                onCancel={handleCancelEdit}
+                onTitleChange={setEditingTitle}
+                onDescriptionChange={setEditingDescription}
+            />
 
             {/* Menu de contexto */}
             {contextMenu.show && contextMenu.video && (
