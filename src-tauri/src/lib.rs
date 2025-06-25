@@ -73,6 +73,67 @@ fn read_directory(path: String) -> Result<Vec<DirEntry>, String> {
     Ok(entries)
 }
 
+#[tauri::command]
+fn scan_directory_recursive(path: String) -> Result<Vec<DirEntry>, String> {
+    let dir_path = Path::new(&path);
+    if !dir_path.exists() || !dir_path.is_dir() {
+        return Err("Directory does not exist".to_string());
+    }
+
+    let mut entries = Vec::new();
+    
+    fn scan_directory_recursive_helper(dir_path: &Path, entries: &mut Vec<DirEntry>) -> Result<(), String> {
+        match fs::read_dir(dir_path) {
+            Ok(dir_entries) => {
+                for entry in dir_entries {
+                    match entry {
+                        Ok(entry) => {
+                            let entry_path = entry.path();
+                            let name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                            let full_path = entry_path.to_string_lossy().to_string();
+                            let is_dir = entry_path.is_dir();
+                            
+                            if is_dir {
+                                // Recursively scan subdirectories
+                                if let Err(e) = scan_directory_recursive_helper(&entry_path, entries) {
+                                    eprintln!("Warning: Failed to scan directory {}: {}", full_path, e);
+                                }
+                            } else {
+                                // Check if it's a video file
+                                let extension = entry_path.extension()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .to_lowercase();
+                                let is_video = matches!(extension.as_str(), "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "3gp" | "mpg" | "mpeg");
+                                
+                                entries.push(DirEntry {
+                                    name,
+                                    path: full_path,
+                                    is_dir,
+                                    is_video,
+                                });
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Warning: Failed to read directory entry: {}", e);
+                            continue;
+                        }
+                    }
+                }
+            }
+            Err(e) => return Err(format!("Failed to read directory: {}", e)),
+        }
+        Ok(())
+    }
+
+    scan_directory_recursive_helper(dir_path, &mut entries)?;
+
+    // Sort entries by path
+    entries.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+
+    Ok(entries)
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct VideoMetadata {
     duration: f64,
@@ -308,7 +369,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![greet, read_directory, extract_video_metadata, generate_thumbnail, open_file_externally, open_file_with_dialog, file_exists, read_subtitle_file])
+        .invoke_handler(tauri::generate_handler![greet, read_directory, scan_directory_recursive, extract_video_metadata, generate_thumbnail, open_file_externally, open_file_with_dialog, file_exists, read_subtitle_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,5 +1,6 @@
 import Database from "@tauri-apps/plugin-sql";
 import { ProcessedVideo } from "./services/videoProcessor";
+import { isVideoFile } from "./utils/videoUtils";
 
 let db: Database | null = null;
 
@@ -212,6 +213,40 @@ export async function getVideosInDirectory(directoryPath: string) {
   }));
 }
 
+// Função para obter vídeos de um diretório ordenados por progresso de visualização
+export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: string): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  const result = await database.select(`
+    SELECT * FROM videos 
+    WHERE file_path LIKE $1 
+    ORDER BY 
+      CASE 
+        WHEN is_watched = 0 AND (watch_progress_seconds IS NULL OR watch_progress_seconds = 0) THEN 0
+        WHEN is_watched = 0 AND watch_progress_seconds > 0 THEN 1
+        WHEN is_watched = 1 THEN 2
+      END,
+      last_watched_at DESC NULLS LAST,
+      title
+  `, [`${directoryPath}%`]) as any[];
+  
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
+}
+
 // ====== FUNÇÕES DE BUSCA ======
 
 // Buscar vídeos por título
@@ -263,6 +298,7 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
      LEFT JOIN tags t ON vt.tag_id = t.id
      WHERE v.title LIKE $1 
         OR t.name LIKE $1
+        OR v.description LIKE $1
      ORDER BY v.title`,
     [term]
   ) as any[];
@@ -282,6 +318,102 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
     duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
     size: 0
   }));
+}
+
+// Nova função para busca recursiva em tempo real (busca em arquivos do sistema de arquivos)
+export async function searchVideosRecursive(searchTerm: string, progressCallback?: (current: number, total: number, currentFile: string) => void): Promise<ProcessedVideo[]> {
+  if (!searchTerm.trim()) {
+    return [];
+  }
+
+  const results: ProcessedVideo[] = [];
+  const folders = await getLibraryFolders();
+  const searchTermLower = searchTerm.trim().toLowerCase();
+  
+  let totalFiles = 0;
+  let processedFiles = 0;
+
+  // Primeiro, conta todos os arquivos para progress
+  for (const folder of folders) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const allFiles: any[] = await invoke('scan_directory_recursive', { path: folder });
+      const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+      totalFiles += videoFiles.length;
+    } catch (error) {
+      console.error(`Error scanning folder ${folder}:`, error);
+    }
+  }
+
+  // Agora processa cada pasta recursivamente
+  for (const folder of folders) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const allFiles: any[] = await invoke('scan_directory_recursive', { path: folder });
+      const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+
+      for (const videoFile of videoFiles) {
+        processedFiles++;
+        
+        if (progressCallback) {
+          progressCallback(processedFiles, totalFiles, videoFile.name);
+        }
+
+        // Verifica se o nome do arquivo contém o termo de busca
+        const fileName = videoFile.name.toLowerCase();
+        const filePath = videoFile.path.toLowerCase();
+        
+        if (fileName.includes(searchTermLower) || filePath.includes(searchTermLower)) {
+          // Verifica se já existe no banco de dados
+          let existingVideo = await getVideoByPath(videoFile.path);
+          
+          if (existingVideo) {
+            results.push(existingVideo);
+          } else {
+            // Se não existe no banco, cria um registro básico
+            const basicVideo: ProcessedVideo = {
+              file_path: videoFile.path,
+              title: getVideoTitleFromFilename(videoFile.name),
+              description: '',
+              duration_seconds: 0,
+              thumbnail_path: '',
+              is_watched: false,
+              watch_progress_seconds: 0,
+              duration: '00:00',
+              size: 0
+            };
+            results.push(basicVideo);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error searching in folder ${folder}:`, error);
+    }
+  }
+
+  return results;
+}
+
+// Função auxiliar para obter título do vídeo a partir do nome do arquivo
+function getVideoTitleFromFilename(filename: string): string {
+  // Remove extensão
+  const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+  
+  // Remove padrões comuns como [1080p], (2023), etc.
+  let title = nameWithoutExt
+    .replace(/\[.*?\]/g, '') // Remove [texto]
+    .replace(/\(.*?\)/g, '') // Remove (texto)
+    .replace(/_/g, ' ') // Substitui _ por espaço
+    .replace(/\./g, ' ') // Substitui . por espaço
+    .replace(/\s+/g, ' ') // Remove espaços extras
+    .trim();
+  
+  // Capitaliza primeira letra de cada palavra
+  title = title.replace(/\w\S*/g, (txt) => 
+    txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  );
+  
+  return title || filename;
 }
 
 // Buscar todos os vídeos (para quando a busca estiver vazia ou busca global)
@@ -464,6 +596,59 @@ export async function getUnwatchedVideos(limit: number = 20): Promise<ProcessedV
     duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
     size: 0
   }));
+}
+
+// Obter preview de vídeos (4-5 vídeos) de uma pasta específica
+export async function getVideoPreviewFromFolder(folderPath: string, limit: number = 5): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  const result = await database.select(`
+    SELECT * FROM videos 
+    WHERE file_path LIKE $1 
+    ORDER BY 
+      CASE 
+        WHEN is_watched = 0 AND (watch_progress_seconds IS NULL OR watch_progress_seconds = 0) THEN 0
+        WHEN is_watched = 0 AND watch_progress_seconds > 0 THEN 1
+        WHEN is_watched = 1 THEN 2
+      END,
+      last_watched_at DESC NULLS LAST,
+      title
+    LIMIT $2
+  `, [`${folderPath}%`, limit]) as any[];
+  
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
+}
+
+// Obter preview de vídeos de todas as pastas da biblioteca
+export async function getLibraryFoldersWithPreviews(): Promise<{folder: string, videos: ProcessedVideo[]}[]> {
+  const folders = await getLibraryFolders();
+  const foldersWithPreviews = [];
+  
+  for (const folder of folders) {
+    const videos = await getVideoPreviewFromFolder(folder, 5);
+    if (videos.length > 0) {
+      foldersWithPreviews.push({
+        folder,
+        videos
+      });
+    }
+  }
+  
+  return foldersWithPreviews;
 }
 
 // Funções utilitárias para pastas da biblioteca

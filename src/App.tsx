@@ -9,18 +9,20 @@ import {
   removeLibraryFolder,
   debugDatabaseInfo,
   getAllLibraryFoldersDebug,
-  getVideosInDirectory,
+  getVideosInDirectoryOrderedByWatchStatus,
   updateVideoDetails,
   searchVideos,
+  searchVideosRecursive,
   getRecentlyWatchedVideos,
   getVideosInProgress,
   getUnwatchedVideos,
   markVideoAsWatched,
   markVideoAsUnwatched,
-  updateWatchProgress
+  updateWatchProgress,
+  getLibraryFoldersWithPreviews
 } from "./database";
-import { processVideosInDirectory, checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
-import { formatDuration } from "./utils/videoUtils";
+import { checkVideoToolsAvailable, ProcessedVideo, processVideo } from "./services/videoProcessor";
+import { formatDuration, isVideoFile } from "./utils/videoUtils";
 import { VideoTagsManager } from "./components/VideoTagsManager";
 import "./styles/player.css";
 
@@ -77,16 +79,49 @@ function App() {
   const [searchResults, setSearchResults] = useState<ProcessedVideo[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
+  const [searchProgress, setSearchProgress] = useState<{
+    current: number;
+    total: number;
+    currentFile: string;
+  }>({ current: 0, total: 0, currentFile: "" });
   
   // Estados para página inicial
   const [showHomePage, setShowHomePage] = useState<boolean>(true);
   const [recentVideos, setRecentVideos] = useState<ProcessedVideo[]>([]);
   const [videosInProgress, setVideosInProgress] = useState<ProcessedVideo[]>([]);
   const [suggestedVideos, setSuggestedVideos] = useState<ProcessedVideo[]>([]);
+  const [libraryFoldersWithPreviews, setLibraryFoldersWithPreviews] = useState<{folder: string, videos: ProcessedVideo[]}[]>([]);
   
   // Estados para modal de confirmação de remoção
   const [showRemoveConfirmation, setShowRemoveConfirmation] = useState<boolean>(false);
   const [folderToRemove, setFolderToRemove] = useState<string | null>(null);
+  
+  // Estados para histórico de navegação
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  
+  // Estados para progresso de processamento de vídeos
+  const [processingProgress, setProcessingProgress] = useState<{
+    total: number;
+    processed: number;
+    currentFile: string;
+  }>({ total: 0, processed: 0, currentFile: "" });
+  const [showProcessingProgress, setShowProcessingProgress] = useState<boolean>(false);
+  
+  // Estados para "próximo vídeo"
+  const [showNextVideoPrompt, setShowNextVideoPrompt] = useState<boolean>(false);
+  const [nextVideo, setNextVideo] = useState<ProcessedVideo | null>(null);
+  const [savedPlaybackSettings, setSavedPlaybackSettings] = useState<{
+    speed: number;
+    volume: number;
+    subtitlesEnabled: boolean;
+  }>({ speed: 1, volume: 1, subtitlesEnabled: false });
+  const [nextVideoTimeout, setNextVideoTimeout] = useState<number | null>(null);
+  const [nextVideoCountdown, setNextVideoCountdown] = useState<number>(10);
+
+  // Estados para indexação de pastas
+  const [folderIndexingStatus, setFolderIndexingStatus] = useState<{[key: string]: boolean}>({});
+  const [currentIndexingFolder, setCurrentIndexingFolder] = useState<string | null>(null);
 
   // Carregar pastas do banco de dados na inicialização
   useEffect(() => {
@@ -136,15 +171,17 @@ function App() {
   // Função para carregar dados da página inicial
   const loadHomePageData = async () => {
     try {
-      const [recent, inProgress, suggestions] = await Promise.all([
+      const [recent, inProgress, suggestions, foldersWithPreviews] = await Promise.all([
         getRecentlyWatchedVideos(8),
         getVideosInProgress(8),
-        getUnwatchedVideos(16)
+        getUnwatchedVideos(16),
+        getLibraryFoldersWithPreviews()
       ]);
       
       setRecentVideos(recent);
       setVideosInProgress(inProgress);
       setSuggestedVideos(suggestions);
+      setLibraryFoldersWithPreviews(foldersWithPreviews);
     } catch (error) {
       console.error('Error loading home page data:', error);
     }
@@ -155,9 +192,68 @@ function App() {
     setSelectedFolder(null);
     setShowHomePage(true);
     setShowSearchResults(false);
-    setSearchTerm("");
+    // Não limpa o termo de busca para mantê-lo persistente
     loadHomePageData();
   };
+
+  // Função para navegar para uma pasta com histórico
+  const navigateToFolder = (folderPath: string) => {
+    // Adiciona à história se não estivermos navegando pelo histórico
+    if (historyIndex === navigationHistory.length - 1) {
+      const newHistory = [...navigationHistory, folderPath];
+      setNavigationHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    } else {
+      // Se estivermos no meio da história, remove entradas posteriores
+      const newHistory = navigationHistory.slice(0, historyIndex + 1);
+      newHistory.push(folderPath);
+      setNavigationHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }
+    
+    setSelectedFolder(folderPath);
+    setCurrentPath(folderPath);
+    setShowHomePage(false);
+    setShowSearchResults(false);
+    // Não limpa o termo de busca para mantê-lo persistente
+    loadDirectoryContents(folderPath);
+  };
+
+  // Função para voltar no histórico
+  const goBack = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      const folderPath = navigationHistory[newIndex];
+      setSelectedFolder(folderPath);
+      setCurrentPath(folderPath);
+      setShowHomePage(false);
+      setShowSearchResults(false);
+      loadDirectoryContents(folderPath);
+    } else if (historyIndex === 0) {
+      // Se estamos no primeiro item da história, volta à página inicial
+      setHistoryIndex(-1);
+      goToHomePage();
+    }
+  };
+
+  // Função para avançar no histórico
+  const goForward = () => {
+    if (historyIndex < navigationHistory.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      const folderPath = navigationHistory[newIndex];
+      setSelectedFolder(folderPath);
+      setCurrentPath(folderPath);
+      setShowHomePage(false);
+      setShowSearchResults(false);
+      loadDirectoryContents(folderPath);
+    }
+  };
+
+  // Verifica se pode voltar ou avançar
+  const canGoBack = historyIndex > -1;
+  const canGoForward = historyIndex < navigationHistory.length - 1;
 
   // Função para adicionar uma nova pasta
   const handleAddFolder = async () => {
@@ -171,11 +267,75 @@ function App() {
         await saveLibraryFolder(selectedPath);
         const updatedFolders = await getLibraryFolders();
         setLibraryFolders(updatedFolders);
+        
+        // Inicia a indexação imediata da pasta
+        await indexFolderRecursively(selectedPath);
+        
         // Recarrega dados da página inicial
         await loadHomePageData();
       }
     } catch (error) {
       console.error('Error selecting folder:', error);
+    }
+  };
+
+  // Função para indexar uma pasta recursivamente
+  const indexFolderRecursively = async (folderPath: string) => {
+    if (!videoToolsAvailable.ffmpeg || !videoToolsAvailable.ffprobe) {
+      console.warn('Video tools not available. Skipping indexing.');
+      return;
+    }
+
+    setCurrentIndexingFolder(folderPath);
+    setFolderIndexingStatus(prev => ({ ...prev, [folderPath]: true }));
+    setShowProcessingProgress(true);
+    setProcessingProgress({ total: 0, processed: 0, currentFile: "" });
+
+    try {
+      console.log(`Starting recursive indexing for: ${folderPath}`);
+      
+      // Primeiro, conta quantos arquivos de vídeo existem recursivamente
+      const allFiles: any[] = await invoke('scan_directory_recursive', { path: folderPath });
+      const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+      
+      setProcessingProgress(prev => ({ ...prev, total: videoFiles.length }));
+      
+      // Processa cada vídeo com callback de progresso
+      let processedCount = 0;
+      
+      for (const videoFile of videoFiles) {
+        setProcessingProgress(prev => ({ 
+          ...prev, 
+          processed: processedCount,
+          currentFile: videoFile.name
+        }));
+        
+        try {
+          await processVideo(videoFile.path);
+        } catch (error) {
+          console.error(`Failed to process video ${videoFile.path}:`, error);
+        }
+        
+        processedCount++;
+      }
+      
+      setProcessingProgress(prev => ({ 
+        ...prev, 
+        processed: processedCount,
+        currentFile: ""
+      }));
+      
+      console.log(`Recursive indexing completed for ${folderPath}. Processed ${processedCount} videos.`);
+    } catch (error) {
+      console.error('Error in recursive folder indexing:', error);
+    } finally {
+      setFolderIndexingStatus(prev => ({ ...prev, [folderPath]: false }));
+      setCurrentIndexingFolder(null);
+      
+      // Mantém a barra de progresso visível por um momento
+      setTimeout(() => {
+        setShowProcessingProgress(false);
+      }, 2000);
     }
   };
 
@@ -217,11 +377,7 @@ function App() {
 
   // Função para selecionar uma pasta na sidebar
   const handleSelectFolder = (folder: string) => {
-    setSelectedFolder(folder);
-    setShowHomePage(false);
-    setShowSearchResults(false);
-    setSearchTerm("");
-    loadDirectoryContents(folder);
+    navigateToFolder(folder);
   };
 
   // Função para carregar o conteúdo de um diretório
@@ -232,8 +388,8 @@ function App() {
       setDirectoryContents(contents);
       setCurrentPath(path);
       
-      // Carrega vídeos já processados do banco de dados
-      const existingVideos = await getVideosInDirectory(path);
+      // Carrega vídeos já processados do banco de dados, ordenados por status de visualização
+      const existingVideos = await getVideosInDirectoryOrderedByWatchStatus(path);
       setProcessedVideos(existingVideos);
       
       // Processa vídeos em segundo plano se as ferramentas estão disponíveis
@@ -248,31 +404,72 @@ function App() {
     }
   };
 
-  // Função para processar vídeos em segundo plano
+  // Função para processar vídeos em segundo plano com progresso
   const processVideosInBackground = async (directoryPath: string) => {
     if (processingVideos) return; // Evita processamento simultâneo
     
     setProcessingVideos(true);
+    setShowProcessingProgress(true);
+    setProcessingProgress({ total: 0, processed: 0, currentFile: "" });
+    
     try {
       console.log(`Starting background video processing for: ${directoryPath}`);
-      const newVideos = await processVideosInDirectory(directoryPath);
       
-      if (newVideos.length > 0) {
-        // Atualiza a lista de vídeos processados
-        const updatedVideos = await getVideosInDirectory(directoryPath);
+      // Primeiro, conta quantos arquivos de vídeo existem
+      const allFiles: any[] = await invoke('scan_directory_recursive', { path: directoryPath });
+      const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+      
+      setProcessingProgress(prev => ({ ...prev, total: videoFiles.length }));
+      
+      // Processa cada vídeo com callback de progresso
+      let processedCount = 0;
+      const processedVideos = [];
+      
+      for (const videoFile of videoFiles) {
+        setProcessingProgress(prev => ({ 
+          ...prev, 
+          processed: processedCount,
+          currentFile: videoFile.name
+        }));
+        
+        try {
+          const processedVideo = await processVideo(videoFile.path);
+          if (processedVideo) {
+            processedVideos.push(processedVideo);
+          }
+        } catch (error) {
+          console.error(`Failed to process video ${videoFile.path}:`, error);
+        }
+        
+        processedCount++;
+      }
+      
+      setProcessingProgress(prev => ({ 
+        ...prev, 
+        processed: processedCount,
+        currentFile: ""
+      }));
+      
+      if (processedVideos.length > 0) {
+        // Atualiza a lista de vídeos processados com a nova ordenação
+        const updatedVideos = await getVideosInDirectoryOrderedByWatchStatus(directoryPath);
         setProcessedVideos(updatedVideos);
-        console.log(`Background processing completed. Processed ${newVideos.length} new videos.`);
+        console.log(`Background processing completed. Processed ${processedVideos.length} new videos.`);
       }
     } catch (error) {
       console.error('Error in background video processing:', error);
     } finally {
       setProcessingVideos(false);
+      // Mantém a barra de progresso visível por um momento
+      setTimeout(() => {
+        setShowProcessingProgress(false);
+      }, 2000);
     }
   };
 
   // Função para navegar para um diretório
   const navigateToDirectory = (path: string) => {
-    loadDirectoryContents(path);
+    navigateToFolder(path);
   };
 
   // Função de debug para inspecionar o banco de dados
@@ -391,6 +588,53 @@ function App() {
       document.removeEventListener('click', handleClickOutside);
     };
   }, [contextMenu.show]);
+
+  // Suporte para botões do mouse (voltar/avançar)
+  useEffect(() => {
+    const handleMouseButtons = (event: MouseEvent) => {
+      if (event.button === 3) { // Botão "voltar" do mouse
+        event.preventDefault();
+        if (canGoBack) {
+          goBack();
+        }
+      } else if (event.button === 4) { // Botão "avançar" do mouse
+        event.preventDefault();
+        if (canGoForward) {
+          goForward();
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleMouseButtons);
+    return () => {
+      document.removeEventListener('mousedown', handleMouseButtons);
+    };
+  }, [canGoBack, canGoForward]);
+
+  // Suporte para teclas de atalho de navegação
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Alt + seta esquerda = voltar
+      if (event.altKey && event.key === 'ArrowLeft') {
+        event.preventDefault();
+        if (canGoBack) {
+          goBack();
+        }
+      }
+      // Alt + seta direita = avançar
+      else if (event.altKey && event.key === 'ArrowRight') {
+        event.preventDefault();
+        if (canGoForward) {
+          goForward();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [canGoBack, canGoForward]);
 
   // Funções do player de vídeo interno
   const handlePlayVideo = async (video: ProcessedVideo) => {
@@ -728,14 +972,27 @@ function App() {
       }
       setShowSearchResults(false);
       setSearchResults([]);
+      setSearchProgress({ current: 0, total: 0, currentFile: "" });
       return;
     }
     
     setShowHomePage(false);
     setIsSearching(true);
+    setSearchProgress({ current: 0, total: 0, currentFile: "" });
+    
     try {
-      // Se não há pasta selecionada, busca em toda a biblioteca
-      const results = await searchVideos(term);
+      let results: ProcessedVideo[];
+      
+      // Se não há pasta selecionada (página inicial), busca apenas nos vídeos indexados
+      if (!selectedFolder) {
+        results = await searchVideos(term);
+      } else {
+        // Se há pasta selecionada, usa busca recursiva completa
+        results = await searchVideosRecursive(term, (current, total, currentFile) => {
+          setSearchProgress({ current, total, currentFile });
+        });
+      }
+      
       setSearchResults(results);
       setShowSearchResults(true);
     } catch (error) {
@@ -743,6 +1000,7 @@ function App() {
       setSearchResults([]);
     } finally {
       setIsSearching(false);
+      setSearchProgress({ current: 0, total: 0, currentFile: "" });
     }
   };
   
@@ -761,7 +1019,9 @@ function App() {
   // Debounce para busca automática
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      handleSearch(searchTerm);
+      if (searchTerm.trim()) {
+        handleSearch(searchTerm);
+      }
     }, 300); // 300ms de delay
     
     return () => clearTimeout(timeoutId);
@@ -821,6 +1081,56 @@ function App() {
     }
   };
 
+  // Função para reproduzir o próximo vídeo
+  const playNextVideo = async () => {
+    if (nextVideo) {
+      if (nextVideoTimeout) {
+        clearInterval(nextVideoTimeout);
+        setNextVideoTimeout(null);
+      }
+      
+      setShowNextVideoPrompt(false);
+      
+      // Primeiro, configura o próximo vídeo para reprodução
+      setPlayingVideo(nextVideo);
+      
+      // Verifica e carrega legendas do próximo vídeo
+      const subtitleData = await checkAndLoadSubtitles(nextVideo.file_path);
+      if (subtitleData) {
+        const parsedSubtitles = parseSubtitles(subtitleData);
+        setSubtitles(parsedSubtitles);
+      } else {
+        setSubtitles([]);
+      }
+      
+      // Aplica as configurações salvas após um pequeno delay para garantir que o vídeo foi carregado
+      setTimeout(() => {
+        const video = document.querySelector('video') as HTMLVideoElement;
+        if (video) {
+          video.playbackRate = savedPlaybackSettings.speed;
+          video.volume = savedPlaybackSettings.volume;
+          setPlaybackSpeed(savedPlaybackSettings.speed);
+          setVolume(savedPlaybackSettings.volume);
+          setSubtitlesEnabled(savedPlaybackSettings.subtitlesEnabled);
+        }
+      }, 100);
+      
+      setNextVideo(null);
+      setNextVideoCountdown(10);
+    }
+  };
+
+  // Função para cancelar próximo vídeo
+  const cancelNextVideo = () => {
+    if (nextVideoTimeout) {
+      clearInterval(nextVideoTimeout);
+      setNextVideoTimeout(null);
+    }
+    setShowNextVideoPrompt(false);
+    setNextVideo(null);
+    setNextVideoCountdown(10);
+  };
+
   return (
     <div className="h-screen bg-gray-900 text-white flex">
       {/* Sidebar */}
@@ -873,26 +1183,35 @@ function App() {
                     onClick={() => handleSelectFolder(folder)}
                     className="cursor-pointer pr-8"
                   >
-                    <div className="font-medium truncate" title={folder}>
-                      {folder.split(/[/\\]/).pop() || folder}
+                    <div className="font-medium truncate flex items-center" title={folder}>
+                      <span>{folder.split(/[/\\]/).pop() || folder}</span>
+                      {/* Indicador de indexação */}
+                      {folderIndexingStatus[folder] && (
+                        <svg className="w-4 h-4 ml-2 animate-spin text-blue-400" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      )}
                     </div>
                     <div className="text-xs opacity-75 truncate">
-                      {folder}
+                      {folderIndexingStatus[folder] ? 'Indexing videos...' : folder}
                     </div>
                   </div>
                   {/* Ícone de lixeira que aparece no hover */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveFolderRequest(folder);
-                    }}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 p-1 rounded transition-all duration-200 hover:bg-red-400/20"
-                    title="Remove folder from library"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  {!folderIndexingStatus[folder] && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFolderRequest(folder);
+                      }}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 p-1 rounded transition-all duration-200 hover:bg-red-400/20"
+                      title="Remove folder from library"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -906,6 +1225,38 @@ function App() {
         <div className="bg-gray-800 border-b border-gray-700 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
+              {/* Navigation Buttons */}
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={goBack}
+                  disabled={!canGoBack}
+                  className={`p-2 rounded-md transition-colors ${
+                    canGoBack 
+                      ? 'hover:bg-gray-700 text-gray-300 hover:text-white' 
+                      : 'text-gray-600 cursor-not-allowed'
+                  }`}
+                  title="Go back (Alt + ←)"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={goForward}
+                  disabled={!canGoForward}
+                  className={`p-2 rounded-md transition-colors ${
+                    canGoForward 
+                      ? 'hover:bg-gray-700 text-gray-300 hover:text-white' 
+                      : 'text-gray-600 cursor-not-allowed'
+                  }`}
+                  title="Go forward (Alt + →)"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              
               <h2 className="text-lg font-semibold">
                 {selectedFolder || "Welcome to Mnemo"}
               </h2>
@@ -948,6 +1299,58 @@ function App() {
             </div>
           </div>
         </div>
+
+        {/* Progress Bar for Video Processing */}
+        {showProcessingProgress && (
+          <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
+            <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
+              <span>
+                {currentIndexingFolder ? `Indexing folder: ${currentIndexingFolder.split(/[/\\]/).pop()}` : 'Processing videos...'}
+              </span>
+              <span>{processingProgress.processed} / {processingProgress.total}</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2">
+              <div 
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                style={{ 
+                  width: processingProgress.total > 0 
+                    ? `${(processingProgress.processed / processingProgress.total) * 100}%` 
+                    : '0%' 
+                }}
+              ></div>
+            </div>
+            {processingProgress.currentFile && (
+              <div className="text-xs text-gray-500 mt-1 truncate">
+                Processing: {processingProgress.currentFile}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Progress Bar for Search */}
+        {isSearching && searchProgress.total > 0 && (
+          <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
+            <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
+              <span>Searching videos...</span>
+              <span>{searchProgress.current} / {searchProgress.total}</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2">
+              <div 
+                className="bg-green-500 h-2 rounded-full transition-all duration-300" 
+                style={{ 
+                  width: searchProgress.total > 0 
+                    ? `${(searchProgress.current / searchProgress.total) * 100}%` 
+                    : '0%' 
+                }}
+              ></div>
+            </div>
+            {searchProgress.currentFile && (
+              <div className="text-xs text-gray-500 mt-1 truncate">
+                Checking: {searchProgress.currentFile}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Content Area */}
         <div className="flex-1 p-6 overflow-auto">
@@ -1108,6 +1511,82 @@ function App() {
                       </div>
                     </div>
                   )}
+
+                  {/* Library Folders Preview */}
+                  {libraryFoldersWithPreviews.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-300 mb-4">Your Library</h3>
+                      <div className="space-y-6">
+                        {libraryFoldersWithPreviews.map((folderData, folderIndex) => (
+                          <div key={`folder-${folderIndex}`} className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-md font-medium text-gray-400">
+                                {folderData.folder.split(/[/\\]/).pop()}
+                              </h4>
+                              <button
+                                onClick={() => {
+                                  setSelectedFolder(folderData.folder);
+                                  navigateToFolder(folderData.folder);
+                                  setShowHomePage(false);
+                                }}
+                                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                              >
+                                View All →
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                              {folderData.videos.slice(0, 5).map((video, videoIndex) => (
+                                <div
+                                  key={`folder-video-${folderIndex}-${videoIndex}`}
+                                  className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
+                                  onClick={() => handlePlayVideo(video)}
+                                  onContextMenu={(e) => handleContextMenu(e, video)}
+                                >
+                                  <div className="aspect-video bg-gray-700 relative">
+                                    {video.thumbnail_path ? (
+                                      <img 
+                                        src={convertFileSrc(video.thumbnail_path)}
+                                        alt={video.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                      </div>
+                                    )}
+                                    {/* Watched indicator */}
+                                    {video.is_watched && (
+                                      <div className="absolute top-1 right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      </div>
+                                    )}
+                                    {/* Progress bar */}
+                                    {(video.watch_progress_seconds || 0) > 0 && !video.is_watched && (
+                                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
+                                        <div 
+                                          className="h-full bg-blue-500" 
+                                          style={{ width: `${((video.watch_progress_seconds || 0) / (video.duration_seconds || 1)) * 100}%` }}
+                                        ></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="p-2">
+                                    <p className="text-xs font-medium text-gray-300 truncate" title={video.title}>
+                                      {video.title}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1133,11 +1612,31 @@ function App() {
           ) : showSearchResults ? (
             <div>
               {isSearching ? (
-                <div className="flex items-center justify-center h-32">
+                <div className="flex flex-col items-center justify-center h-32 space-y-4">
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
-                    <span className="text-gray-400">Searching...</span>
+                    <span className="text-gray-400">Searching videos...</span>
                   </div>
+                  {searchProgress.total > 0 && (
+                    <div className="w-64 text-center">
+                      <div className="text-xs text-gray-500 mb-1">
+                        {searchProgress.current} / {searchProgress.total} files checked
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-1">
+                        <div 
+                          className="bg-blue-500 h-1 rounded-full transition-all duration-300" 
+                          style={{ 
+                            width: `${(searchProgress.current / searchProgress.total) * 100}%`
+                          }}
+                        ></div>
+                      </div>
+                      {searchProgress.currentFile && (
+                        <div className="text-xs text-gray-600 mt-1 truncate">
+                          {searchProgress.currentFile}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>
@@ -1592,7 +2091,41 @@ function App() {
               }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}
+              onEnded={() => {
+                setIsPlaying(false);
+                // Salva as configurações atuais
+                setSavedPlaybackSettings({
+                  speed: playbackSpeed,
+                  volume: volume,
+                  subtitlesEnabled: subtitlesEnabled
+                });
+                
+                // Procura o próximo vídeo
+                if (playingVideo) {
+                  const currentIndex = processedVideos.findIndex(v => v.file_path === playingVideo.file_path);
+                  if (currentIndex !== -1 && currentIndex < processedVideos.length - 1) {
+                    const next = processedVideos[currentIndex + 1];
+                    setNextVideo(next);
+                    setShowNextVideoPrompt(true);
+                    setNextVideoCountdown(10);
+                    
+                    // Inicia o countdown automático
+                    const countdownInterval = setInterval(() => {
+                      setNextVideoCountdown(prev => {
+                        if (prev <= 1) {
+                          clearInterval(countdownInterval);
+                          // Auto-play do próximo vídeo
+                          playNextVideo();
+                          return 0;
+                        }
+                        return prev - 1;
+                      });
+                    }, 1000);
+                    
+                    setNextVideoTimeout(countdownInterval);
+                  }
+                }
+              }}
               autoPlay
               preload="metadata"
             >
@@ -1762,6 +2295,67 @@ function App() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Próximo Vídeo */}
+      {showNextVideoPrompt && nextVideo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-200 mb-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Play Next Video?
+              </div>
+              {/* Countdown indicator */}
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-bold text-white">
+                  {nextVideoCountdown}
+                </div>
+              </div>
+            </h3>
+            <div className="mb-4">
+              <div className="flex items-start space-x-3">
+                {nextVideo.thumbnail_path && (
+                  <img 
+                    src={convertFileSrc(nextVideo.thumbnail_path)}
+                    alt={nextVideo.title}
+                    className="w-16 h-12 object-cover rounded bg-gray-700 flex-shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-200 truncate">
+                    {nextVideo.title}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Duration: {nextVideo.duration || '00:00'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Playing automatically in {nextVideoCountdown} seconds
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Settings preserved: {savedPlaybackSettings.speed}x speed, {Math.round(savedPlaybackSettings.volume * 100)}% volume, subtitles {savedPlaybackSettings.subtitlesEnabled ? 'on' : 'off'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={cancelNextVideo}
+                className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={playNextVideo}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+              >
+                Play Now
+              </button>
             </div>
           </div>
         </div>
