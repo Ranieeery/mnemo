@@ -1,8 +1,6 @@
 import {useEffect, useState} from "react";
-import {open} from "@tauri-apps/plugin-dialog";
 import {convertFileSrc, invoke} from "@tauri-apps/api/core";
 import {
-    debugVideosInFolder,
     getLibraryFolders,
     getLibraryFoldersWithPreviews,
     getRecentlyWatchedVideos,
@@ -12,15 +10,14 @@ import {
     initDatabase,
     markVideoAsUnwatched,
     markVideoAsWatched,
-    removeLibraryFolder,
     saveLibraryFolder,
     searchVideos,
     searchVideosRecursive,
     updateVideoDetails,
     updateWatchProgress
 } from "./database";
-import {checkVideoToolsAvailable, ProcessedVideo, processVideo} from "./services/videoProcessor";
-import {formatDuration, isVideoFile} from "./utils/videoUtils";
+import {checkVideoToolsAvailable, ProcessedVideo} from "./services/videoProcessor";
+import {formatDuration} from "./utils/videoUtils";
 import {Settings} from "./components/Settings";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
 import SearchProgressBar from "./components/Progress/SearchProgressBar";
@@ -30,6 +27,8 @@ import ConfirmRemovalModal from "./components/Modals/ConfirmRemovalModal";
 import NextVideoModal from "./components/Modals/NextVideoModal";
 import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
+import { useLibraryManagement } from "./hooks/useLibraryManagement";
+import { useVideoProcessing } from "./hooks/useVideoProcessing";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -54,7 +53,6 @@ function App() {
     const [directoryContents, setDirectoryContents] = useState<DirEntry[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [processedVideos, setProcessedVideos] = useState<ProcessedVideo[]>([]);
-    const [processingVideos, setProcessingVideos] = useState<boolean>(false);
     const [videoToolsAvailable, setVideoToolsAvailable] = useState<{
         ffmpeg: boolean;
         ffprobe: boolean
@@ -120,14 +118,6 @@ function App() {
     const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
-    // Estados para progresso de processamento de vídeos
-    const [processingProgress, setProcessingProgress] = useState<{
-        total: number;
-        processed: number;
-        currentFile: string;
-    }>({total: 0, processed: 0, currentFile: ""});
-    const [showProcessingProgress, setShowProcessingProgress] = useState<boolean>(false);
-
     // Estados para "próximo vídeo"
     const [showNextVideoPrompt, setShowNextVideoPrompt] = useState<boolean>(false);
     const [nextVideo, setNextVideo] = useState<ProcessedVideo | null>(null);
@@ -139,9 +129,37 @@ function App() {
     const [nextVideoTimeout, setNextVideoTimeout] = useState<number | null>(null);
     const [nextVideoCountdown, setNextVideoCountdown] = useState<number>(10);
 
-    // Estados para indexação de pastas
-    const [folderIndexingStatus, setFolderIndexingStatus] = useState<{ [key: string]: boolean }>({});
-    const [currentIndexingFolder, setCurrentIndexingFolder] = useState<string | null>(null);
+    // Função para carregar dados da página inicial
+    const loadHomePageData = async () => {
+        try {
+            const [recent, inProgress, suggestions, foldersWithPreviews] = await Promise.all([
+                getRecentlyWatchedVideos(8),
+                getVideosInProgress(8),
+                getUnwatchedVideos(16),
+                getLibraryFoldersWithPreviews()
+            ]);
+
+            setRecentVideos(recent);
+            setVideosInProgress(inProgress);
+            setSuggestedVideos(suggestions);
+            setLibraryFoldersWithPreviews(foldersWithPreviews);
+        } catch (error) {
+            console.error('Error loading home page data:', error);
+        }
+    };
+
+    // Hook para gerenciamento da biblioteca
+    const [libraryState, libraryActions] = useLibraryManagement({
+        videoToolsAvailable,
+        libraryFolders,
+        setLibraryFolders,
+        loadHomePageData
+    });
+
+    // Hook para processamento de vídeos
+    const [videoProcessingState, videoProcessingActions] = useVideoProcessing({
+        setProcessedVideos
+    });
 
     // Carregar pastas do banco de dados na inicialização
     useEffect(() => {
@@ -187,25 +205,6 @@ function App() {
 
         initializeApp();
     }, []);
-
-    // Função para carregar dados da página inicial
-    const loadHomePageData = async () => {
-        try {
-            const [recent, inProgress, suggestions, foldersWithPreviews] = await Promise.all([
-                getRecentlyWatchedVideos(8),
-                getVideosInProgress(8),
-                getUnwatchedVideos(16),
-                getLibraryFoldersWithPreviews()
-            ]);
-
-            setRecentVideos(recent);
-            setVideosInProgress(inProgress);
-            setSuggestedVideos(suggestions);
-            setLibraryFoldersWithPreviews(foldersWithPreviews);
-        } catch (error) {
-            console.error('Error loading home page data:', error);
-        }
-    };
 
     // Função para voltar à página inicial
     const goToHomePage = () => {
@@ -275,90 +274,6 @@ function App() {
     const canGoBack = historyIndex > -1;
     const canGoForward = historyIndex < navigationHistory.length - 1;
 
-    // Função para adicionar uma nova pasta
-    const handleAddFolder = async () => {
-        try {
-            const selectedPath = await open({
-                directory: true,
-                multiple: false,
-            });
-
-            if (selectedPath && typeof selectedPath === 'string' && !libraryFolders.includes(selectedPath)) {
-                await saveLibraryFolder(selectedPath);
-                const updatedFolders = await getLibraryFolders();
-                setLibraryFolders(updatedFolders);
-
-                // Inicia a indexação imediata da pasta
-                await indexFolderRecursively(selectedPath);
-
-                // Recarrega dados da página inicial
-                await loadHomePageData();
-            }
-        } catch (error) {
-            console.error('Error selecting folder:', error);
-        }
-    };
-
-    // Função para indexar uma pasta recursivamente
-    const indexFolderRecursively = async (folderPath: string) => {
-        if (!videoToolsAvailable.ffmpeg || !videoToolsAvailable.ffprobe) {
-            console.warn('Video tools not available. Skipping indexing.');
-            return;
-        }
-
-        setCurrentIndexingFolder(folderPath);
-        setFolderIndexingStatus(prev => ({...prev, [folderPath]: true}));
-        setShowProcessingProgress(true);
-        setProcessingProgress({total: 0, processed: 0, currentFile: ""});
-
-        try {
-            console.log(`Starting recursive indexing for: ${folderPath}`);
-
-            // Primeiro, conta quantos arquivos de vídeo existem recursivamente
-            const allFiles: any[] = await invoke('scan_directory_recursive', {path: folderPath});
-            const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
-
-            setProcessingProgress(prev => ({...prev, total: videoFiles.length}));
-
-            // Processa cada vídeo com callback de progresso
-            let processedCount = 0;
-
-            for (const videoFile of videoFiles) {
-                setProcessingProgress(prev => ({
-                    ...prev,
-                    processed: processedCount,
-                    currentFile: videoFile.name
-                }));
-
-                try {
-                    await processVideo(videoFile.path);
-                } catch (error) {
-                    console.error(`Failed to process video ${videoFile.path}:`, error);
-                }
-
-                processedCount++;
-            }
-
-            setProcessingProgress(prev => ({
-                ...prev,
-                processed: processedCount,
-                currentFile: ""
-            }));
-
-            console.log(`Recursive indexing completed for ${folderPath}. Processed ${processedCount} videos.`);
-        } catch (error) {
-            console.error('Error in recursive folder indexing:', error);
-        } finally {
-            setFolderIndexingStatus(prev => ({...prev, [folderPath]: false}));
-            setCurrentIndexingFolder(null);
-
-            // Mantém a barra de progresso visível por um momento
-            setTimeout(() => {
-                setShowProcessingProgress(false);
-            }, 2000);
-        }
-    };
-
     // Função para abrir modal de confirmação de remoção
     const handleRemoveFolderRequest = (folderPath: string) => {
         setFolderToRemove(folderPath);
@@ -369,36 +284,9 @@ function App() {
     const confirmRemoveFolder = async () => {
         if (!folderToRemove) return;
 
-        try {
-            // Debug: verificar vídeos antes da remoção
-            console.log(`=== BEFORE REMOVAL ===`);
-            await debugVideosInFolder(folderToRemove);
-
-            // Remover a pasta e todos os vídeos indexados
-            await removeLibraryFolder(folderToRemove);
-
-            // Debug: verificar se os vídeos foram removidos
-            console.log(`=== AFTER REMOVAL ===`);
-            await debugVideosInFolder(folderToRemove);
-
-            const updatedFolders = await getLibraryFolders();
-            setLibraryFolders(updatedFolders);
-
-            // Se a pasta removida estava selecionada, volta à página inicial
-            if (selectedFolder === folderToRemove) {
-                goToHomePage();
-            }
-
-            // Recarrega dados da página inicial
-            await loadHomePageData();
-
-            console.log(`Successfully removed folder: ${folderToRemove}`);
-        } catch (error) {
-            console.error('Error removing folder:', error);
-        } finally {
-            setShowRemoveConfirmation(false);
-            setFolderToRemove(null);
-        }
+        await libraryActions.confirmRemoveFolder(folderToRemove, selectedFolder, goToHomePage);
+        setShowRemoveConfirmation(false);
+        setFolderToRemove(null);
     };
 
     // Função para cancelar remoção
@@ -426,76 +314,13 @@ function App() {
 
             // Processa vídeos em segundo plano se as ferramentas estão disponíveis
             if (videoToolsAvailable.ffmpeg && videoToolsAvailable.ffprobe) {
-                processVideosInBackground(path);
+                videoProcessingActions.processVideosInBackground(path);
             }
         } catch (error) {
             console.error('Error loading directory contents:', error);
             setDirectoryContents([]);
         } finally {
             setLoading(false);
-        }
-    };
-
-    // Função para processar vídeos em segundo plano com progresso
-    const processVideosInBackground = async (directoryPath: string) => {
-        if (processingVideos) return; // Evita processamento simultâneo
-
-        setProcessingVideos(true);
-        setShowProcessingProgress(true);
-        setProcessingProgress({total: 0, processed: 0, currentFile: ""});
-
-        try {
-            console.log(`Starting background video processing for: ${directoryPath}`);
-
-            // Primeiro, conta quantos arquivos de vídeo existem
-            const allFiles: any[] = await invoke('scan_directory_recursive', {path: directoryPath});
-            const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
-
-            setProcessingProgress(prev => ({...prev, total: videoFiles.length}));
-
-            // Processa cada vídeo com callback de progresso
-            let processedCount = 0;
-            const processedVideos = [];
-
-            for (const videoFile of videoFiles) {
-                setProcessingProgress(prev => ({
-                    ...prev,
-                    processed: processedCount,
-                    currentFile: videoFile.name
-                }));
-
-                try {
-                    const processedVideo = await processVideo(videoFile.path);
-                    if (processedVideo) {
-                        processedVideos.push(processedVideo);
-                    }
-                } catch (error) {
-                    console.error(`Failed to process video ${videoFile.path}:`, error);
-                }
-
-                processedCount++;
-            }
-
-            setProcessingProgress(prev => ({
-                ...prev,
-                processed: processedCount,
-                currentFile: ""
-            }));
-
-            if (processedVideos.length > 0) {
-                // Atualiza a lista de vídeos processados com a nova ordenação
-                const updatedVideos = await getVideosInDirectoryOrderedByWatchStatus(directoryPath);
-                setProcessedVideos(updatedVideos);
-                console.log(`Background processing completed. Processed ${processedVideos.length} new videos.`);
-            }
-        } catch (error) {
-            console.error('Error in background video processing:', error);
-        } finally {
-            setProcessingVideos(false);
-            // Mantém a barra de progresso visível por um momento
-            setTimeout(() => {
-                setShowProcessingProgress(false);
-            }, 2000);
         }
     };
 
@@ -1201,8 +1026,8 @@ function App() {
             <Sidebar
                 libraryFolders={libraryFolders}
                 selectedFolder={selectedFolder}
-                folderIndexingStatus={folderIndexingStatus}
-                onAddFolder={handleAddFolder}
+                folderIndexingStatus={libraryState.folderIndexingStatus}
+                onAddFolder={libraryActions.handleAddFolder}
                 onSelectFolder={handleSelectFolder}
                 onRemoveFolderRequest={handleRemoveFolderRequest}
                 onGoToHomePage={goToHomePage}
@@ -1226,9 +1051,9 @@ function App() {
 
                 {/* Progress Bar for Video Processing */}
                 <ProcessingProgressBar
-                    show={showProcessingProgress}
-                    progress={processingProgress}
-                    currentIndexingFolder={currentIndexingFolder}
+                    show={libraryState.showProcessingProgress}
+                    progress={libraryState.processingProgress}
+                    currentIndexingFolder={libraryState.currentIndexingFolder}
                 />
 
                 {/* Progress Bar for Search */}
@@ -1388,7 +1213,7 @@ function App() {
                                         Mnemo will scan and organize your videos while preserving your folder structure.
                                     </p>
                                     <button
-                                        onClick={handleAddFolder}
+                                        onClick={libraryActions.handleAddFolder}
                                         className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
                                     >
                                         Add Your First Folder
@@ -1659,7 +1484,7 @@ function App() {
                                 Mnemo will scan and organize your videos while preserving your folder structure.
                             </p>
                             <button
-                                onClick={handleAddFolder}
+                                onClick={libraryActions.handleAddFolder}
                                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
                             >
                                 Add Your First Folder
@@ -1804,7 +1629,7 @@ function App() {
                                             </h3>
                                             <p className="text-sm text-gray-400">{currentPath}</p>
                                         </div>
-                                        {processingVideos && (
+                                        {videoProcessingState.processingVideos && (
                                             <div className="flex items-center space-x-2 text-sm text-blue-400">
                                                 <div
                                                     className="animate-spin w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
