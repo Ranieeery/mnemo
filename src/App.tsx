@@ -26,6 +26,7 @@ import {Settings} from "./components/Settings";
 import SearchBar from "./components/Search/SearchBar";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
 import SearchProgressBar from "./components/Progress/SearchProgressBar";
+import NavigationButtons from "./components/Navigation/NavigationButtons";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -1291,38 +1292,12 @@ function App() {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                             {/* Navigation Buttons */}
-                            <div className="flex items-center space-x-1">
-                                <button
-                                    onClick={goBack}
-                                    disabled={!canGoBack}
-                                    className={`p-2 rounded-md transition-colors ${
-                                        canGoBack
-                                            ? 'hover:bg-gray-700 text-gray-300 hover:text-white'
-                                            : 'text-gray-600 cursor-not-allowed'
-                                    }`}
-                                    title="Go back (Alt + ←)"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                              d="M15 19l-7-7 7-7"/>
-                                    </svg>
-                                </button>
-                                <button
-                                    onClick={goForward}
-                                    disabled={!canGoForward}
-                                    className={`p-2 rounded-md transition-colors ${
-                                        canGoForward
-                                            ? 'hover:bg-gray-700 text-gray-300 hover:text-white'
-                                            : 'text-gray-600 cursor-not-allowed'
-                                    }`}
-                                    title="Go forward (Alt + →)"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                              d="M9 5l7 7-7 7"/>
-                                    </svg>
-                                </button>
-                            </div>
+                            <NavigationButtons
+                                canGoBack={canGoBack}
+                                canGoForward={canGoForward}
+                                onGoBack={goBack}
+                                onGoForward={goForward}
+                            />
 
                             <h2 className="text-lg font-semibold">
                                 {selectedFolder || "Welcome to Mnemo"}
