@@ -1905,6 +1905,7 @@ function App() {
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                         {processedVideos
                           .sort((a, b) => naturalSort(a.title || a.file_path, b.title || b.file_path)) // Ordenação natural por título ou caminho
+                          .slice(0, 5) // Limita a 5 vídeos para exibição
                           .map((video, index) => (
                           <div
                             key={`${video.file_path}-${index}`}
@@ -1973,6 +1974,11 @@ function App() {
                           </div>
                         ))}
                       </div>
+                      {processedVideos.length > 5 && (
+                        <p className="text-sm text-gray-400 mt-2">
+                          Showing 5 of {processedVideos.length} videos
+                        </p>
+                      )}
                     </div>
                   )}
                   

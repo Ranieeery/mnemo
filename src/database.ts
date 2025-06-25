@@ -216,8 +216,10 @@ export async function getVideosInDirectory(directoryPath: string) {
 }
 
 // Função para obter vídeos de um diretório ordenados por progresso de visualização
-export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: string): Promise<ProcessedVideo[]> {
+export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: string, limit?: number): Promise<ProcessedVideo[]> {
   const database = await getDatabase();
+  
+  const limitClause = limit ? `LIMIT ${limit}` : '';
   
   const result = await database.select(`
     SELECT * FROM videos 
@@ -230,6 +232,7 @@ export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: st
       END,
       last_watched_at DESC NULLS LAST,
       title
+    ${limitClause}
   `, [`${directoryPath}%`]) as any[];
   
   return result.map(video => ({
@@ -574,7 +577,7 @@ export async function getVideosInProgress(limit: number = 10): Promise<Processed
 }
 
 // Obter vídeos não assistidos (sugestões)
-export async function getUnwatchedVideos(limit: number = 20): Promise<ProcessedVideo[]> {
+export async function getUnwatchedVideos(limit: number = 5): Promise<ProcessedVideo[]> {
   const database = await getDatabase();
   
   const result = await database.select(
