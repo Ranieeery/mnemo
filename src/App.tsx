@@ -15,6 +15,14 @@ import { processVideosInDirectory, checkVideoToolsAvailable, ProcessedVideo } fr
 import { formatDuration } from "./utils/videoUtils";
 import "./styles/player.css";
 
+// Função para ordenação natural (numérica) de strings
+const naturalSort = (a: string, b: string): number => {
+  return a.localeCompare(b, undefined, {
+    numeric: true,
+    sensitivity: 'base'
+  });
+};
+
 interface DirEntry {
   name: string;
   path: string;
@@ -740,7 +748,9 @@ function App() {
                     <div className="mb-6">
                       <h4 className="text-md font-medium text-gray-300 mb-3">Videos</h4>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                        {processedVideos.map((video, index) => (
+                        {processedVideos
+                          .sort((a, b) => naturalSort(a.title || a.file_path, b.title || b.file_path)) // Ordenação natural por título ou caminho
+                          .map((video, index) => (
                           <div
                             key={`${video.file_path}-${index}`}
                             className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer"
@@ -805,6 +815,7 @@ function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {directoryContents
                         .filter(item => item.is_dir || !item.is_video) // Mostra apenas pastas e arquivos não-vídeo
+                        .sort((a, b) => naturalSort(a.name, b.name)) // Ordenação natural (numérica)
                         .map((item, index) => (
                         <div
                           key={index}
