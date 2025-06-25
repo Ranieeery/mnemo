@@ -185,13 +185,113 @@ async fn generate_thumbnail(
     }
 }
 
+#[tauri::command]
+fn open_file_externally(file_path: String) -> Result<(), String> {
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err("File does not exist".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        match Command::new("cmd")
+            .args(["/C", "start", "", &file_path])
+            .spawn()
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to open file: {}", e)),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        match Command::new("open")
+            .arg(&file_path)
+            .spawn()
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to open file: {}", e)),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        match Command::new("xdg-open")
+            .arg(&file_path)
+            .spawn()
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to open file: {}", e)),
+        }
+    }
+}
+
+#[tauri::command]
+fn open_file_with_dialog(file_path: String) -> Result<(), String> {
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err("File does not exist".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Simple approach: use explorer to select the file, then user can right-click for "Open with"
+        match Command::new("explorer")
+            .args(["/select,", &file_path])
+            .spawn()
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to open file location: {}", e)),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // On macOS, show the file in Finder
+        match Command::new("open")
+            .args(["-R", &file_path])
+            .spawn()
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to show file in Finder: {}", e)),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux, try to show file in file manager
+        if Command::new("nautilus")
+            .args(["-s", &file_path])
+            .spawn()
+            .is_ok()
+        {
+            Ok(())
+        } else if Command::new("dolphin")
+            .args(["--select", &file_path])
+            .spawn()
+            .is_ok()
+        {
+            Ok(())
+        } else {
+            // Fallback to opening the directory
+            match Command::new("xdg-open")
+                .arg(path.parent().unwrap_or(path))
+                .spawn()
+            {
+                Ok(_) => Ok(()),
+                Err(e) => Err(format!("Failed to open file manager: {}", e)),
+            }
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![greet, read_directory, extract_video_metadata, generate_thumbnail])
+        .invoke_handler(tauri::generate_handler![greet, read_directory, extract_video_metadata, generate_thumbnail, open_file_externally, open_file_with_dialog])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -34,6 +34,12 @@ function App() {
   const [showVideoDetails, setShowVideoDetails] = useState<boolean>(false);
   const [editingTitle, setEditingTitle] = useState<string>("");
   const [editingDescription, setEditingDescription] = useState<string>("");
+  const [contextMenu, setContextMenu] = useState<{show: boolean; x: number; y: number; video: ProcessedVideo | null}>({
+    show: false,
+    x: 0,
+    y: 0,
+    video: null
+  });
 
   // Carregar pastas do banco de dados na inicialização
   useEffect(() => {
@@ -209,6 +215,65 @@ function App() {
     }
   };
 
+  // Funções para o menu de contexto
+  const handleContextMenu = (event: React.MouseEvent, video: ProcessedVideo) => {
+    event.preventDefault();
+    setContextMenu({
+      show: true,
+      x: event.clientX,
+      y: event.clientY,
+      video: video
+    });
+  };
+
+  const handleCloseContextMenu = () => {
+    setContextMenu({
+      show: false,
+      x: 0,
+      y: 0,
+      video: null
+    });
+  };
+
+  const handleOpenFile = async (filePath: string) => {
+    try {
+      await invoke('open_file_externally', { filePath });
+      handleCloseContextMenu();
+    } catch (error) {
+      console.error('Error opening file:', error);
+      alert('Error opening file. Please check if the file exists.');
+    }
+  };
+
+  const handleOpenWith = async (filePath: string) => {
+    try {
+      await invoke('open_file_with_dialog', { filePath });
+      handleCloseContextMenu();
+    } catch (error) {
+      console.error('Error opening file dialog:', error);
+      alert('Error opening file dialog.');
+    }
+  };
+
+  const handleOpenProperties = (video: ProcessedVideo) => {
+    handleCloseContextMenu();
+    handleOpenVideoDetails(video);
+  };
+
+  // Fechar menu de contexto ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu.show) {
+        handleCloseContextMenu();
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [contextMenu.show]);
+
   return (
     <div className="h-screen bg-gray-900 text-white flex">
       {/* Sidebar */}
@@ -341,6 +406,7 @@ function App() {
                             key={`${video.file_path}-${index}`}
                             className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer"
                             onClick={() => handleOpenVideoDetails(video)} // Abre detalhes do vídeo ao clicar
+                            onContextMenu={(e) => handleContextMenu(e, video)}
                           >
                             <div className="aspect-video bg-gray-700 relative">
                               {video.thumbnail_path ? (
@@ -556,6 +622,38 @@ function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Menu de contexto */}
+      {contextMenu.show && contextMenu.video && (
+        <div 
+          className="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-1"
+          style={{ 
+            left: `${contextMenu.x}px`, 
+            top: `${contextMenu.y}px`,
+            minWidth: '150px'
+          }}
+        >
+          <button
+            onClick={() => handleOpenFile(contextMenu.video!.file_path)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            🎬 Open
+          </button>
+          <button
+            onClick={() => handleOpenWith(contextMenu.video!.file_path)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            📁 Show in Explorer
+          </button>
+          <hr className="border-gray-600 my-1" />
+          <button
+            onClick={() => handleOpenProperties(contextMenu.video!)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            ⚙️ Properties
+          </button>
         </div>
       )}
     </div>
