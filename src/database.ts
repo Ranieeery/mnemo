@@ -898,3 +898,165 @@ export async function cleanupUnusedTags(): Promise<void> {
      )`
   );
 }
+
+// ====== FUNÇÕES DE IMPORTAÇÃO E EXPORTAÇÃO ======
+
+// Interface para exportação de dados
+export interface LibraryExport {
+  version: string;
+  exportDate: string;
+  videos: any[];
+  tags: any[];
+  videoTags: any[];
+  libraryFolders: any[];
+}
+
+// Exportar toda a biblioteca para JSON
+export async function exportLibraryData(): Promise<LibraryExport> {
+  const database = await getDatabase();
+  
+  try {
+    // Buscar todos os dados das tabelas
+    const videos = await database.select("SELECT * FROM videos ORDER BY id") as any[];
+    const tags = await database.select("SELECT * FROM tags ORDER BY id") as any[];
+    const videoTags = await database.select("SELECT * FROM video_tags ORDER BY id") as any[];
+    const libraryFolders = await database.select("SELECT * FROM library_folders ORDER BY id") as any[];
+    
+    const exportData: LibraryExport = {
+      version: "1.0.0",
+      exportDate: new Date().toISOString(),
+      videos,
+      tags,
+      videoTags,
+      libraryFolders
+    };
+    
+    console.log(`Library export completed: ${videos.length} videos, ${tags.length} tags, ${libraryFolders.length} folders`);
+    return exportData;
+  } catch (error) {
+    console.error("Error exporting library:", error);
+    throw error;
+  }
+}
+
+// Importar dados da biblioteca a partir de JSON
+export async function importLibraryData(importData: LibraryExport): Promise<void> {
+  const database = await getDatabase();
+  
+  try {
+    console.log("Starting library import...");
+    
+    // Verificar formato dos dados
+    if (!importData.version || !importData.videos || !importData.tags || !importData.videoTags || !importData.libraryFolders) {
+      throw new Error("Invalid import data format");
+    }
+    
+    // Limpar dados existentes (em ordem para respeitar foreign keys)
+    await database.execute("DELETE FROM video_tags");
+    await database.execute("DELETE FROM watch_history");
+    await database.execute("DELETE FROM videos");
+    await database.execute("DELETE FROM tags");
+    await database.execute("DELETE FROM library_folders");
+    
+    // Reset auto-increment counters
+    await database.execute("DELETE FROM sqlite_sequence WHERE name IN ('videos', 'tags', 'video_tags', 'library_folders', 'watch_history')");
+    
+    console.log("Existing data cleared");
+    
+    // Importar library_folders
+    for (const folder of importData.libraryFolders) {
+      await database.execute(
+        "INSERT INTO library_folders (id, path, created_at) VALUES (?, ?, ?)",
+        [folder.id, folder.path, folder.created_at]
+      );
+    }
+    console.log(`Imported ${importData.libraryFolders.length} library folders`);
+    
+    // Importar tags
+    for (const tag of importData.tags) {
+      await database.execute(
+        "INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)",
+        [tag.id, tag.name, tag.created_at]
+      );
+    }
+    console.log(`Imported ${importData.tags.length} tags`);
+    
+    // Importar videos
+    for (const video of importData.videos) {
+      await database.execute(
+        `INSERT INTO videos (id, file_path, title, description, duration_seconds, thumbnail_path, 
+         is_watched, watch_progress_seconds, last_watched_at, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          video.id, 
+          video.file_path, 
+          video.title, 
+          video.description, 
+          video.duration_seconds, 
+          video.thumbnail_path,
+          video.is_watched || false,
+          video.watch_progress_seconds || 0,
+          video.last_watched_at,
+          video.created_at, 
+          video.updated_at
+        ]
+      );
+    }
+    console.log(`Imported ${importData.videos.length} videos`);
+    
+    // Importar video_tags
+    for (const videoTag of importData.videoTags) {
+      await database.execute(
+        "INSERT INTO video_tags (id, video_id, tag_id, created_at) VALUES (?, ?, ?, ?)",
+        [videoTag.id, videoTag.video_id, videoTag.tag_id, videoTag.created_at]
+      );
+    }
+    console.log(`Imported ${importData.videoTags.length} video-tag relationships`);
+    
+    console.log("Library import completed successfully");
+  } catch (error) {
+    console.error("Error importing library:", error);
+    throw error;
+  }
+}
+
+// Obter estatísticas da biblioteca para exibição
+export async function getLibraryStats(): Promise<{
+  totalVideos: number;
+  totalTags: number;
+  totalFolders: number;
+  watchedVideos: number;
+  totalDuration: number;
+}> {
+  const database = await getDatabase();
+  
+  try {
+    const videoStats = await database.select(
+      `SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN is_watched = TRUE THEN 1 END) as watched,
+        COALESCE(SUM(duration_seconds), 0) as total_duration
+       FROM videos`
+    ) as any[];
+    
+    const tagStats = await database.select("SELECT COUNT(*) as total FROM tags") as any[];
+    const folderStats = await database.select("SELECT COUNT(*) as total FROM library_folders") as any[];
+    
+    return {
+      totalVideos: videoStats[0].total || 0,
+      totalTags: tagStats[0].total || 0,
+      totalFolders: folderStats[0].total || 0,
+      watchedVideos: videoStats[0].watched || 0,
+      totalDuration: videoStats[0].total_duration || 0
+    };
+  } catch (error) {
+    console.error("Error getting library stats:", error);
+    return {
+      totalVideos: 0,
+      totalTags: 0,
+      totalFolders: 0,
+      watchedVideos: 0,
+      totalDuration: 0
+    };
+  }
+}

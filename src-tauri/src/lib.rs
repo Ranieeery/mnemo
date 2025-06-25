@@ -368,6 +368,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![greet, read_directory, scan_directory_recursive, extract_video_metadata, generate_thumbnail, open_file_externally, open_file_with_dialog, file_exists, read_subtitle_file])
         .run(tauri::generate_context!())

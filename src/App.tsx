@@ -24,6 +24,7 @@ import {
 import { checkVideoToolsAvailable, ProcessedVideo, processVideo } from "./services/videoProcessor";
 import { formatDuration, isVideoFile } from "./utils/videoUtils";
 import { VideoTagsManager } from "./components/VideoTagsManager";
+import { Settings } from "./components/Settings";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -95,6 +96,9 @@ function App() {
   // Estados para modal de confirmação de remoção
   const [showRemoveConfirmation, setShowRemoveConfirmation] = useState<boolean>(false);
   const [folderToRemove, setFolderToRemove] = useState<string | null>(null);
+  
+  // Estados para configurações
+  const [showSettings, setShowSettings] = useState<boolean>(false);
   
   // Estados para histórico de navegação
   const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
@@ -670,6 +674,42 @@ function App() {
     }
   };
 
+  // Função para abrir configurações
+  const handleOpenSettings = () => {
+    setShowSettings(true);
+  };
+
+  // Função para fechar configurações
+  const handleCloseSettings = () => {
+    setShowSettings(false);
+  };
+
+  // Função chamada após importação de biblioteca (para recarregar dados)
+  const handleLibraryChanged = async () => {
+    // Recarregar pastas da biblioteca
+    const updatedFolders = await getLibraryFolders();
+    setLibraryFolders(updatedFolders);
+    
+    // Recarregar dados da página inicial
+    if (showHomePage) {
+      await loadHomePageData();
+    }
+    
+    // Se estiver em uma pasta, recarregar seus vídeos
+    if (selectedFolder) {
+      setProcessedVideos([]);
+      const existingVideos = await getVideosInDirectoryOrderedByWatchStatus(selectedFolder);
+      setProcessedVideos(existingVideos);
+    }
+    
+    // Limpar busca se estiver ativa
+    if (searchTerm) {
+      setSearchTerm("");
+      setSearchResults([]);
+      setShowSearchResults(false);
+    }
+  };
+
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
     const video = document.querySelector('video') as HTMLVideoElement;
@@ -1159,9 +1199,15 @@ function App() {
             </button>
             <button 
               onClick={handleDebugDatabase}
-              className="w-full px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+              className="w-full px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors mb-2"
             >
               🔍 Debug Database
+            </button>
+            <button 
+              onClick={handleOpenSettings}
+              className="w-full px-3 py-2 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors"
+            >
+              ⚙️ Settings
             </button>
           </div>
 
@@ -2555,6 +2601,14 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <Settings 
+          onClose={handleCloseSettings}
+          onLibraryChanged={handleLibraryChanged}
+        />
       )}
     </div>
   );
