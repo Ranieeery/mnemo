@@ -25,6 +25,7 @@ import {VideoTagsManager} from "./components/VideoTagsManager";
 import {Settings} from "./components/Settings";
 import SearchBar from "./components/Search/SearchBar";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
+import SearchProgressBar from "./components/Progress/SearchProgressBar";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -1346,29 +1347,10 @@ function App() {
                 />
 
                 {/* Progress Bar for Search */}
-                {isSearching && searchProgress.total > 0 && (
-                    <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
-                        <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
-                            <span>Searching videos...</span>
-                            <span>{searchProgress.current} / {searchProgress.total}</span>
-                        </div>
-                        <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div
-                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                style={{
-                                    width: searchProgress.total > 0
-                                        ? `${(searchProgress.current / searchProgress.total) * 100}%`
-                                        : '0%'
-                                }}
-                            ></div>
-                        </div>
-                        {searchProgress.currentFile && (
-                            <div className="text-xs text-gray-500 mt-1 truncate">
-                                Checking: {searchProgress.currentFile}
-                            </div>
-                        )}
-                    </div>
-                )}
+                <SearchProgressBar
+                    show={isSearching}
+                    progress={searchProgress}
+                />
 
                 {/* Content Area */}
                 <div className="flex-1 p-6 overflow-auto">
