@@ -1,0 +1,197 @@
+use std::fs;
+use std::path::Path;
+use std::process::Command;
+use serde_json;
+
+// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+#[tauri::command]
+fn greet(name: &str) -> String {
+    format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[derive(serde::Serialize)]
+struct DirEntry {
+    name: String,
+    path: String,
+    is_dir: bool,
+    is_video: bool,
+}
+
+#[tauri::command]
+fn read_directory(path: String) -> Result<Vec<DirEntry>, String> {
+    let dir_path = Path::new(&path);
+    if !dir_path.exists() || !dir_path.is_dir() {
+        return Err("Directory does not exist".to_string());
+    }
+
+    let mut entries = Vec::new();
+    
+    match fs::read_dir(dir_path) {
+        Ok(dir_entries) => {
+            for entry in dir_entries {
+                match entry {
+                    Ok(entry) => {
+                        let entry_path = entry.path();
+                        let name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        let full_path = entry_path.to_string_lossy().to_string();
+                        let is_dir = entry_path.is_dir();
+                        
+                        // Check if it's a video file
+                        let is_video = if !is_dir {
+                            let extension = entry_path.extension()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_lowercase();
+                            matches!(extension.as_str(), "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "3gp")
+                        } else {
+                            false
+                        };
+                        
+                        entries.push(DirEntry {
+                            name,
+                            path: full_path,
+                            is_dir,
+                            is_video,
+                        });
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+        Err(e) => return Err(format!("Failed to read directory: {}", e)),
+    }
+
+    // Sort entries: directories first, then files
+    entries.sort_by(|a, b| {
+        match (a.is_dir, b.is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        }
+    });
+
+    Ok(entries)
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct VideoMetadata {
+    duration: f64,
+    width: i32,
+    height: i32,
+    bitrate: Option<i64>,
+    codec: Option<String>,
+    file_size: u64,
+}
+
+#[tauri::command]
+async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, String> {
+    // Verifica se o arquivo existe
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err("File does not exist".to_string());
+    }
+
+    // Executa ffprobe para extrair metadados
+    let output = Command::new("ffprobe")
+        .args(&[
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            "-show_streams",
+            &file_path
+        ])
+        .output();
+
+    match output {
+        Ok(output) => {
+            if !output.status.success() {
+                return Err(format!("FFprobe failed: {}", String::from_utf8_lossy(&output.stderr)));
+            }
+
+            let json_str = String::from_utf8_lossy(&output.stdout);
+            let parsed: serde_json::Value = serde_json::from_str(&json_str)
+                .map_err(|e| format!("Failed to parse FFprobe output: {}", e))?;
+
+            // Extrai informações do primeiro stream de vídeo
+            let streams = parsed["streams"].as_array()
+                .ok_or("No streams found")?;
+
+            let video_stream = streams.iter()
+                .find(|s| s["codec_type"].as_str() == Some("video"))
+                .ok_or("No video stream found")?;
+
+            let duration = parsed["format"]["duration"].as_str()
+                .and_then(|d| d.parse::<f64>().ok())
+                .unwrap_or(0.0);
+
+            let width = video_stream["width"].as_i64().unwrap_or(0) as i32;
+            let height = video_stream["height"].as_i64().unwrap_or(0) as i32;
+            let bitrate = parsed["format"]["bit_rate"].as_str()
+                .and_then(|b| b.parse::<i64>().ok());
+            let codec = video_stream["codec_name"].as_str().map(|s| s.to_string());
+
+            // Obtém o tamanho do arquivo
+            let file_size = path.metadata()
+                .map_err(|e| format!("Failed to get file size: {}", e))?
+                .len();
+
+            Ok(VideoMetadata {
+                duration,
+                width,
+                height,
+                bitrate,
+                codec,
+                file_size,
+            })
+        }
+        Err(e) => Err(format!("Failed to execute ffprobe: {}", e)),
+    }
+}
+
+#[tauri::command]
+async fn generate_thumbnail(
+    video_path: String, 
+    output_path: String, 
+    timestamp: Option<f64>
+) -> Result<String, String> {
+    let timestamp_str = timestamp.unwrap_or(10.0).to_string();
+    
+    // Cria o diretório de saída se não existir
+    if let Some(parent) = Path::new(&output_path).parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create thumbnail directory: {}", e))?;
+    }
+
+    let output = Command::new("ffmpeg")
+        .args(&[
+            "-i", &video_path,
+            "-ss", &timestamp_str,
+            "-vframes", "1",
+            "-y", // Sobrescreve arquivo existente
+            "-vf", "scale=320:240:force_original_aspect_ratio=decrease,pad=320:240:(ow-iw)/2:(oh-ih)/2",
+            &output_path
+        ])
+        .output();
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                Ok(output_path)
+            } else {
+                Err(format!("FFmpeg failed: {}", String::from_utf8_lossy(&output.stderr)))
+            }
+        }
+        Err(e) => Err(format!("Failed to execute ffmpeg: {}", e)),
+    }
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_sql::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![greet, read_directory, extract_video_metadata, generate_thumbnail])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
