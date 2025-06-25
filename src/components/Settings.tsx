@@ -6,7 +6,12 @@ import {
   importLibraryData, 
   getLibraryStats, 
   LibraryExport,
-  resetAllVideosAsUnwatched
+  resetAllVideosAsUnwatched,
+  debugDatabaseInfo,
+  debugOrphanedVideos,
+  cleanOrphanedVideos,
+  getCorrectedLibraryStats,
+  getAllLibraryFoldersDebug
 } from "../database";
 import { formatDuration } from "../utils/videoUtils";
 
@@ -36,6 +41,7 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
   const [showImportConfirm, setShowImportConfirm] = useState(false);
   const [importFile, setImportFile] = useState<string | null>(null);
   const [isResettingWatched, setIsResettingWatched] = useState(false);
+  const [isDebugging, setIsDebugging] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -162,6 +168,53 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
       alert(`Reset failed: ${error}`);
     } finally {
       setIsResettingWatched(false);
+    }
+  };
+
+  // Função de debug para inspecionar o banco de dados
+  const handleDebugDatabase = async () => {
+    setIsDebugging(true);
+    try {
+      await debugDatabaseInfo();
+      await getAllLibraryFoldersDebug();
+      
+      // Debug de vídeos órfãos
+      const orphanedVideos = await debugOrphanedVideos();
+      
+      // Obter estatísticas corrigidas
+      const correctedStats = await getCorrectedLibraryStats();
+      console.log(`=== CORRECTED LIBRARY STATS ===`);
+      console.log(`Total Videos (valid): ${correctedStats.totalVideos}`);
+      console.log(`Total Duration (valid): ${correctedStats.totalDuration} seconds`);
+      console.log(`Watched Videos (valid): ${correctedStats.watchedVideos}`);
+      console.log(`Orphaned Videos: ${correctedStats.orphanedVideos}`);
+      console.log(`Total Tags: ${correctedStats.totalTags}`);
+      console.log(`Total Folders: ${correctedStats.totalFolders}`);
+      
+      let message = "Database info logged to console. Check the browser's developer tools.";
+      
+      if (orphanedVideos.length > 0) {
+        message += `\n\nFound ${orphanedVideos.length} orphaned videos. Would you like to clean them?`;
+        const shouldClean = confirm(message);
+        
+        if (shouldClean) {
+          const cleanedCount = await cleanOrphanedVideos();
+          alert(`Cleaned ${cleanedCount} orphaned videos. Statistics will be refreshed.`);
+          
+          // Recarregar estatísticas
+          await loadStats();
+          
+          // Notificar componente pai sobre mudanças
+          onLibraryChanged();
+        }
+      } else {
+        alert(message);
+      }
+    } catch (error) {
+      console.error('Error debugging database:', error);
+      alert("Error debugging database. Check the console for details.");
+    } finally {
+      setIsDebugging(false);
     }
   };
 
@@ -313,6 +366,38 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     <span>Reset All</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Debug Database */}
+            <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+              <div>
+                <h4 className="font-medium text-gray-200">Debug Database</h4>
+                <p className="text-sm text-gray-400">
+                  Inspect database info and clean orphaned videos
+                </p>
+              </div>
+              <button
+                onClick={handleDebugDatabase}
+                disabled={isDebugging}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white rounded-md transition-colors flex items-center space-x-2"
+              >
+                {isDebugging ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Debugging...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span>Debug</span>
                   </>
                 )}
               </button>

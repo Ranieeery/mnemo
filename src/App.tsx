@@ -7,8 +7,7 @@ import {
   getLibraryFolders, 
   saveLibraryFolder,
   removeLibraryFolder,
-  debugDatabaseInfo,
-  getAllLibraryFoldersDebug,
+  debugVideosInFolder,
   getVideosInDirectoryOrderedByWatchStatus,
   updateVideoDetails,
   searchVideos,
@@ -354,7 +353,17 @@ function App() {
     if (!folderToRemove) return;
     
     try {
+      // Debug: verificar vídeos antes da remoção
+      console.log(`=== BEFORE REMOVAL ===`);
+      await debugVideosInFolder(folderToRemove);
+      
+      // Remover a pasta e todos os vídeos indexados
       await removeLibraryFolder(folderToRemove);
+      
+      // Debug: verificar se os vídeos foram removidos
+      console.log(`=== AFTER REMOVAL ===`);
+      await debugVideosInFolder(folderToRemove);
+      
       const updatedFolders = await getLibraryFolders();
       setLibraryFolders(updatedFolders);
       
@@ -365,6 +374,8 @@ function App() {
       
       // Recarrega dados da página inicial
       await loadHomePageData();
+      
+      console.log(`Successfully removed folder: ${folderToRemove}`);
     } catch (error) {
       console.error('Error removing folder:', error);
     } finally {
@@ -474,18 +485,6 @@ function App() {
   // Função para navegar para um diretório
   const navigateToDirectory = (path: string) => {
     navigateToFolder(path);
-  };
-
-  // Função de debug para inspecionar o banco de dados
-  const handleDebugDatabase = async () => {
-    try {
-      await debugDatabaseInfo();
-      await getAllLibraryFoldersDebug();
-      alert("Database info logged to console. Check the browser's developer tools.");
-    } catch (error) {
-      console.error('Error debugging database:', error);
-      alert("Error debugging database. Check the console for details.");
-    }
   };
 
   // Função para abrir o modal de detalhes do vídeo
@@ -1196,12 +1195,6 @@ function App() {
               className="w-full px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors mb-2"
             >
               + Add Folder
-            </button>
-            <button 
-              onClick={handleDebugDatabase}
-              className="w-full px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors mb-2"
-            >
-              🔍 Debug Database
             </button>
             <button 
               onClick={handleOpenSettings}
@@ -2568,7 +2561,7 @@ function App() {
                   {folderToRemove}
                 </p>
               </div>
-              <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-3">
+              <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-3 mb-3">
                 <div className="flex items-start space-x-2">
                   <svg className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L2.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -2576,9 +2569,23 @@ function App() {
                   <div className="text-sm">
                     <p className="text-yellow-200 font-medium mb-1">Important:</p>
                     <p className="text-yellow-300">
-                      This will only remove the folder from your Mnemo library. 
                       Your video files will remain untouched on your computer.
                     </p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-3">
+                <div className="flex items-start space-x-2">
+                  <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <div className="text-sm">
+                    <p className="text-red-200 font-medium mb-1">This action will:</p>
+                    <ul className="text-red-300 space-y-1">
+                      <li>• Remove all indexed videos from this folder</li>
+                      <li>• Delete watch progress and tags for these videos</li>
+                      <li>• Remove videos from home page and statistics</li>
+                    </ul>
                   </div>
                 </div>
               </div>

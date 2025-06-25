@@ -680,10 +680,62 @@ export async function getLibraryFolders(): Promise<string[]> {
 export async function removeLibraryFolder(folderPath: string) {
   const database = await getDatabase();
   
+  // Primeiro, remover todos os vídeos que estão dentro desta pasta
+  await removeVideosFromFolder(folderPath);
+  
+  // Depois, remover a pasta da biblioteca
   await database.execute(
     "DELETE FROM library_folders WHERE path = $1",
     [folderPath]
   );
+}
+
+// Função para remover todos os vídeos de uma pasta específica
+export async function removeVideosFromFolder(folderPath: string) {
+  const database = await getDatabase();
+  
+  // Normalizar o caminho da pasta para garantir consistência
+  const normalizedFolderPath = folderPath.replace(/\\/g, '/');
+  
+  // Primeiro, obter todos os IDs dos vídeos que serão removidos
+  const videosToRemove = await database.select(
+    "SELECT id FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1",
+    [`${normalizedFolderPath}/%`]
+  ) as any[];
+  
+  const videoIds = videosToRemove.map((row: any) => row.id);
+  
+  if (videoIds.length === 0) {
+    console.log(`No videos found in folder: ${folderPath}`);
+    return;
+  }
+  
+  console.log(`Removing ${videoIds.length} videos from folder: ${folderPath}`);
+  
+  // Criar placeholders para a query IN
+  const placeholders = videoIds.map(() => '?').join(',');
+  
+  // Remover dados relacionados aos vídeos em todas as tabelas
+  
+  // 1. Remover tags dos vídeos
+  await database.execute(
+    `DELETE FROM video_tags WHERE video_id IN (${placeholders})`,
+    videoIds
+  );
+  
+  // 2. Remover histórico de visualização
+  await database.execute(
+    `DELETE FROM watch_history WHERE video_id IN (${placeholders})`,
+    videoIds
+  );
+  
+  // 3. Remover os vídeos da tabela principal
+  await database.execute(
+    `DELETE FROM videos WHERE id IN (${placeholders})`,
+    videoIds
+  );
+  
+  console.log(`Successfully removed ${videoIds.length} videos and their related data from folder: ${folderPath}`);
 }
 
 // Funções de debug para inspecionar o banco de dados
@@ -1032,12 +1084,17 @@ export async function getLibraryStats(): Promise<{
   const database = await getDatabase();
   
   try {
+    // Obter todos os vídeos e filtrar apenas os que pertencem a pastas válidas
     const videoStats = await database.select(
       `SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN is_watched = TRUE THEN 1 END) as watched,
-        COALESCE(SUM(duration_seconds), 0) as total_duration
-       FROM videos`
+        COUNT(v.id) as total,
+        COUNT(CASE WHEN v.is_watched = TRUE THEN 1 END) as watched,
+        COALESCE(SUM(v.duration_seconds), 0) as total_duration
+       FROM videos v
+       WHERE EXISTS (
+         SELECT 1 FROM library_folders lf 
+         WHERE REPLACE(v.file_path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
+       )`
     ) as any[];
     
     const tagStats = await database.select("SELECT COUNT(*) as total FROM tags") as any[];
@@ -1078,5 +1135,155 @@ export async function resetAllVideosAsUnwatched(): Promise<void> {
   } catch (error) {
     console.error("Error resetting videos as unwatched:", error);
     throw error;
+  }
+}
+
+// Função para debuggar vídeos em uma pasta específica
+export async function debugVideosInFolder(folderPath: string) {
+  const database = await getDatabase();
+  
+  const normalizedFolderPath = folderPath.replace(/\\/g, '/');
+  
+  const videos = await database.select(
+    "SELECT id, title, file_path FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1",
+    [`${normalizedFolderPath}/%`]
+  ) as any[];
+  
+  console.log(`=== VIDEOS IN FOLDER: ${folderPath} ===`);
+  console.log(`Found ${videos.length} videos:`);
+  videos.forEach((video: any) => {
+    console.log(`- ID: ${video.id}, Title: ${video.title}, Path: ${video.file_path}`);
+  });
+  
+  return videos;
+}
+
+// Função para debuggar vídeos órfãos (vídeos cujas pastas foram removidas)
+export async function debugOrphanedVideos() {
+  const database = await getDatabase();
+  
+  const orphanedVideos = await database.select(
+    `SELECT v.id, v.title, v.file_path, v.duration_seconds, v.is_watched
+     FROM videos v
+     LEFT JOIN library_folders lf ON (
+       REPLACE(v.file_path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
+     )
+     WHERE lf.path IS NULL`
+  ) as any[];
+  
+  console.log(`=== ORPHANED VIDEOS ===`);
+  console.log(`Found ${orphanedVideos.length} orphaned videos (videos whose folders were removed):`);
+  orphanedVideos.forEach((video: any) => {
+    console.log(`- ID: ${video.id}, Title: ${video.title}, Path: ${video.file_path}`);
+  });
+  
+  return orphanedVideos;
+}
+
+// Função para limpar vídeos órfãos
+export async function cleanOrphanedVideos() {
+  const database = await getDatabase();
+  
+  // Primeiro, obter todos os vídeos órfãos
+  const orphanedVideos = await database.select(
+    `SELECT v.id
+     FROM videos v
+     LEFT JOIN library_folders lf ON (
+       REPLACE(v.file_path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
+     )
+     WHERE lf.path IS NULL`
+  ) as any[];
+  
+  const videoIds = orphanedVideos.map((row: any) => row.id);
+  
+  if (videoIds.length === 0) {
+    console.log(`No orphaned videos found.`);
+    return 0;
+  }
+  
+  console.log(`Cleaning ${videoIds.length} orphaned videos...`);
+  
+  // Criar placeholders para a query IN
+  const placeholders = videoIds.map(() => '?').join(',');
+  
+  // Remover dados relacionados aos vídeos órfãos
+  
+  // 1. Remover tags dos vídeos
+  await database.execute(
+    `DELETE FROM video_tags WHERE video_id IN (${placeholders})`,
+    videoIds
+  );
+  
+  // 2. Remover progresso de visualização
+  await database.execute(
+    `DELETE FROM video_progress WHERE video_id IN (${placeholders})`,
+    videoIds
+  );
+  
+  // 3. Remover os vídeos da tabela principal
+  await database.execute(
+    `DELETE FROM videos WHERE id IN (${placeholders})`,
+    videoIds
+  );
+  
+  console.log(`Successfully cleaned ${videoIds.length} orphaned videos.`);
+  return videoIds.length;
+}
+
+// Função para obter estatísticas corrigidas (apenas vídeos de pastas válidas)
+export async function getCorrectedLibraryStats(): Promise<{
+  totalVideos: number;
+  totalTags: number;
+  totalFolders: number;
+  watchedVideos: number;
+  totalDuration: number;
+  orphanedVideos: number;
+}> {
+  const database = await getDatabase();
+  
+  try {
+    // Estatísticas apenas de vídeos cujas pastas ainda estão na biblioteca
+    const videoStats = await database.select(
+      `SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN v.is_watched = TRUE THEN 1 END) as watched,
+        COALESCE(SUM(v.duration_seconds), 0) as total_duration
+       FROM videos v
+       INNER JOIN library_folders lf ON (
+         REPLACE(v.path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
+       )`
+    ) as any[];
+    
+    // Contar vídeos órfãos
+    const orphanedStats = await database.select(
+      `SELECT COUNT(*) as total
+       FROM videos v
+       LEFT JOIN library_folders lf ON (
+         REPLACE(v.path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
+       )
+       WHERE lf.path IS NULL`
+    ) as any[];
+    
+    const tagStats = await database.select("SELECT COUNT(*) as total FROM tags") as any[];
+    const folderStats = await database.select("SELECT COUNT(*) as total FROM library_folders") as any[];
+    
+    return {
+      totalVideos: videoStats[0].total || 0,
+      totalTags: tagStats[0].total || 0,
+      totalFolders: folderStats[0].total || 0,
+      watchedVideos: videoStats[0].watched || 0,
+      totalDuration: videoStats[0].total_duration || 0,
+      orphanedVideos: orphanedStats[0].total || 0
+    };
+  } catch (error) {
+    console.error("Error getting corrected library stats:", error);
+    return {
+      totalVideos: 0,
+      totalTags: 0,
+      totalFolders: 0,
+      watchedVideos: 0,
+      totalDuration: 0,
+      orphanedVideos: 0
+    };
   }
 }
