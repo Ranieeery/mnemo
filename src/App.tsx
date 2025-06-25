@@ -40,6 +40,10 @@ function App() {
     y: 0,
     video: null
   });
+  const [showVideoPlayer, setShowVideoPlayer] = useState<boolean>(false);
+  const [playingVideo, setPlayingVideo] = useState<ProcessedVideo | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   // Carregar pastas do banco de dados na inicialização
   useEffect(() => {
@@ -274,6 +278,80 @@ function App() {
     };
   }, [contextMenu.show]);
 
+  // Funções do player de vídeo interno
+  const handlePlayVideo = (video: ProcessedVideo) => {
+    setPlayingVideo(video);
+    setShowVideoPlayer(true);
+    setPlaybackSpeed(1);
+  };
+
+  const handleCloseVideoPlayer = () => {
+    setShowVideoPlayer(false);
+    setPlayingVideo(null);
+    setIsFullscreen(false);
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+  };
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  };
+
+  // Controles de teclado para o player
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (!showVideoPlayer) return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          const video = document.querySelector('video') as HTMLVideoElement;
+          if (video) {
+            if (video.paused) {
+              video.play();
+            } else {
+              video.pause();
+            }
+          }
+          break;
+        case 'Escape':
+          if (isFullscreen) {
+            setIsFullscreen(false);
+          } else {
+            handleCloseVideoPlayer();
+          }
+          break;
+        case 'KeyF':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          const videoLeft = document.querySelector('video') as HTMLVideoElement;
+          if (videoLeft) {
+            videoLeft.currentTime = Math.max(0, videoLeft.currentTime - 10);
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          const videoRight = document.querySelector('video') as HTMLVideoElement;
+          if (videoRight) {
+            videoRight.currentTime = Math.min(videoRight.duration, videoRight.currentTime + 10);
+          }
+          break;
+      }
+    };
+
+    if (showVideoPlayer) {
+      document.addEventListener('keydown', handleKeyPress);
+      return () => {
+        document.removeEventListener('keydown', handleKeyPress);
+      };
+    }
+  }, [showVideoPlayer, isFullscreen]);
+
   return (
     <div className="h-screen bg-gray-900 text-white flex">
       {/* Sidebar */}
@@ -405,7 +483,7 @@ function App() {
                           <div
                             key={`${video.file_path}-${index}`}
                             className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer"
-                            onClick={() => handleOpenVideoDetails(video)} // Abre detalhes do vídeo ao clicar
+                            onClick={() => handlePlayVideo(video)} // Abre player interno ao clicar
                             onContextMenu={(e) => handleContextMenu(e, video)}
                           >
                             <div className="aspect-video bg-gray-700 relative">
@@ -636,10 +714,16 @@ function App() {
           }}
         >
           <button
+            onClick={() => handlePlayVideo(contextMenu.video!)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            ▶️ Play in Internal Player
+          </button>
+          <button
             onClick={() => handleOpenFile(contextMenu.video!.file_path)}
             className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
           >
-            🎬 Open
+            🎬 Open External
           </button>
           <button
             onClick={() => handleOpenWith(contextMenu.video!.file_path)}
@@ -654,6 +738,117 @@ function App() {
           >
             ⚙️ Properties
           </button>
+        </div>
+      )}
+
+      {/* Player de Vídeo Interno Avançado */}
+      {showVideoPlayer && playingVideo && (
+        <div className={`fixed inset-0 bg-black z-50 flex flex-col ${isFullscreen ? 'z-[100]' : ''}`}>
+          {/* Header do Player */}
+          <div className="bg-gray-900 bg-opacity-90 p-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleCloseVideoPlayer}
+                className="text-white hover:text-gray-300 transition-colors"
+                title="Close Player (Esc)"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <div>
+                <h3 className="text-white font-semibold text-lg">{playingVideo.title}</h3>
+                <p className="text-gray-300 text-sm">
+                  {playingVideo.duration_seconds && formatDuration(playingVideo.duration_seconds)}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {/* Controle de Velocidade */}
+              <div className="flex items-center space-x-2">
+                <span className="text-white text-sm">Speed:</span>
+                <select
+                  value={playbackSpeed}
+                  onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                  className="bg-gray-700 text-white px-2 py-1 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={0.5}>0.5x</option>
+                  <option value={0.75}>0.75x</option>
+                  <option value={1}>1x</option>
+                  <option value={1.25}>1.25x</option>
+                  <option value={1.5}>1.5x</option>
+                  <option value={2}>2x</option>
+                </select>
+              </div>
+
+              {/* Botão Tela Cheia */}
+              <button
+                onClick={toggleFullscreen}
+                className="text-white hover:text-gray-300 transition-colors"
+                title="Toggle Fullscreen (F)"
+              >
+                {isFullscreen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.5 3.5M15 9h4.5M15 9V4.5M15 9l5.5-5.5M9 15v4.5M9 15H4.5M9 15l-5.5 5.5M15 15h4.5M15 15v4.5m0-4.5l5.5 5.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Player de Vídeo */}
+          <div className="flex-1 flex items-center justify-center bg-black">
+            <video
+              src={convertFileSrc(playingVideo.file_path)}
+              controls
+              autoPlay
+              className="max-w-full max-h-full"
+              style={{ 
+                width: isFullscreen ? '100vw' : 'auto',
+                height: isFullscreen ? '100vh' : 'auto'
+              }}
+              onLoadedData={(e) => {
+                const video = e.currentTarget;
+                video.playbackRate = playbackSpeed;
+              }}
+              onRateChange={(e) => {
+                const video = e.currentTarget;
+                video.playbackRate = playbackSpeed;
+              }}
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+
+          {/* Controles e Informações */}
+          <div className="bg-gray-900 bg-opacity-90 p-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                <div>
+                  <p><span className="font-medium">File:</span> {playingVideo.file_path.split(/[/\\]/).pop() || playingVideo.file_path}</p>
+                  <p><span className="font-medium">Duration:</span> {playingVideo.duration_seconds ? formatDuration(playingVideo.duration_seconds) : 'Unknown'}</p>
+                </div>
+                <div>
+                  <p><span className="font-medium">Description:</span> {playingVideo.description || 'No description available'}</p>
+                </div>
+              </div>
+              
+              {/* Dicas de Controle */}
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-400">
+                  <div><kbd className="bg-gray-700 px-1 rounded">Space</kbd> Play/Pause</div>
+                  <div><kbd className="bg-gray-700 px-1 rounded">←/→</kbd> Skip ±10s</div>
+                  <div><kbd className="bg-gray-700 px-1 rounded">F</kbd> Fullscreen</div>
+                  <div><kbd className="bg-gray-700 px-1 rounded">Esc</kbd> Close</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
