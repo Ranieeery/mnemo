@@ -29,6 +29,7 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import ConfirmRemovalModal from "./components/Modals/ConfirmRemovalModal";
 import NextVideoModal from "./components/Modals/NextVideoModal";
 import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
+import ContextMenu from "./components/ContextMenu/ContextMenu";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -1988,51 +1989,18 @@ function App() {
             />
 
             {/* Menu de contexto */}
-            {contextMenu.show && contextMenu.video && (
-                <div
-                    className="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-1"
-                    style={{
-                        left: `${contextMenu.x}px`,
-                        top: `${contextMenu.y}px`,
-                        minWidth: '150px'
-                    }}
-                >
-                    <button
-                        onClick={() => handlePlayVideo(contextMenu.video!)}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-                    >
-                        ▶️ Play in Internal Player
-                    </button>
-                    <button
-                        onClick={() => handleOpenFile(contextMenu.video!.file_path)}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-                    >
-                        🎬 Open External
-                    </button>
-                    <button
-                        onClick={() => handleOpenWith(contextMenu.video!.file_path)}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-                    >
-                        📁 Show in Explorer
-                    </button>
-                    <hr className="border-gray-600 my-1"/>
-                    <button
-                        onClick={() => {
-                            toggleVideoWatchedStatus(contextMenu.video!);
-                            handleCloseContextMenu();
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-                    >
-                        {contextMenu.video!.is_watched ? '❌ Mark as Unwatched' : '✅ Mark as Watched'}
-                    </button>
-                    <button
-                        onClick={() => handleOpenProperties(contextMenu.video!)}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-                    >
-                        ⚙️ Properties
-                    </button>
-                </div>
-            )}
+            <ContextMenu
+                show={contextMenu.show}
+                x={contextMenu.x}
+                y={contextMenu.y}
+                video={contextMenu.video}
+                onPlayVideo={handlePlayVideo}
+                onOpenFile={handleOpenFile}
+                onOpenWith={handleOpenWith}
+                onToggleWatchedStatus={toggleVideoWatchedStatus}
+                onOpenProperties={handleOpenProperties}
+                onClose={handleCloseContextMenu}
+            />
 
             {/* Player de Vídeo Interno Customizado */}
             {showVideoPlayer && playingVideo && (
