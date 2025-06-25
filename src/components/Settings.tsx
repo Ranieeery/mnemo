@@ -5,7 +5,8 @@ import {
   exportLibraryData, 
   importLibraryData, 
   getLibraryStats, 
-  LibraryExport 
+  LibraryExport,
+  resetAllVideosAsUnwatched
 } from "../database";
 import { formatDuration } from "../utils/videoUtils";
 
@@ -34,6 +35,7 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [showImportConfirm, setShowImportConfirm] = useState(false);
   const [importFile, setImportFile] = useState<string | null>(null);
+  const [isResettingWatched, setIsResettingWatched] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -137,6 +139,30 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
   const handleImportCancel = () => {
     setShowImportConfirm(false);
     setImportFile(null);
+  };
+
+  const handleResetAllWatched = async () => {
+    if (!confirm("Are you sure you want to mark ALL videos as unwatched? This action cannot be undone.")) {
+      return;
+    }
+
+    setIsResettingWatched(true);
+    try {
+      await resetAllVideosAsUnwatched();
+      
+      // Recarregar estatísticas
+      await loadStats();
+      
+      // Notificar componente pai sobre mudanças
+      onLibraryChanged();
+      
+      alert("All videos have been marked as unwatched!");
+    } catch (error) {
+      console.error("Reset error:", error);
+      alert(`Reset failed: ${error}`);
+    } finally {
+      setIsResettingWatched(false);
+    }
   };
 
   return (
@@ -255,6 +281,38 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                     </svg>
                     <span>Import</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Reset Watched Status */}
+            <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+              <div>
+                <h4 className="font-medium text-gray-200">Reset Watch Status</h4>
+                <p className="text-sm text-gray-400">
+                  Mark all videos as unwatched (useful after importing)
+                </p>
+              </div>
+              <button
+                onClick={handleResetAllWatched}
+                disabled={isResettingWatched}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 text-white rounded-md transition-colors flex items-center space-x-2"
+              >
+                {isResettingWatched ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Resetting...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Reset All</span>
                   </>
                 )}
               </button>

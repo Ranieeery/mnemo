@@ -128,14 +128,15 @@ export async function saveVideo(videoData: {
   const database = await getDatabase();
   
   await database.execute(
-    `INSERT OR REPLACE INTO videos (file_path, title, description, duration_seconds, thumbnail_path, updated_at)
-     VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+    `INSERT OR REPLACE INTO videos (file_path, title, description, duration_seconds, thumbnail_path, is_watched, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
     [
       videoData.file_path,
       videoData.title,
       videoData.description || null,
       videoData.duration_seconds || null,
       videoData.thumbnail_path || null,
+      0, // Sempre começar como não assistido
     ]
   );
 }
@@ -994,7 +995,7 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
           video.description, 
           video.duration_seconds, 
           video.thumbnail_path,
-          video.is_watched || false,
+          video.is_watched === true ? 1 : 0, // Converter explicitamente para 1/0
           video.watch_progress_seconds || 0,
           video.last_watched_at,
           video.created_at, 
@@ -1058,5 +1059,24 @@ export async function getLibraryStats(): Promise<{
       watchedVideos: 0,
       totalDuration: 0
     };
+  }
+}
+
+// Função para resetar todos os vídeos como não assistidos
+export async function resetAllVideosAsUnwatched(): Promise<void> {
+  const database = await getDatabase();
+  
+  try {
+    await database.execute(
+      `UPDATE videos 
+       SET is_watched = 0, 
+           watch_progress_seconds = 0, 
+           last_watched_at = NULL,
+           updated_at = CURRENT_TIMESTAMP`
+    );
+    console.log("All videos reset as unwatched");
+  } catch (error) {
+    console.error("Error resetting videos as unwatched:", error);
+    throw error;
   }
 }
