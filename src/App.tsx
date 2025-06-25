@@ -13,6 +13,7 @@ import {
 } from "./database";
 import { processVideosInDirectory, checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
 import { formatDuration } from "./utils/videoUtils";
+import "./styles/player.css";
 
 interface DirEntry {
   name: string;
@@ -44,6 +45,16 @@ function App() {
   const [playingVideo, setPlayingVideo] = useState<ProcessedVideo | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [volume, setVolume] = useState<number>(1);
+  const [showControls, setShowControls] = useState<boolean>(true);
+  const [controlsTimeout, setControlsTimeout] = useState<number | null>(null);
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState<boolean>(false);
+  const [subtitlesAvailable, setSubtitlesAvailable] = useState<boolean>(false);
+  const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
+  const [isIconChanging, setIsIconChanging] = useState<boolean>(false);
 
   // Carregar pastas do banco de dados na inicialização
   useEffect(() => {
@@ -279,24 +290,239 @@ function App() {
   }, [contextMenu.show]);
 
   // Funções do player de vídeo interno
-  const handlePlayVideo = (video: ProcessedVideo) => {
+  const handlePlayVideo = async (video: ProcessedVideo) => {
     setPlayingVideo(video);
     setShowVideoPlayer(true);
     setPlaybackSpeed(1);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setVolume(1);
+    setShowControls(true);
+    setSubtitlesEnabled(false);
+    setCurrentSubtitle("");
+    
+    // Verifica e carrega legendas
+    const subtitleData = await checkAndLoadSubtitles(video.file_path);
+    if (subtitleData) {
+      const parsedSubtitles = parseSubtitles(subtitleData);
+      setSubtitles(parsedSubtitles);
+    } else {
+      setSubtitles([]);
+    }
   };
 
   const handleCloseVideoPlayer = () => {
     setShowVideoPlayer(false);
     setPlayingVideo(null);
     setIsFullscreen(false);
+    setIsPlaying(false);
+    if (controlsTimeout) {
+      clearTimeout(controlsTimeout);
+      setControlsTimeout(null);
+    }
   };
 
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    if (video) {
+      video.playbackRate = speed;
+    }
   };
 
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
+  const toggleFullscreen = async () => {
+    try {
+      if (!isFullscreen) {
+        // Entra em tela cheia real (F11)
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        // Sai da tela cheia real
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (error) {
+      console.error('Error toggling fullscreen:', error);
+      // Fallback para método simples se API não funcionar
+      setIsFullscreen(!isFullscreen);
+    }
+  };
+
+  const togglePlayPause = () => {
+    const video = document.querySelector('video') as HTMLVideoElement;
+    if (video) {
+      // Ativa a animação de transição
+      setIsIconChanging(true);
+      
+      setTimeout(() => {
+        if (video.paused) {
+          video.play();
+          setIsPlaying(true);
+        } else {
+          video.pause();
+          setIsPlaying(false);
+        }
+        
+        // Remove a animação após a mudança
+        setTimeout(() => setIsIconChanging(false), 150);
+      }, 75); // Metade da duração da transição CSS
+    }
+  };
+
+  const handleSeek = (time: number) => {
+    const video = document.querySelector('video') as HTMLVideoElement;
+    if (video) {
+      video.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    const video = document.querySelector('video') as HTMLVideoElement;
+    if (video) {
+      video.volume = newVolume;
+      setVolume(newVolume);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Função para verificar e carregar legendas
+  const checkAndLoadSubtitles = async (videoPath: string) => {
+    try {
+      // Gera os caminhos dos arquivos de legenda (.srt e .vtt)
+      const srtPath = videoPath.replace(/\.[^/.]+$/, '.srt');
+      const vttPath = videoPath.replace(/\.[^/.]+$/, '.vtt');
+      
+      // Verifica se algum arquivo de legenda existe (prioridade: .srt depois .vtt)
+      let subtitlePath = null;
+      let exists = await invoke('file_exists', { path: srtPath });
+      
+      if (exists) {
+        subtitlePath = srtPath;
+      } else {
+        exists = await invoke('file_exists', { path: vttPath });
+        if (exists) {
+          subtitlePath = vttPath;
+        }
+      }
+      
+      setSubtitlesAvailable(exists as boolean);
+      
+      if (exists && subtitlePath) {
+        // Carrega o conteúdo do arquivo de legenda
+        const content = await invoke('read_subtitle_file', { path: subtitlePath });
+        return { content: content as string, format: subtitlePath.endsWith('.vtt') ? 'vtt' : 'srt' };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error checking subtitles:', error);
+      setSubtitlesAvailable(false);
+      return null;
+    }
+  };
+
+  // Função para alternar legendas
+  const toggleSubtitles = () => {
+    if (subtitlesAvailable) {
+      setSubtitlesEnabled(!subtitlesEnabled);
+    }
+  };
+
+  // Função para processar legendas SRT e VTT
+  const parseSubtitles = (subtitleData: { content: string; format: string }) => {
+    const subtitles: Array<{start: number; end: number; text: string}> = [];
+    const { content, format } = subtitleData;
+    
+    if (format === 'srt') {
+      // Parser para formato SRT
+      const blocks = content.trim().split('\n\n');
+      
+      blocks.forEach(block => {
+        const lines = block.split('\n');
+        if (lines.length >= 3) {
+          const timeMatch = lines[1].match(/(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})/);
+          if (timeMatch) {
+            const start = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseInt(timeMatch[3]) + parseInt(timeMatch[4]) / 1000;
+            const end = parseInt(timeMatch[5]) * 3600 + parseInt(timeMatch[6]) * 60 + parseInt(timeMatch[7]) + parseInt(timeMatch[8]) / 1000;
+            const text = lines.slice(2).join('\n');
+            subtitles.push({ start, end, text });
+          }
+        }
+      });
+    } else if (format === 'vtt') {
+      // Parser para formato VTT
+      const lines = content.split('\n');
+      let i = 0;
+      
+      // Pula o cabeçalho WEBVTT
+      while (i < lines.length && !lines[i].includes('-->')) {
+        i++;
+      }
+      
+      while (i < lines.length) {
+        const line = lines[i].trim();
+        
+        // Procura por linhas de tempo
+        const timeMatch = line.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+        if (timeMatch) {
+          const start = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseInt(timeMatch[3]) + parseInt(timeMatch[4]) / 1000;
+          const end = parseInt(timeMatch[5]) * 3600 + parseInt(timeMatch[6]) * 60 + parseInt(timeMatch[7]) + parseInt(timeMatch[8]) / 1000;
+          
+          // Coleta o texto da legenda
+          const textLines = [];
+          i++;
+          while (i < lines.length && lines[i].trim() !== '') {
+            textLines.push(lines[i].trim());
+            i++;
+          }
+          
+          const text = textLines.join('\n');
+          if (text) {
+            subtitles.push({ start, end, text });
+          }
+        }
+        i++;
+      }
+    }
+    
+    return subtitles;
+  };
+
+  // Estado para armazenar legendas processadas
+  const [subtitles, setSubtitles] = useState<Array<{start: number; end: number; text: string}>>([]);
+
+  // Função para encontrar legenda atual baseada no tempo
+  const getCurrentSubtitle = (currentTime: number) => {
+    if (!subtitlesEnabled || !subtitles.length) return "";
+    
+    const currentSub = subtitles.find(sub => 
+      currentTime >= sub.start && currentTime <= sub.end
+    );
+    
+    return currentSub ? currentSub.text : "";
+  };
+
+  // Auto-hide controls em fullscreen
+  const resetControlsTimeout = () => {
+    if (controlsTimeout) {
+      clearTimeout(controlsTimeout);
+    }
+    
+    setShowControls(true);
+    
+    // Só esconde controles se estiver em fullscreen REAL
+    if (document.fullscreenElement) {
+      const timeout = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+      setControlsTimeout(timeout);
+    }
   };
 
   // Controles de teclado para o player
@@ -307,14 +533,7 @@ function App() {
       switch (e.code) {
         case 'Space':
           e.preventDefault();
-          const video = document.querySelector('video') as HTMLVideoElement;
-          if (video) {
-            if (video.paused) {
-              video.play();
-            } else {
-              video.pause();
-            }
-          }
+          togglePlayPause();
           break;
         case 'Escape':
           if (isFullscreen) {
@@ -329,19 +548,23 @@ function App() {
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          const videoLeft = document.querySelector('video') as HTMLVideoElement;
-          if (videoLeft) {
-            videoLeft.currentTime = Math.max(0, videoLeft.currentTime - 10);
-          }
+          handleSeek(Math.max(0, currentTime - 10));
           break;
         case 'ArrowRight':
           e.preventDefault();
-          const videoRight = document.querySelector('video') as HTMLVideoElement;
-          if (videoRight) {
-            videoRight.currentTime = Math.min(videoRight.duration, videoRight.currentTime + 10);
-          }
+          handleSeek(Math.min(duration, currentTime + 10));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          handleVolumeChange(Math.min(1, volume + 0.1));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          handleVolumeChange(Math.max(0, volume - 0.1));
           break;
       }
+      
+      resetControlsTimeout();
     };
 
     if (showVideoPlayer) {
@@ -350,7 +573,45 @@ function App() {
         document.removeEventListener('keydown', handleKeyPress);
       };
     }
-  }, [showVideoPlayer, isFullscreen]);
+  }, [showVideoPlayer, isFullscreen, currentTime, duration, volume]);
+
+  // Auto-hide controls em fullscreen
+  useEffect(() => {
+    if (document.fullscreenElement) {
+      resetControlsTimeout();
+    } else {
+      setShowControls(true);
+      if (controlsTimeout) {
+        clearTimeout(controlsTimeout);
+        setControlsTimeout(null);
+      }
+    }
+  }, [isFullscreen]);
+
+  // Listener para detectar mudanças na tela cheia
+  useEffect(() => {
+    if (!showVideoPlayer) return;
+
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = document.fullscreenElement !== null;
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [showVideoPlayer]);
+
+  // Atualizar legenda atual baseada no tempo do vídeo
+  useEffect(() => {
+    if (showVideoPlayer && subtitlesEnabled) {
+      const newSubtitle = getCurrentSubtitle(currentTime);
+      setCurrentSubtitle(newSubtitle);
+    } else {
+      setCurrentSubtitle("");
+    }
+  }, [currentTime, subtitlesEnabled, showVideoPlayer]);
 
   return (
     <div className="h-screen bg-gray-900 text-white flex">
@@ -741,110 +1002,218 @@ function App() {
         </div>
       )}
 
-      {/* Player de Vídeo Interno Avançado */}
+      {/* Player de Vídeo Interno Customizado */}
       {showVideoPlayer && playingVideo && (
-        <div className={`fixed inset-0 bg-black z-50 flex flex-col ${isFullscreen ? 'z-[100]' : ''}`}>
-          {/* Header do Player */}
-          <div className="bg-gray-900 bg-opacity-90 p-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleCloseVideoPlayer}
-                className="text-white hover:text-gray-300 transition-colors"
-                title="Close Player (Esc)"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <div>
-                <h3 className="text-white font-semibold text-lg">{playingVideo.title}</h3>
-                <p className="text-gray-300 text-sm">
-                  {playingVideo.duration_seconds && formatDuration(playingVideo.duration_seconds)}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* Controle de Velocidade */}
-              <div className="flex items-center space-x-2">
-                <span className="text-white text-sm">Speed:</span>
-                <select
-                  value={playbackSpeed}
-                  onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                  className="bg-gray-700 text-white px-2 py-1 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div 
+          className={`fixed inset-0 bg-black z-50 flex flex-col ${isFullscreen ? 'z-[100]' : ''}`}
+          onMouseMove={resetControlsTimeout}
+          onClick={resetControlsTimeout}
+        >
+          {/* Header minimalista - apenas nome do vídeo, esconde em fullscreen */}
+          {!isFullscreen && (
+            <div className="bg-gray-900 bg-opacity-95 p-3 flex items-center justify-between">
+              <div className="flex items-center space-x-3 flex-1 min-w-0">
+                <button
+                  onClick={handleCloseVideoPlayer}
+                  className="text-white hover:text-gray-300 transition-colors flex-shrink-0"
+                  title="Close Player (Esc)"
                 >
-                  <option value={0.5}>0.5x</option>
-                  <option value={0.75}>0.75x</option>
-                  <option value={1}>1x</option>
-                  <option value={1.25}>1.25x</option>
-                  <option value={1.5}>1.5x</option>
-                  <option value={2}>2x</option>
-                </select>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <h3 className="text-white font-medium text-lg truncate min-w-0 flex-1" title={playingVideo.title}>
+                  {playingVideo.title}
+                </h3>
               </div>
-
-              {/* Botão Tela Cheia */}
-              <button
-                onClick={toggleFullscreen}
-                className="text-white hover:text-gray-300 transition-colors"
-                title="Toggle Fullscreen (F)"
-              >
-                {isFullscreen ? (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.5 3.5M15 9h4.5M15 9V4.5M15 9l5.5-5.5M9 15v4.5M9 15H4.5M9 15l-5.5 5.5M15 15h4.5M15 15v4.5m0-4.5l5.5 5.5" />
-                  </svg>
-                ) : (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5" />
-                  </svg>
-                )}
-              </button>
             </div>
-          </div>
+          )}
 
           {/* Player de Vídeo */}
-          <div className="flex-1 flex items-center justify-center bg-black">
+          <div className="flex-1 relative bg-black">
             <video
               src={convertFileSrc(playingVideo.file_path)}
-              controls
+              className="w-full h-full object-contain"
+              onLoadedMetadata={(e) => {
+                const video = e.currentTarget;
+                setDuration(video.duration);
+                video.playbackRate = playbackSpeed;
+                video.volume = volume;
+              }}
+              onTimeUpdate={(e) => {
+                const video = e.currentTarget;
+                setCurrentTime(video.currentTime);
+              }}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
               autoPlay
-              className="max-w-full max-h-full"
-              style={{ 
-                width: isFullscreen ? '100vw' : 'auto',
-                height: isFullscreen ? '100vh' : 'auto'
-              }}
-              onLoadedData={(e) => {
-                const video = e.currentTarget;
-                video.playbackRate = playbackSpeed;
-              }}
-              onRateChange={(e) => {
-                const video = e.currentTarget;
-                video.playbackRate = playbackSpeed;
-              }}
+              preload="metadata"
             >
               Your browser does not support the video tag.
             </video>
-          </div>
 
-          {/* Controles e Informações */}
-          <div className="bg-gray-900 bg-opacity-90 p-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
-                <div>
-                  <p><span className="font-medium">File:</span> {playingVideo.file_path.split(/[/\\]/).pop() || playingVideo.file_path}</p>
-                  <p><span className="font-medium">Duration:</span> {playingVideo.duration_seconds ? formatDuration(playingVideo.duration_seconds) : 'Unknown'}</p>
-                </div>
-                <div>
-                  <p><span className="font-medium">Description:</span> {playingVideo.description || 'No description available'}</p>
+            {/* Exibição de Legendas */}
+            {subtitlesEnabled && currentSubtitle && (
+              <div className="absolute bottom-20 left-0 right-0 flex justify-center pointer-events-none">
+                <div className="bg-black bg-opacity-80 text-white px-4 py-2 rounded-lg max-w-4xl mx-4 text-center">
+                  <div 
+                    className="text-lg leading-tight"
+                    style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
+                    dangerouslySetInnerHTML={{ __html: currentSubtitle.replace(/\n/g, '<br>') }}
+                  />
                 </div>
               </div>
-              
-              {/* Dicas de Controle */}
-              <div className="mt-4 pt-4 border-t border-gray-700">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-400">
-                  <div><kbd className="bg-gray-700 px-1 rounded">Space</kbd> Play/Pause</div>
-                  <div><kbd className="bg-gray-700 px-1 rounded">←/→</kbd> Skip ±10s</div>
-                  <div><kbd className="bg-gray-700 px-1 rounded">F</kbd> Fullscreen</div>
-                  <div><kbd className="bg-gray-700 px-1 rounded">Esc</kbd> Close</div>
+            )}
+
+            {/* Controles Customizados - estilo YouTube */}
+            <div 
+              className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent p-4 transition-all duration-300 ${
+                (document.fullscreenElement && !showControls) ? 'opacity-0 pointer-events-none transform translate-y-4' : 'opacity-100 transform translate-y-0'
+              }`}
+            >
+              {/* Barra de Progresso - mais compacta */}
+              <div className="mb-3">
+                <div className="relative group">
+                  <input
+                    type="range"
+                    min="0"
+                    max={duration || 0}
+                    value={currentTime}
+                    onChange={(e) => handleSeek(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider transition-all duration-200 group-hover:h-2"
+                    style={{
+                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(currentTime / duration) * 100}%, #4b5563 ${(currentTime / duration) * 100}%, #4b5563 100%)`
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Controles em linha única - estilo YouTube */}
+              <div className="flex items-center justify-between">
+                {/* Controles da esquerda */}
+                <div className="flex items-center space-x-4">
+                  {/* Play/Pause */}
+                  <button
+                    onClick={togglePlayPause}
+                    className="play-pause-button text-white hover:text-blue-400"
+                    title="Play/Pause (Space)"
+                  >
+                    {isPlaying ? (
+                      <svg className={`w-8 h-8 play-pause-icon ${isIconChanging ? 'changing' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                      </svg>
+                    ) : (
+                      <svg className={`w-8 h-8 play-pause-icon ${isIconChanging ? 'changing' : ''}`} fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    )}
+                  </button>
+
+                  {/* Volume */}
+                  <div className="flex items-center space-x-2 group">
+                    <button
+                      onClick={() => handleVolumeChange(volume > 0 ? 0 : 1)}
+                      className="text-white hover:text-blue-400 transition-colors"
+                      title="Mute/Unmute"
+                    >
+                      {volume === 0 ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                        </svg>
+                      ) : volume < 0.5 ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        </svg>
+                      )}
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={volume}
+                      onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                      className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider opacity-70 group-hover:opacity-100 transition-opacity"
+                      style={{
+                        background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #4b5563 ${volume * 100}%, #4b5563 100%)`
+                      }}
+                    />
+                  </div>
+
+                  {/* Tempo atual / duração */}
+                  <div className="text-white text-sm font-mono">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </div>
+                </div>
+
+                {/* Controles da direita */}
+                <div className="flex items-center space-x-3">
+                  {/* Botão de Legendas - agora funcional */}
+                  <button
+                    onClick={toggleSubtitles}
+                    disabled={!subtitlesAvailable}
+                    className={`transition-colors ${
+                      !subtitlesAvailable 
+                        ? 'text-gray-600 cursor-not-allowed' 
+                        : subtitlesEnabled
+                          ? 'text-blue-400 hover:text-blue-300'
+                          : 'text-white hover:text-blue-400'
+                    }`}
+                    title={
+                      !subtitlesAvailable 
+                        ? 'No subtitles available' 
+                        : subtitlesEnabled 
+                          ? 'Hide subtitles' 
+                          : 'Show subtitles'
+                    }
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      {subtitlesEnabled && (
+                        <circle cx="18" cy="6" r="3" fill="currentColor" className="text-blue-400" />
+                      )}
+                    </svg>
+                  </button>
+
+                  {/* Velocidade */}
+                  <select
+                    value={playbackSpeed}
+                    onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                    className="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    title="Playback Speed"
+                  >
+                    <option value={0.25}>0.25x</option>
+                    <option value={0.5}>0.5x</option>
+                    <option value={0.75}>0.75x</option>
+                    <option value={1}>1x</option>
+                    <option value={1.25}>1.25x</option>
+                    <option value={1.5}>1.5x</option>
+                    <option value={1.75}>1.75x</option>
+                    <option value={2}>2x</option>
+                  </select>
+
+                  {/* Tela Cheia */}
+                  <button
+                    onClick={toggleFullscreen}
+                    className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
+                    title="Toggle Fullscreen (F)"
+                  >
+                    {isFullscreen ? (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.5 3.5M15 9h4.5M15 9V4.5M15 9l5.5-5.5M9 15v4.5M9 15H4.5M9 15l-5.5 5.5M15 15h4.5M15 15v4.5m0-4.5l5.5 5.5" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>

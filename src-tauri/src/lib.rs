@@ -285,13 +285,30 @@ fn open_file_with_dialog(file_path: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn file_exists(path: String) -> bool {
+    Path::new(&path).exists()
+}
+
+#[tauri::command]
+fn read_subtitle_file(path: String) -> Result<String, String> {
+    match fs::read_to_string(&path) {
+        Ok(content) => {
+            // Try to detect encoding and convert if needed
+            // For now, assume UTF-8 and return as is
+            Ok(content)
+        }
+        Err(e) => Err(format!("Failed to read subtitle file: {}", e))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![greet, read_directory, extract_video_metadata, generate_thumbnail, open_file_externally, open_file_with_dialog])
+        .invoke_handler(tauri::generate_handler![greet, read_directory, extract_video_metadata, generate_thumbnail, open_file_externally, open_file_with_dialog, file_exists, read_subtitle_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
