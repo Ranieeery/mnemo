@@ -30,6 +30,7 @@ import NavigationButtons from "./components/Navigation/NavigationButtons";
 import TopBar from "./components/Navigation/TopBar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import ConfirmRemovalModal from "./components/Modals/ConfirmRemovalModal";
+import NextVideoModal from "./components/Modals/NextVideoModal";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -2419,70 +2420,14 @@ function App() {
             )}
 
             {/* Modal de Próximo Vídeo */}
-            {showNextVideoPrompt && nextVideo && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-200 mb-4 flex items-center justify-between">
-                            <div className="flex items-center">
-                                <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor"
-                                     viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                </svg>
-                                Play Next Video?
-                            </div>
-                            {/* Countdown indicator */}
-                            <div className="flex items-center space-x-2">
-                                <div
-                                    className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-bold text-white">
-                                    {nextVideoCountdown}
-                                </div>
-                            </div>
-                        </h3>
-                        <div className="mb-4">
-                            <div className="flex items-start space-x-3">
-                                {nextVideo.thumbnail_path && (
-                                    <img
-                                        src={convertFileSrc(nextVideo.thumbnail_path)}
-                                        alt={nextVideo.title}
-                                        className="w-16 h-12 object-cover rounded bg-gray-700 flex-shrink-0"
-                                    />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-200 truncate">
-                                        {nextVideo.title}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        Duration: {nextVideo.duration || '00:00'}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Playing automatically in {nextVideoCountdown} seconds
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Settings preserved: {savedPlaybackSettings.speed}x
-                                        speed, {Math.round(savedPlaybackSettings.volume * 100)}% volume,
-                                        subtitles {savedPlaybackSettings.subtitlesEnabled ? 'on' : 'off'}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                onClick={cancelNextVideo}
-                                className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-md transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={playNextVideo}
-                                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-                            >
-                                Play Now
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <NextVideoModal
+                show={showNextVideoPrompt}
+                nextVideo={nextVideo}
+                countdown={nextVideoCountdown}
+                savedSettings={savedPlaybackSettings}
+                onPlayNext={playNextVideo}
+                onCancel={cancelNextVideo}
+            />
 
             {/* Modal de Confirmação de Remoção */}
             <ConfirmRemovalModal
