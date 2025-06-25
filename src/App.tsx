@@ -11,8 +11,6 @@ import {
     markVideoAsUnwatched,
     markVideoAsWatched,
     saveLibraryFolder,
-    searchVideos,
-    searchVideosRecursive,
     updateVideoDetails,
     updateWatchProgress
 } from "./database";
@@ -29,6 +27,7 @@ import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
 import { useLibraryManagement } from "./hooks/useLibraryManagement";
 import { useVideoProcessing } from "./hooks/useVideoProcessing";
+import { useVideoSearch } from "./hooks/useVideoSearch";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -86,16 +85,6 @@ function App() {
     const [subtitlesAvailable, setSubtitlesAvailable] = useState<boolean>(false);
     const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
     const [isIconChanging, setIsIconChanging] = useState<boolean>(false);
-    // Estados para funcionalidade de busca
-    const [searchTerm, setSearchTerm] = useState<string>("");
-    const [searchResults, setSearchResults] = useState<ProcessedVideo[]>([]);
-    const [isSearching, setIsSearching] = useState<boolean>(false);
-    const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
-    const [searchProgress, setSearchProgress] = useState<{
-        current: number;
-        total: number;
-        currentFile: string;
-    }>({current: 0, total: 0, currentFile: ""});
 
     // Estados para página inicial
     const [showHomePage, setShowHomePage] = useState<boolean>(true);
@@ -161,6 +150,15 @@ function App() {
         setProcessedVideos
     });
 
+    // Hook para busca de vídeos
+    const [searchState, searchActions] = useVideoSearch({
+        selectedFolder,
+        onShowHomePage: () => {
+            setShowHomePage(true);
+            loadHomePageData();
+        }
+    });
+
     // Carregar pastas do banco de dados na inicialização
     useEffect(() => {
         const initializeApp = async () => {
@@ -210,7 +208,6 @@ function App() {
     const goToHomePage = () => {
         setSelectedFolder(null);
         setShowHomePage(true);
-        setShowSearchResults(false);
         // Não limpa o termo de busca para mantê-lo persistente
         loadHomePageData();
     };
@@ -233,7 +230,6 @@ function App() {
         setSelectedFolder(folderPath);
         setCurrentPath(folderPath);
         setShowHomePage(false);
-        setShowSearchResults(false);
         // Não limpa o termo de busca para mantê-lo persistente
         loadDirectoryContents(folderPath);
     };
@@ -247,7 +243,6 @@ function App() {
             setSelectedFolder(folderPath);
             setCurrentPath(folderPath);
             setShowHomePage(false);
-            setShowSearchResults(false);
             loadDirectoryContents(folderPath);
         } else if (historyIndex === 0) {
             // Se estamos no primeiro item da história, volta à página inicial
@@ -265,7 +260,6 @@ function App() {
             setSelectedFolder(folderPath);
             setCurrentPath(folderPath);
             setShowHomePage(false);
-            setShowSearchResults(false);
             loadDirectoryContents(folderPath);
         }
     };
@@ -544,10 +538,8 @@ function App() {
         }
 
         // Limpar busca se estiver ativa
-        if (searchTerm) {
-            setSearchTerm("");
-            setSearchResults([]);
-            setShowSearchResults(false);
+        if (searchState.searchTerm) {
+            searchActions.clearSearch();
         }
     };
 
@@ -841,81 +833,6 @@ function App() {
         }
     }, [currentTime, subtitlesEnabled, showVideoPlayer]);
 
-    // ====== FUNÇÕES DE BUSCA ======
-
-    // Função para realizar busca
-    const handleSearch = async (term: string) => {
-        setSearchTerm(term);
-
-        if (!term.trim()) {
-            if (!selectedFolder) {
-                setShowHomePage(true);
-            }
-            setShowSearchResults(false);
-            setSearchResults([]);
-            setSearchProgress({current: 0, total: 0, currentFile: ""});
-            return;
-        }
-
-        setShowHomePage(false);
-        setIsSearching(true);
-        setSearchProgress({current: 0, total: 0, currentFile: ""});
-
-        try {
-            let results: ProcessedVideo[];
-
-            // Se não há pasta selecionada (página inicial), busca apenas nos vídeos indexados
-            if (!selectedFolder) {
-                results = await searchVideos(term);
-            } else {
-                // Se há pasta selecionada, usa busca recursiva completa
-                results = await searchVideosRecursive(term, (current, total, currentFile) => {
-                    setSearchProgress({current, total, currentFile});
-                });
-            }
-
-            setSearchResults(results);
-            setShowSearchResults(true);
-        } catch (error) {
-            console.error("Error searching videos:", error);
-            setSearchResults([]);
-        } finally {
-            setIsSearching(false);
-            setSearchProgress({current: 0, total: 0, currentFile: ""});
-        }
-    };
-
-    // Função para limpar busca
-    const clearSearch = () => {
-        setSearchTerm("");
-        setSearchResults([]);
-        setShowSearchResults(false);
-
-        // Se não há pasta selecionada, volta à página inicial
-        if (!selectedFolder) {
-            setShowHomePage(true);
-        }
-    };
-
-    // Debounce para busca automática
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            if (searchTerm.trim()) {
-                handleSearch(searchTerm);
-            } else {
-                // Se searchTerm está vazio, limpa a busca e volta à página inicial se necessário
-                setSearchResults([]);
-                setShowSearchResults(false);
-                
-                if (!selectedFolder) {
-                    setShowHomePage(true);
-                }
-            }
-        }, 300); // 300ms de delay
-
-        return () => clearTimeout(timeoutId);
-    }, [searchTerm]);
-
     // ====== FUNÇÕES DE STATUS DE VÍDEO ======
 
     // Marcar vídeo como assistido/não assistido
@@ -932,10 +849,6 @@ function App() {
                 const updatedVideo = {...video, is_watched: !video.is_watched};
 
                 setProcessedVideos(prev => prev.map(v =>
-                    v.file_path === video.file_path ? updatedVideo : v
-                ));
-
-                setSearchResults(prev => prev.map(v =>
                     v.file_path === video.file_path ? updatedVideo : v
                 ));
 
@@ -1043,10 +956,10 @@ function App() {
                     canGoForward={canGoForward}
                     onGoBack={goBack}
                     onGoForward={goForward}
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
-                    isSearching={isSearching}
-                    onClearSearch={clearSearch}
+                    searchTerm={searchState.searchTerm}
+                    setSearchTerm={searchActions.setSearchTerm}
+                    isSearching={searchState.isSearching}
+                    onClearSearch={searchActions.clearSearch}
                 />
 
                 {/* Progress Bar for Video Processing */}
@@ -1058,38 +971,38 @@ function App() {
 
                 {/* Progress Bar for Search */}
                 <SearchProgressBar
-                    show={isSearching}
-                    progress={searchProgress}
+                    show={searchState.isSearching}
+                    progress={searchState.searchProgress}
                 />
 
                 {/* Content Area */}
                 <div className="flex-1 p-6 overflow-auto">
-                    {showSearchResults ? (
+                    {searchState.showSearchResults ? (
                         /* Search Results */
                         <div>
-                            {isSearching ? (
+                            {searchState.isSearching ? (
                                 <div className="flex flex-col items-center justify-center h-32 space-y-4">
                                     <div className="flex items-center space-x-2">
                                         <div
                                             className="animate-spin w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
                                         <span className="text-gray-400">Searching videos...</span>
                                     </div>
-                                    {searchProgress.total > 0 && (
+                                    {searchState.searchProgress.total > 0 && (
                                         <div className="w-64 text-center">
                                             <div className="text-xs text-gray-500 mb-1">
-                                                {searchProgress.current} / {searchProgress.total} files checked
+                                                {searchState.searchProgress.current} / {searchState.searchProgress.total} files checked
                                             </div>
                                             <div className="w-full bg-gray-700 rounded-full h-1">
                                                 <div
                                                     className="bg-blue-500 h-1 rounded-full transition-all duration-300"
                                                     style={{
-                                                        width: `${(searchProgress.current / searchProgress.total) * 100}%`
+                                                        width: `${(searchState.searchProgress.current / searchState.searchProgress.total) * 100}%`
                                                     }}
                                                 ></div>
                                             </div>
-                                            {searchProgress.currentFile && (
+                                            {searchState.searchProgress.currentFile && (
                                                 <div className="text-xs text-gray-600 mt-1 truncate">
-                                                    {searchProgress.currentFile}
+                                                    {searchState.searchProgress.currentFile}
                                                 </div>
                                             )}
                                         </div>
@@ -1102,18 +1015,18 @@ function App() {
                                             Search Results
                                         </h3>
                                         <p className="text-sm text-gray-400">
-                                            {searchResults.length === 0
-                                                ? `No videos found for "${searchTerm}"`
-                                                : `Found ${searchResults.length} video${searchResults.length === 1 ? '' : 's'} for "${searchTerm}"`
+                                            {searchState.searchResults.length === 0
+                                                ? `No videos found for "${searchState.searchTerm}"`
+                                                : `Found ${searchState.searchResults.length} video${searchState.searchResults.length === 1 ? '' : 's'} for "${searchState.searchTerm}"`
                                             }
                                         </p>
                                     </div>
 
                                     {/* Search Results Grid */}
-                                    {searchResults.length > 0 && (
+                                    {searchState.searchResults.length > 0 && (
                                         <div
                                             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                            {searchResults.map((video, index) => (
+                                            {searchState.searchResults.map((video, index) => (
                                                 <div
                                                     key={`search-${video.file_path}-${index}`}
                                                     className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer"
@@ -1490,31 +1403,31 @@ function App() {
                                 Add Your First Folder
                             </button>
                         </div>
-                    ) : showSearchResults ? (
+                    ) : searchState.showSearchResults ? (
                         <div>
-                            {isSearching ? (
+                            {searchState.isSearching ? (
                                 <div className="flex flex-col items-center justify-center h-32 space-y-4">
                                     <div className="flex items-center space-x-2">
                                         <div
                                             className="animate-spin w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
                                         <span className="text-gray-400">Searching videos...</span>
                                     </div>
-                                    {searchProgress.total > 0 && (
+                                    {searchState.searchProgress.total > 0 && (
                                         <div className="w-64 text-center">
                                             <div className="text-xs text-gray-500 mb-1">
-                                                {searchProgress.current} / {searchProgress.total} files checked
+                                                {searchState.searchProgress.current} / {searchState.searchProgress.total} files checked
                                             </div>
                                             <div className="w-full bg-gray-700 rounded-full h-1">
                                                 <div
                                                     className="bg-blue-500 h-1 rounded-full transition-all duration-300"
                                                     style={{
-                                                        width: `${(searchProgress.current / searchProgress.total) * 100}%`
+                                                        width: `${(searchState.searchProgress.current / searchState.searchProgress.total) * 100}%`
                                                     }}
                                                 ></div>
                                             </div>
-                                            {searchProgress.currentFile && (
+                                            {searchState.searchProgress.currentFile && (
                                                 <div className="text-xs text-gray-600 mt-1 truncate">
-                                                    {searchProgress.currentFile}
+                                                    {searchState.searchProgress.currentFile}
                                                 </div>
                                             )}
                                         </div>
@@ -1527,18 +1440,18 @@ function App() {
                                             Search Results
                                         </h3>
                                         <p className="text-sm text-gray-400">
-                                            {searchResults.length === 0
-                                                ? `No videos found for "${searchTerm}"`
-                                                : `Found ${searchResults.length} video${searchResults.length === 1 ? '' : 's'} for "${searchTerm}"`
+                                            {searchState.searchResults.length === 0
+                                                ? `No videos found for "${searchState.searchTerm}"`
+                                                : `Found ${searchState.searchResults.length} video${searchState.searchResults.length === 1 ? '' : 's'} for "${searchState.searchTerm}"`
                                             }
                                         </p>
                                     </div>
 
                                     {/* Search Results Grid */}
-                                    {searchResults.length > 0 && (
+                                    {searchState.searchResults.length > 0 && (
                                         <div
                                             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                            {searchResults.map((video, index) => (
+                                            {searchState.searchResults.map((video, index) => (
                                                 <div
                                                     key={`search-${video.file_path}-${index}`}
                                                     className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer"
