@@ -1,6 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
 import { ProcessedVideo } from "./services/videoProcessor";
 import { isVideoFile } from "./utils/videoUtils";
+import { invoke } from '@tauri-apps/api/core';
 
 let db: Database | null = null;
 
@@ -342,7 +343,6 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
   // Primeiro, conta todos os arquivos para progress
   for (const folder of folders) {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
       const allFiles: any[] = await invoke('scan_directory_recursive', { path: folder });
       const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
       totalFiles += videoFiles.length;
@@ -354,7 +354,6 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
   // Agora processa cada pasta recursivamente
   for (const folder of folders) {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
       const allFiles: any[] = await invoke('scan_directory_recursive', { path: folder });
       const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
 
