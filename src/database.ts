@@ -37,6 +37,9 @@ async function createTables() {
       description TEXT,
       duration_seconds INTEGER,
       thumbnail_path TEXT,
+      is_watched BOOLEAN DEFAULT FALSE,
+      watch_progress_seconds INTEGER DEFAULT 0,
+      last_watched_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -72,6 +75,36 @@ async function createTables() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Tabela de histórico de visualização
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS watch_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      video_id INTEGER NOT NULL,
+      watched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      watch_duration_seconds INTEGER DEFAULT 0,
+      FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Migração para adicionar novas colunas se elas não existirem
+  try {
+    await db.execute(`ALTER TABLE videos ADD COLUMN is_watched BOOLEAN DEFAULT FALSE`);
+  } catch (e) {
+    // Coluna já existe, ignorar
+  }
+  
+  try {
+    await db.execute(`ALTER TABLE videos ADD COLUMN watch_progress_seconds INTEGER DEFAULT 0`);
+  } catch (e) {
+    // Coluna já existe, ignorar
+  }
+  
+  try {
+    await db.execute(`ALTER TABLE videos ADD COLUMN last_watched_at DATETIME`);
+  } catch (e) {
+    // Coluna já existe, ignorar
+  }
 
   console.log("Database tables created successfully");
 }
@@ -140,7 +173,8 @@ export async function getVideoByPath(filePath: string): Promise<ProcessedVideo |
 
   try {
     const result = await db.select<ProcessedVideo[]>(
-      `SELECT file_path, title, description, duration_seconds, thumbnail_path, created_at, updated_at
+      `SELECT file_path, title, description, duration_seconds, thumbnail_path, 
+              is_watched, watch_progress_seconds, last_watched_at, created_at, updated_at
        FROM videos 
        WHERE file_path = ?`,
       [filePath]
@@ -161,17 +195,275 @@ export async function getVideosInDirectory(directoryPath: string) {
     [`${directoryPath}%`]
   ) as any[];
   
-  return result;
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
 }
 
-export async function getAllVideos() {
+// ====== FUNÇÕES DE BUSCA ======
+
+// Buscar vídeos por título
+export async function searchVideosByTitle(searchTerm: string): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  if (!searchTerm.trim()) {
+    return [];
+  }
+  
+  const result = await database.select(
+    `SELECT * FROM videos 
+     WHERE title LIKE $1 
+     ORDER BY title`,
+    [`%${searchTerm.trim()}%`]
+  ) as any[];
+  
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
+}
+
+// Buscar vídeos por título e tags (função combinada)
+export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  if (!searchTerm.trim()) {
+    return [];
+  }
+  
+  const term = `%${searchTerm.trim()}%`;
+  
+  // Busca combinada: títulos e tags
+  const result = await database.select(
+    `SELECT DISTINCT v.* FROM videos v
+     LEFT JOIN video_tags vt ON v.id = vt.video_id
+     LEFT JOIN tags t ON vt.tag_id = t.id
+     WHERE v.title LIKE $1 
+        OR t.name LIKE $1
+     ORDER BY v.title`,
+    [term]
+  ) as any[];
+  
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
+}
+
+// Buscar todos os vídeos (para quando a busca estiver vazia ou busca global)
+export async function getAllVideos(): Promise<ProcessedVideo[]> {
   const database = await getDatabase();
   
   const result = await database.select(
-    "SELECT * FROM videos ORDER BY created_at DESC"
+    `SELECT * FROM videos ORDER BY title`
   ) as any[];
   
-  return result;
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
+}
+
+// ====== FUNÇÕES DE STATUS DE VÍDEO ======
+
+// Marcar vídeo como assistido
+export async function markVideoAsWatched(videoId: number, watchProgressSeconds?: number): Promise<void> {
+  const database = await getDatabase();
+  
+  await database.execute(
+    `UPDATE videos 
+     SET is_watched = TRUE, 
+         watch_progress_seconds = $2,
+         last_watched_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [videoId, watchProgressSeconds || 0]
+  );
+  
+  // Adicionar ao histórico
+  await database.execute(
+    `INSERT INTO watch_history (video_id, watch_duration_seconds) 
+     VALUES ($1, $2)`,
+    [videoId, watchProgressSeconds || 0]
+  );
+}
+
+// Desmarcar vídeo como assistido
+export async function markVideoAsUnwatched(videoId: number): Promise<void> {
+  const database = await getDatabase();
+  
+  await database.execute(
+    `UPDATE videos 
+     SET is_watched = FALSE, 
+         watch_progress_seconds = 0,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [videoId]
+  );
+}
+
+// Atualizar progresso de visualização
+export async function updateWatchProgress(videoId: number, progressSeconds: number, durationSeconds: number): Promise<void> {
+  const database = await getDatabase();
+  
+  // Se progresso >= 75% da duração, marcar como assistido
+  const watchedThreshold = durationSeconds * 0.75;
+  const isWatched = progressSeconds >= watchedThreshold;
+  
+  await database.execute(
+    `UPDATE videos 
+     SET watch_progress_seconds = $2,
+         is_watched = $3,
+         last_watched_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [videoId, progressSeconds, isWatched]
+  );
+  
+  // Se foi marcado como assistido, adicionar ao histórico
+  if (isWatched) {
+    await database.execute(
+      `INSERT OR IGNORE INTO watch_history (video_id, watch_duration_seconds) 
+       VALUES ($1, $2)`,
+      [videoId, progressSeconds]
+    );
+  }
+}
+
+// ====== FUNÇÕES PARA PÁGINA INICIAL ======
+
+// Obter últimos vídeos acessados
+export async function getRecentlyWatchedVideos(limit: number = 10): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  const result = await database.select(
+    `SELECT * FROM videos 
+     WHERE last_watched_at IS NOT NULL 
+     ORDER BY last_watched_at DESC 
+     LIMIT $1`,
+    [limit]
+  ) as any[];
+  
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
+}
+
+// Obter vídeos em progresso (iniciados mas não terminados)
+export async function getVideosInProgress(limit: number = 10): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  const result = await database.select(
+    `SELECT * FROM videos 
+     WHERE watch_progress_seconds > 0 
+       AND is_watched = FALSE 
+     ORDER BY last_watched_at DESC 
+     LIMIT $1`,
+    [limit]
+  ) as any[];
+  
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
+}
+
+// Obter vídeos não assistidos (sugestões)
+export async function getUnwatchedVideos(limit: number = 20): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  const result = await database.select(
+    `SELECT * FROM videos 
+     WHERE is_watched = FALSE 
+       AND (watch_progress_seconds = 0 OR watch_progress_seconds IS NULL)
+     ORDER BY created_at DESC 
+     LIMIT $1`,
+    [limit]
+  ) as any[];
+  
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    is_watched: video.is_watched || false,
+    watch_progress_seconds: video.watch_progress_seconds || 0,
+    last_watched_at: video.last_watched_at,
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0
+  }));
 }
 
 // Funções utilitárias para pastas da biblioteca

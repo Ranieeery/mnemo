@@ -21,8 +21,14 @@ export interface ProcessedVideo {
   description?: string;
   duration_seconds: number;
   thumbnail_path?: string;
+  is_watched?: boolean;
+  watch_progress_seconds?: number;
+  last_watched_at?: string;
   created_at?: string;
   updated_at?: string;
+  // Campos computados/auxiliares
+  duration?: string; // Duração formatada
+  size?: number; // Tamanho do arquivo
 }
 
 // Processa um único vídeo (extrai metadados e gera thumbnail)

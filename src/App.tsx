@@ -6,10 +6,18 @@ import {
   initDatabase, 
   getLibraryFolders, 
   saveLibraryFolder,
+  removeLibraryFolder,
   debugDatabaseInfo,
   getAllLibraryFoldersDebug,
   getVideosInDirectory,
-  updateVideoDetails
+  updateVideoDetails,
+  searchVideos,
+  getRecentlyWatchedVideos,
+  getVideosInProgress,
+  getUnwatchedVideos,
+  markVideoAsWatched,
+  markVideoAsUnwatched,
+  updateWatchProgress
 } from "./database";
 import { processVideosInDirectory, checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
 import { formatDuration } from "./utils/videoUtils";
@@ -64,6 +72,17 @@ function App() {
   const [subtitlesAvailable, setSubtitlesAvailable] = useState<boolean>(false);
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
   const [isIconChanging, setIsIconChanging] = useState<boolean>(false);
+  // Estados para funcionalidade de busca
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<ProcessedVideo[]>([]);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
+  
+  // Estados para página inicial
+  const [showHomePage, setShowHomePage] = useState<boolean>(true);
+  const [recentVideos, setRecentVideos] = useState<ProcessedVideo[]>([]);
+  const [videosInProgress, setVideosInProgress] = useState<ProcessedVideo[]>([]);
+  const [suggestedVideos, setSuggestedVideos] = useState<ProcessedVideo[]>([]);
 
   // Carregar pastas do banco de dados na inicialização
   useEffect(() => {
@@ -72,6 +91,9 @@ function App() {
         await initDatabase();
         const folders = await getLibraryFolders();
         setLibraryFolders(folders);
+        
+        // Carrega dados da página inicial
+        await loadHomePageData();
         
         // Verifica se as ferramentas de vídeo estão disponíveis
         const tools = await checkVideoToolsAvailable();
@@ -92,6 +114,7 @@ function App() {
           // Recarregar após migração
           const updatedFolders = await getLibraryFolders();
           setLibraryFolders(updatedFolders);
+          await loadHomePageData();
         }
       } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -106,6 +129,32 @@ function App() {
     initializeApp();
   }, []);
 
+  // Função para carregar dados da página inicial
+  const loadHomePageData = async () => {
+    try {
+      const [recent, inProgress, suggestions] = await Promise.all([
+        getRecentlyWatchedVideos(8),
+        getVideosInProgress(8),
+        getUnwatchedVideos(16)
+      ]);
+      
+      setRecentVideos(recent);
+      setVideosInProgress(inProgress);
+      setSuggestedVideos(suggestions);
+    } catch (error) {
+      console.error('Error loading home page data:', error);
+    }
+  };
+
+  // Função para voltar à página inicial
+  const goToHomePage = () => {
+    setSelectedFolder(null);
+    setShowHomePage(true);
+    setShowSearchResults(false);
+    setSearchTerm("");
+    loadHomePageData();
+  };
+
   // Função para adicionar uma nova pasta
   const handleAddFolder = async () => {
     try {
@@ -118,15 +167,41 @@ function App() {
         await saveLibraryFolder(selectedPath);
         const updatedFolders = await getLibraryFolders();
         setLibraryFolders(updatedFolders);
+        // Recarrega dados da página inicial
+        await loadHomePageData();
       }
     } catch (error) {
       console.error('Error selecting folder:', error);
     }
   };
 
+  // Função para remover uma pasta
+  const handleRemoveFolder = async (folderPath: string) => {
+    if (confirm(`Tem certeza que deseja remover a pasta "${folderPath}" da biblioteca?`)) {
+      try {
+        await removeLibraryFolder(folderPath);
+        const updatedFolders = await getLibraryFolders();
+        setLibraryFolders(updatedFolders);
+        
+        // Se a pasta removida estava selecionada, volta à página inicial
+        if (selectedFolder === folderPath) {
+          goToHomePage();
+        }
+        
+        // Recarrega dados da página inicial
+        await loadHomePageData();
+      } catch (error) {
+        console.error('Error removing folder:', error);
+      }
+    }
+  };
+
   // Função para selecionar uma pasta na sidebar
   const handleSelectFolder = (folder: string) => {
     setSelectedFolder(folder);
+    setShowHomePage(false);
+    setShowSearchResults(false);
+    setSearchTerm("");
     loadDirectoryContents(folder);
   };
 
@@ -622,13 +697,124 @@ function App() {
     }
   }, [currentTime, subtitlesEnabled, showVideoPlayer]);
 
+  // ====== FUNÇÕES DE BUSCA ======
+  
+  // Função para realizar busca
+  const handleSearch = async (term: string) => {
+    setSearchTerm(term);
+    
+    if (!term.trim()) {
+      if (!selectedFolder) {
+        setShowHomePage(true);
+      }
+      setShowSearchResults(false);
+      setSearchResults([]);
+      return;
+    }
+    
+    setShowHomePage(false);
+    setIsSearching(true);
+    try {
+      // Se não há pasta selecionada, busca em toda a biblioteca
+      const results = await searchVideos(term);
+      setSearchResults(results);
+      setShowSearchResults(true);
+    } catch (error) {
+      console.error("Error searching videos:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
+  // Função para limpar busca
+  const clearSearch = () => {
+    setSearchTerm("");
+    setSearchResults([]);
+    setShowSearchResults(false);
+    
+    // Se não há pasta selecionada, volta à página inicial
+    if (!selectedFolder) {
+      setShowHomePage(true);
+    }
+  };
+  
+  // Debounce para busca automática
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleSearch(searchTerm);
+    }, 300); // 300ms de delay
+    
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // ====== FUNÇÕES DE STATUS DE VÍDEO ======
+  
+  // Marcar vídeo como assistido/não assistido
+  const toggleVideoWatchedStatus = async (video: ProcessedVideo) => {
+    try {
+      if (video.id) {
+        if (video.is_watched) {
+          await markVideoAsUnwatched(video.id);
+        } else {
+          await markVideoAsWatched(video.id, video.duration_seconds);
+        }
+        
+        // Atualiza as listas locais
+        const updatedVideo = { ...video, is_watched: !video.is_watched };
+        
+        setProcessedVideos(prev => prev.map(v => 
+          v.file_path === video.file_path ? updatedVideo : v
+        ));
+        
+        setSearchResults(prev => prev.map(v => 
+          v.file_path === video.file_path ? updatedVideo : v
+        ));
+        
+        // Recarrega dados da página inicial
+        await loadHomePageData();
+      }
+    } catch (error) {
+      console.error('Error toggling video watched status:', error);
+    }
+  };
+  
+  // Atualizar progresso do vídeo durante reprodução
+  const handleVideoProgress = async (video: ProcessedVideo, currentTime: number) => {
+    if (video.id && video.duration_seconds && currentTime > 0) {
+      try {
+        await updateWatchProgress(video.id, currentTime, video.duration_seconds);
+        
+        // Se atingiu 75%, marcar como assistido
+        const watchedThreshold = video.duration_seconds * 0.75;
+        if (currentTime >= watchedThreshold && !video.is_watched) {
+          const updatedVideo = { ...video, is_watched: true, watch_progress_seconds: currentTime };
+          
+          setProcessedVideos(prev => prev.map(v => 
+            v.file_path === video.file_path ? updatedVideo : v
+          ));
+          
+          await loadHomePageData();
+        }
+      } catch (error) {
+        console.error('Error updating video progress:', error);
+      }
+    }
+  };
+
   return (
     <div className="h-screen bg-gray-900 text-white flex">
       {/* Sidebar */}
       <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-700">
-          <h1 className="text-xl font-bold text-blue-400">Mnemo</h1>
+          <h1 
+            className="text-xl font-bold text-blue-400 cursor-pointer hover:text-blue-300 transition-colors"
+            onClick={goToHomePage}
+            title="Return to Home"
+          >
+            Mnemo
+          </h1>
           <p className="text-sm text-gray-400">Video Library</p>
         </div>
 
@@ -658,19 +844,33 @@ function App() {
               libraryFolders.map((folder, index) => (
                 <div
                   key={index}
-                  onClick={() => handleSelectFolder(folder)}
-                  className={`cursor-pointer text-sm rounded-md p-2 transition-all ${
+                  className={`cursor-pointer text-sm rounded-md p-2 transition-all group ${
                     selectedFolder === folder
                       ? "bg-blue-600 text-white"
                       : "text-gray-400 hover:bg-gray-700"
                   }`}
                 >
-                  <div className="font-medium truncate" title={folder}>
-                    {folder.split(/[/\\]/).pop() || folder}
+                  <div 
+                    onClick={() => handleSelectFolder(folder)}
+                    className="flex-1"
+                  >
+                    <div className="font-medium truncate" title={folder}>
+                      {folder.split(/[/\\]/).pop() || folder}
+                    </div>
+                    <div className="text-xs opacity-75 truncate">
+                      {folder}
+                    </div>
                   </div>
-                  <div className="text-xs opacity-75 truncate">
-                    {folder}
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveFolder(folder);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 text-xs mt-1 transition-all"
+                    title="Remove folder"
+                  >
+                    Remove
+                  </button>
                 </div>
               ))
             )}
@@ -691,18 +891,205 @@ function App() {
             
             {/* Search Bar */}
             <div className="flex-1 max-w-md mx-4">
-              <input
-                type="text"
-                placeholder="Search videos..."
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search videos..."
+                  className="w-full px-3 py-2 pr-10 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {/* Search Icon */}
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                  {isSearching ? (
+                    <svg className="animate-spin h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : searchTerm ? (
+                    <button 
+                      onClick={clearSearch}
+                      className="text-gray-400 hover:text-gray-200"
+                      title="Clear search"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Content Area */}
         <div className="flex-1 p-6 overflow-auto">
-          {!selectedFolder ? (
+          {showHomePage && !selectedFolder ? (
+            /* Página Inicial */
+            <div>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-gray-200 mb-2">Welcome to Mnemo</h2>
+                <p className="text-gray-400">Your personal video library</p>
+              </div>
+
+              {libraryFolders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-300 mb-2">Get Started</h3>
+                  <p className="text-gray-400 mb-6 max-w-md">
+                    Add folders containing your videos to start building your library. 
+                    Mnemo will scan and organize your videos while preserving your folder structure.
+                  </p>
+                  <button 
+                    onClick={handleAddFolder}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                  >
+                    Add Your First Folder
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Continue Watching */}
+                  {videosInProgress.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-300 mb-4">Continue Watching</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                        {videosInProgress.map((video, index) => (
+                          <div
+                            key={`progress-${video.file_path}-${index}`}
+                            className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
+                            onClick={() => handlePlayVideo(video)}
+                            onContextMenu={(e) => handleContextMenu(e, video)}
+                          >
+                            <div className="aspect-video bg-gray-700 relative">
+                              {video.thumbnail_path ? (
+                                <img 
+                                  src={convertFileSrc(video.thumbnail_path)}
+                                  alt={video.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                              {/* Progress bar */}
+                              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
+                                <div 
+                                  className="h-full bg-blue-500" 
+                                  style={{ width: `${((video.watch_progress_seconds || 0) / (video.duration_seconds || 1)) * 100}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <div className="p-2">
+                              <p className="text-sm font-medium text-gray-300 truncate" title={video.title}>
+                                {video.title}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recently Watched */}
+                  {recentVideos.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-300 mb-4">Recently Watched</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                        {recentVideos.map((video, index) => (
+                          <div
+                            key={`recent-${video.file_path}-${index}`}
+                            className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
+                            onClick={() => handlePlayVideo(video)}
+                            onContextMenu={(e) => handleContextMenu(e, video)}
+                          >
+                            <div className="aspect-video bg-gray-700 relative">
+                              {video.thumbnail_path ? (
+                                <img 
+                                  src={convertFileSrc(video.thumbnail_path)}
+                                  alt={video.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                              {/* Watched indicator */}
+                              {video.is_watched && (
+                                <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-2">
+                              <p className="text-sm font-medium text-gray-300 truncate" title={video.title}>
+                                {video.title}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Suggested Videos */}
+                  {suggestedVideos.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-300 mb-4">Suggestions for You</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                        {suggestedVideos.map((video, index) => (
+                          <div
+                            key={`suggested-${video.file_path}-${index}`}
+                            className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer"
+                            onClick={() => handlePlayVideo(video)}
+                            onContextMenu={(e) => handleContextMenu(e, video)}
+                          >
+                            <div className="aspect-video bg-gray-700 relative">
+                              {video.thumbnail_path ? (
+                                <img 
+                                  src={convertFileSrc(video.thumbnail_path)}
+                                  alt={video.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-2">
+                              <p className="text-sm font-medium text-gray-300 truncate" title={video.title}>
+                                {video.title}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : !selectedFolder ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -720,6 +1107,99 @@ function App() {
               >
                 Add Your First Folder
               </button>
+            </div>
+          ) : showSearchResults ? (
+            <div>
+              {isSearching ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
+                    <span className="text-gray-400">Searching...</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-300 mb-2">
+                      Search Results
+                    </h3>
+                    <p className="text-sm text-gray-400">
+                      {searchResults.length === 0 
+                        ? `No videos found for "${searchTerm}"`
+                        : `Found ${searchResults.length} video${searchResults.length === 1 ? '' : 's'} for "${searchTerm}"`
+                      }
+                    </p>
+                  </div>
+                  
+                  {/* Search Results Grid */}
+                  {searchResults.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {searchResults.map((video, index) => (
+                        <div
+                          key={`search-${video.file_path}-${index}`}
+                          className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer"
+                          onClick={() => handlePlayVideo(video)}
+                          onContextMenu={(e) => handleContextMenu(e, video)}
+                        >
+                          <div className="aspect-video bg-gray-700 relative">
+                            {video.thumbnail_path ? (
+                              <img 
+                                src={convertFileSrc(video.thumbnail_path)}
+                                alt={video.title}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <svg className="w-12 h-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                            {/* Watched indicator */}
+                            {video.is_watched && (
+                              <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            )}
+                            {/* Progress bar for videos in progress */}
+                            {video.watch_progress_seconds && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
+                              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
+                                <div 
+                                  className="h-full bg-blue-500" 
+                                  style={{ width: `${(video.watch_progress_seconds / video.duration_seconds) * 100}%` }}
+                                ></div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-3">
+                            <h4 className="font-medium text-gray-200 text-sm mb-1 line-clamp-2">
+                              {video.title}
+                            </h4>
+                            <div className="flex items-center justify-between text-xs text-gray-400">
+                              <span>{video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00'}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenVideoDetails(video);
+                                }}
+                                className="hover:text-gray-200 transition-colors"
+                                title="Video details"
+                              >
+                                ⓘ
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div>
@@ -788,6 +1268,23 @@ function App() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
                               </div>
+                              {/* Watched indicator */}
+                              {video.is_watched && (
+                                <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              )}
+                              {/* Progress bar for videos in progress */}
+                              {video.watch_progress_seconds && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
+                                  <div 
+                                    className="h-full bg-blue-500" 
+                                    style={{ width: `${(video.watch_progress_seconds / video.duration_seconds) * 100}%` }}
+                                  ></div>
+                                </div>
+                              )}
                               {video.duration_seconds && video.duration_seconds > 0 && (
                                 <div className="absolute bottom-1 right-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
                                   {formatDuration(video.duration_seconds)}
@@ -836,7 +1333,7 @@ function App() {
                               ) : (
                                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
+                              </svg>
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -994,26 +1491,34 @@ function App() {
             className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
           >
             ▶️ Play in Internal Player
-          </button>
-          <button
-            onClick={() => handleOpenFile(contextMenu.video!.file_path)}
-            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-          >
-            🎬 Open External
-          </button>
-          <button
-            onClick={() => handleOpenWith(contextMenu.video!.file_path)}
-            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-          >
-            📁 Show in Explorer
-          </button>
-          <hr className="border-gray-600 my-1" />
-          <button
-            onClick={() => handleOpenProperties(contextMenu.video!)}
-            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-          >
-            ⚙️ Properties
-          </button>
+          </button>            <button
+                onClick={() => handleOpenFile(contextMenu.video!.file_path)}
+                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                🎬 Open External
+              </button>
+              <button
+                onClick={() => handleOpenWith(contextMenu.video!.file_path)}
+                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                📁 Show in Explorer
+              </button>
+              <hr className="border-gray-600 my-1" />
+              <button
+                onClick={() => {
+                  toggleVideoWatchedStatus(contextMenu.video!);
+                  handleCloseContextMenu();
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                {contextMenu.video!.is_watched ? '❌ Mark as Unwatched' : '✅ Mark as Watched'}
+              </button>
+              <button
+                onClick={() => handleOpenProperties(contextMenu.video!)}
+                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                ⚙️ Properties
+              </button>
         </div>
       )}
 
@@ -1058,6 +1563,10 @@ function App() {
               onTimeUpdate={(e) => {
                 const video = e.currentTarget;
                 setCurrentTime(video.currentTime);
+                // Update progress tracking
+                if (playingVideo) {
+                  handleVideoProgress(playingVideo, video.currentTime);
+                }
               }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
