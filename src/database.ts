@@ -291,17 +291,19 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
   
   const term = `%${searchTerm.trim()}%`;
   
-  // Busca combinada: títulos e tags
+  // Busca combinada: títulos, descrições e tags
   const result = await database.select(
     `SELECT DISTINCT v.* FROM videos v
      LEFT JOIN video_tags vt ON v.id = vt.video_id
      LEFT JOIN tags t ON vt.tag_id = t.id
      WHERE v.title LIKE $1 
-        OR t.name LIKE $1
         OR v.description LIKE $1
+        OR t.name LIKE $1
      ORDER BY v.title`,
     [term]
   ) as any[];
+  
+  console.log(`Search for "${searchTerm}" returned ${result.length} results`);
   
   return result.map(video => ({
     id: video.id,
@@ -321,14 +323,17 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
 }
 
 // Nova função para busca recursiva em tempo real (busca em arquivos do sistema de arquivos)
-export async function searchVideosRecursive(searchTerm: string, progressCallback?: (current: number, total: number, currentFile: string) => void): Promise<ProcessedVideo[]> {
+export async function searchVideosRecursive(searchTerm: string, progressCallback?: (current: number, total: number, currentFile: string) => void, specificFolder?: string): Promise<ProcessedVideo[]> {
   if (!searchTerm.trim()) {
     return [];
   }
 
   const results: ProcessedVideo[] = [];
-  const folders = await getLibraryFolders();
+  const folders = specificFolder ? [specificFolder] : await getLibraryFolders();
   const searchTermLower = searchTerm.trim().toLowerCase();
+  
+  console.log(`[searchVideosRecursive] Searching for "${searchTerm}" in folders:`, folders);
+  console.log(`[searchVideosRecursive] Specific folder provided:`, specificFolder);
   
   let totalFiles = 0;
   let processedFiles = 0;
@@ -361,9 +366,8 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
 
         // Verifica se o nome do arquivo contém o termo de busca
         const fileName = videoFile.name.toLowerCase();
-        const filePath = videoFile.path.toLowerCase();
         
-        if (fileName.includes(searchTermLower) || filePath.includes(searchTermLower)) {
+        if (fileName.includes(searchTermLower)) {
           // Verifica se já existe no banco de dados
           let existingVideo = await getVideoByPath(videoFile.path);
           
@@ -391,6 +395,7 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
     }
   }
 
+  console.log(`[searchVideosRecursive] Found ${results.length} results for "${searchTerm}"`);
   return results;
 }
 
