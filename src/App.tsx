@@ -27,6 +27,7 @@ import SearchBar from "./components/Search/SearchBar";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
 import SearchProgressBar from "./components/Progress/SearchProgressBar";
 import NavigationButtons from "./components/Navigation/NavigationButtons";
+import TopBar from "./components/Navigation/TopBar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import "./styles/player.css";
 
@@ -1210,31 +1211,17 @@ function App() {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col">
                 {/* Top Bar */}
-                <div className="bg-gray-800 border-b border-gray-700 p-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                            {/* Navigation Buttons */}
-                            <NavigationButtons
-                                canGoBack={canGoBack}
-                                canGoForward={canGoForward}
-                                onGoBack={goBack}
-                                onGoForward={goForward}
-                            />
-
-                            <h2 className="text-lg font-semibold">
-                                {selectedFolder || "Welcome to Mnemo"}
-                            </h2>
-                        </div>
-
-                        {/* Search Bar */}
-                        <SearchBar
-                            searchTerm={searchTerm}
-                            setSearchTerm={setSearchTerm}
-                            isSearching={isSearching}
-                            onClearSearch={clearSearch}
-                        />
-                    </div>
-                </div>
+                <TopBar
+                    selectedFolder={selectedFolder}
+                    canGoBack={canGoBack}
+                    canGoForward={canGoForward}
+                    onGoBack={goBack}
+                    onGoForward={goForward}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    isSearching={isSearching}
+                    onClearSearch={clearSearch}
+                />
 
                 {/* Progress Bar for Video Processing */}
                 <ProcessingProgressBar
