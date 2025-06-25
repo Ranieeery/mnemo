@@ -251,3 +251,168 @@ export async function getAllLibraryFoldersDebug() {
   console.log("All library folders:", result);
   return result;
 }
+
+// ====== FUNÇÕES DE TAGS ======
+
+// Interface para Tag
+export interface Tag {
+  id: number;
+  name: string;
+  created_at: string;
+}
+
+// Interface para VideoTag (relacionamento)
+export interface VideoTag {
+  id: number;
+  video_id: number;
+  tag_id: number;
+  created_at: string;
+  tag_name?: string; // Para joins
+}
+
+// Criar ou obter uma tag (se já existir, retorna a existente)
+export async function createOrGetTag(tagName: string): Promise<Tag> {
+  const database = await getDatabase();
+  
+  // Verifica se a tag já existe
+  const existingTag = await database.select(
+    "SELECT * FROM tags WHERE name = $1",
+    [tagName.trim().toLowerCase()]
+  ) as Tag[];
+  
+  if (existingTag.length > 0) {
+    return existingTag[0];
+  }
+  
+  // Cria a nova tag
+  await database.execute(
+    "INSERT INTO tags (name) VALUES ($1)",
+    [tagName.trim().toLowerCase()]
+  );
+  
+  // Retorna a tag criada
+  const newTag = await database.select(
+    "SELECT * FROM tags WHERE name = $1",
+    [tagName.trim().toLowerCase()]
+  ) as Tag[];
+  
+  return newTag[0];
+}
+
+// Obter todas as tags
+export async function getAllTags(): Promise<Tag[]> {
+  const database = await getDatabase();
+  
+  const result = await database.select(
+    "SELECT * FROM tags ORDER BY name"
+  ) as Tag[];
+  
+  return result;
+}
+
+// Adicionar tag a um vídeo
+export async function addTagToVideo(videoId: number, tagName: string): Promise<void> {
+  const database = await getDatabase();
+  
+  // Criar ou obter a tag
+  const tag = await createOrGetTag(tagName);
+  
+  // Verificar se a associação já existe
+  const existing = await database.select(
+    "SELECT * FROM video_tags WHERE video_id = $1 AND tag_id = $2",
+    [videoId, tag.id]
+  ) as VideoTag[];
+  
+  if (existing.length === 0) {
+    // Adicionar a associação
+    await database.execute(
+      "INSERT INTO video_tags (video_id, tag_id) VALUES ($1, $2)",
+      [videoId, tag.id]
+    );
+  }
+}
+
+// Remover tag de um vídeo
+export async function removeTagFromVideo(videoId: number, tagId: number): Promise<void> {
+  const database = await getDatabase();
+  
+  await database.execute(
+    "DELETE FROM video_tags WHERE video_id = $1 AND tag_id = $2",
+    [videoId, tagId]
+  );
+}
+
+// Obter todas as tags de um vídeo
+export async function getVideoTags(videoId: number): Promise<Tag[]> {
+  const database = await getDatabase();
+  
+  const result = await database.select(
+    `SELECT t.* FROM tags t
+     INNER JOIN video_tags vt ON t.id = vt.tag_id
+     WHERE vt.video_id = $1
+     ORDER BY t.name`,
+    [videoId]
+  ) as Tag[];
+  
+  return result;
+}
+
+// Buscar vídeos por tags
+export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedVideo[]> {
+  const database = await getDatabase();
+  
+  if (tagNames.length === 0) {
+    return [];
+  }
+  
+  // Criar placeholders para a query
+  const placeholders = tagNames.map((_, index) => `$${index + 1}`).join(', ');
+  const normalizedTags = tagNames.map(tag => tag.trim().toLowerCase());
+  
+  const result = await database.select(
+    `SELECT DISTINCT v.* FROM videos v
+     INNER JOIN video_tags vt ON v.id = vt.video_id
+     INNER JOIN tags t ON vt.tag_id = t.id
+     WHERE t.name IN (${placeholders})
+     ORDER BY v.title`,
+    normalizedTags
+  ) as any[];
+  
+  // Converter para ProcessedVideo
+  return result.map(video => ({
+    id: video.id,
+    file_path: video.file_path,
+    title: video.title,
+    description: video.description || '',
+    duration_seconds: video.duration_seconds || 0,
+    thumbnail_path: video.thumbnail_path || '',
+    created_at: video.created_at,
+    updated_at: video.updated_at,
+    duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
+    size: 0 // Campo obrigatório mas não usado aqui
+  }));
+}
+
+// Função auxiliar para formatar duração
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Remover tags não utilizadas (limpeza)
+export async function cleanupUnusedTags(): Promise<void> {
+  const database = await getDatabase();
+  
+  await database.execute(
+    `DELETE FROM tags 
+     WHERE id NOT IN (
+       SELECT DISTINCT tag_id FROM video_tags
+     )`
+  );
+}

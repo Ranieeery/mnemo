@@ -13,6 +13,7 @@ import {
 } from "./database";
 import { processVideosInDirectory, checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
 import { formatDuration } from "./utils/videoUtils";
+import { VideoTagsManager } from "./components/VideoTagsManager";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -949,6 +950,9 @@ function App() {
                 </div>
               </div>
             </div>
+            
+            {/* Tags Section */}
+            <VideoTagsManager video={selectedVideo} />
             
             {/* Actions */}
             <div className="flex justify-end space-x-2">
