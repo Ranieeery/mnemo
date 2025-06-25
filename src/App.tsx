@@ -8,7 +8,8 @@ import {
   saveLibraryFolder,
   debugDatabaseInfo,
   getAllLibraryFoldersDebug,
-  getVideosInDirectory
+  getVideosInDirectory,
+  updateVideoDetails
 } from "./database";
 import { processVideosInDirectory, checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
 import { formatDuration } from "./utils/videoUtils";
@@ -176,28 +177,35 @@ function App() {
     setSelectedVideo(null);
   };
 
-  // Função para salvar as edições do vídeo
-  const handleSaveVideoEdits = async () => {
+  // Função para salvar as alterações do vídeo
+  const handleSaveVideoDetails = async () => {
     if (!selectedVideo) return;
-    
+
     try {
-      // Atualiza o título e descrição no banco de dados
-      await invoke('update_video_metadata', {
-        id: selectedVideo.id,
-        title: editingTitle,
-        description: editingDescription,
-      });
+      await updateVideoDetails(selectedVideo.file_path, editingTitle, editingDescription);
       
-      // Atualiza o estado local
-      setProcessedVideos(prevVideos => 
-        prevVideos.map(video => 
-          video.id === selectedVideo.id ? { ...video, title: editingTitle, description: editingDescription } : video
-        )
-      );
+      // Atualiza o vídeo na lista local
+      setProcessedVideos(prev => prev.map(video => 
+        video.file_path === selectedVideo.file_path
+          ? { ...video, title: editingTitle, description: editingDescription }
+          : video
+      ));
       
-      handleCloseVideoDetails();
+      // Atualiza o vídeo selecionado
+      setSelectedVideo(prev => prev ? { ...prev, title: editingTitle, description: editingDescription } : null);
+      
+      console.log("Video details saved successfully");
     } catch (error) {
-      console.error('Error saving video edits:', error);
+      console.error("Error saving video details:", error);
+      alert("Error saving video details. Please try again.");
+    }
+  };
+
+  // Função para cancelar a edição
+  const handleCancelEdit = () => {
+    if (selectedVideo) {
+      setEditingTitle(selectedVideo.title);
+      setEditingDescription(selectedVideo.description || "");
     }
   };
 
@@ -443,7 +451,15 @@ function App() {
       {/* Modal para detalhes do vídeo */}
       {showVideoDetails && selectedVideo && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg shadow-lg max-w-lg w-full p-6">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50"
+            onClick={handleCloseVideoDetails}
+          ></div>
+          
+          {/* Modal Content */}
+          <div className="relative bg-gray-800 rounded-lg shadow-lg max-w-lg w-full mx-4 p-6"
+               onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-300">
@@ -498,11 +514,34 @@ function App() {
                 onChange={(e) => setEditingDescription(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={3}
+                placeholder="Add a description..."
               />
+            </div>
+            
+            {/* Video Metadata */}
+            <div className="mb-4 p-3 bg-gray-700 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-300 mb-2">Video Information</h4>
+              <div className="space-y-1 text-sm text-gray-400">
+                {selectedVideo.duration_seconds && selectedVideo.duration_seconds > 0 && (
+                  <div>
+                    <span className="font-medium">Duration:</span> {formatDuration(selectedVideo.duration_seconds)}
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">File Path:</span>
+                  <div className="break-all mt-1 text-xs">{selectedVideo.file_path}</div>
+                </div>
+              </div>
             </div>
             
             {/* Actions */}
             <div className="flex justify-end space-x-2">
+              <button 
+                onClick={handleCancelEdit}
+                className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                Reset
+              </button>
               <button 
                 onClick={handleCloseVideoDetails}
                 className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
@@ -510,7 +549,7 @@ function App() {
                 Cancel
               </button>
               <button 
-                onClick={handleSaveVideoEdits}
+                onClick={handleSaveVideoDetails}
                 className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
               >
                 Save Changes

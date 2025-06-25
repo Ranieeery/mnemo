@@ -1,4 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
+import { ProcessedVideo } from "./services/videoProcessor";
 
 let db: Database | null = null;
 
@@ -105,15 +106,51 @@ export async function saveVideo(videoData: {
   );
 }
 
-export async function getVideoByPath(filePath: string) {
-  const database = await getDatabase();
-  
-  const result = await database.select(
-    "SELECT * FROM videos WHERE file_path = $1",
-    [filePath]
-  ) as any[];
-  
-  return result.length > 0 ? result[0] : null;
+export async function updateVideoDetails(filePath: string, title: string, description: string): Promise<void> {
+  if (!db) {
+    await initDatabase();
+  }
+
+  if (!db) {
+    throw new Error("Database not initialized");
+  }
+
+  try {
+    await db.execute(
+      `UPDATE videos 
+       SET title = ?, description = ?, updated_at = CURRENT_TIMESTAMP 
+       WHERE file_path = ?`,
+      [title, description, filePath]
+    );
+    console.log(`Updated video details for: ${filePath}`);
+  } catch (error) {
+    console.error("Error updating video details:", error);
+    throw error;
+  }
+}
+
+export async function getVideoByPath(filePath: string): Promise<ProcessedVideo | null> {
+  if (!db) {
+    await initDatabase();
+  }
+
+  if (!db) {
+    throw new Error("Database not initialized");
+  }
+
+  try {
+    const result = await db.select<ProcessedVideo[]>(
+      `SELECT file_path, title, description, duration_seconds, thumbnail_path, created_at, updated_at
+       FROM videos 
+       WHERE file_path = ?`,
+      [filePath]
+    );
+    
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error("Error getting video by path:", error);
+    return null;
+  }
 }
 
 export async function getVideosInDirectory(directoryPath: string) {
