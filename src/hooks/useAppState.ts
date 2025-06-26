@@ -39,6 +39,13 @@ interface AppActions {
     setSuggestedVideos: (videos: ProcessedVideo[]) => void;
     setLibraryFoldersWithPreviews: (folders: { folder: string; videos: ProcessedVideo[] }[]) => void;
     
+    // Setters compatíveis com React.Dispatch
+    setProcessedVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
+    setRecentVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
+    setVideosInProgressReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
+    setSuggestedVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
+    setShowVideoPlayerReact: React.Dispatch<React.SetStateAction<boolean>>;
+    
     // Ações compostas
     loadHomePageData: () => Promise<void>;
     loadDirectoryContents: (path: string) => Promise<void>;
@@ -143,6 +150,42 @@ export function useAppState() {
         }
     }, [state.currentPath, loadDirectoryContents]);
 
+    // Setters compatíveis com React.Dispatch
+    const setProcessedVideosReact = useCallback((value: React.SetStateAction<ProcessedVideo[]>) => {
+        setState(prev => ({
+            ...prev,
+            processedVideos: typeof value === 'function' ? value(prev.processedVideos) : value
+        }));
+    }, []);
+
+    const setRecentVideosReact = useCallback((value: React.SetStateAction<ProcessedVideo[]>) => {
+        setState(prev => ({
+            ...prev,
+            recentVideos: typeof value === 'function' ? value(prev.recentVideos) : value
+        }));
+    }, []);
+
+    const setVideosInProgressReact = useCallback((value: React.SetStateAction<ProcessedVideo[]>) => {
+        setState(prev => ({
+            ...prev,
+            videosInProgress: typeof value === 'function' ? value(prev.videosInProgress) : value
+        }));
+    }, []);
+
+    const setSuggestedVideosReact = useCallback((value: React.SetStateAction<ProcessedVideo[]>) => {
+        setState(prev => ({
+            ...prev,
+            suggestedVideos: typeof value === 'function' ? value(prev.suggestedVideos) : value
+        }));
+    }, []);
+
+    const setShowVideoPlayerReact = useCallback((value: React.SetStateAction<boolean>) => {
+        setState(prev => ({
+            ...prev,
+            showVideoPlayer: typeof value === 'function' ? value(prev.showVideoPlayer) : value
+        }));
+    }, []);
+
     const actions: AppActions = {
         setCurrentPath,
         setDirectoryContents,
@@ -154,6 +197,11 @@ export function useAppState() {
         setVideosInProgress,
         setSuggestedVideos,
         setLibraryFoldersWithPreviews,
+        setProcessedVideosReact,
+        setRecentVideosReact,
+        setVideosInProgressReact,
+        setSuggestedVideosReact,
+        setShowVideoPlayerReact,
         loadHomePageData,
         loadDirectoryContents,
         refreshCurrentDirectory,
