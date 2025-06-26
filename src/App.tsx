@@ -31,7 +31,8 @@ import { useVideoProcessing } from "./hooks/useVideoProcessing";
 import { useVideoSearch } from "./hooks/useVideoSearch";
 import { useVideoWatchedStatus } from "./hooks/useVideoWatchedStatus";
 import { useNavigation } from "./hooks/useNavigation";
-import { checkAndLoadSubtitles, parseSubtitles, getCurrentSubtitle, Subtitle } from "./utils/subtitleUtils";
+import { useVideoPlayer } from "./hooks/useVideoPlayer";
+import { checkAndLoadSubtitles, parseSubtitles } from "./utils/subtitleUtils";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -76,19 +77,6 @@ function App() {
         video: null
     });
     const [showVideoPlayer, setShowVideoPlayer] = useState<boolean>(false);
-    const [playingVideo, setPlayingVideo] = useState<ProcessedVideo | null>(null);
-    const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-    const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-    const [isPlaying, setIsPlaying] = useState<boolean>(false);
-    const [currentTime, setCurrentTime] = useState<number>(0);
-    const [duration, setDuration] = useState<number>(0);
-    const [volume, setVolume] = useState<number>(1);
-    const [showControls, setShowControls] = useState<boolean>(true);
-    const [controlsTimeout, setControlsTimeout] = useState<number | null>(null);
-    const [subtitlesEnabled, setSubtitlesEnabled] = useState<boolean>(false);
-    const [subtitlesAvailable, setSubtitlesAvailable] = useState<boolean>(false);
-    const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
-    const [isIconChanging, setIsIconChanging] = useState<boolean>(false);
 
     // Estados para página inicial
     const [showHomePage, setShowHomePage] = useState<boolean>(true);
@@ -275,6 +263,14 @@ function App() {
         loadHomePageData
     });
 
+    // Hook para o player de vídeo
+    const videoPlayer = useVideoPlayer({
+        setShowVideoPlayer,
+        updateWatchProgress,
+        setProcessedVideos,
+        loadHomePageData
+    });
+
     // Função para navegar para um diretório
     const navigateToDirectory = (path: string) => {
         navigation.navigateToFolder(path);
@@ -432,43 +428,6 @@ function App() {
         };
     }, [navigation.canGoBack, navigation.canGoForward]);
 
-    // Funções do player de vídeo interno
-    const handlePlayVideo = async (video: ProcessedVideo) => {
-        setPlayingVideo(video);
-        setShowVideoPlayer(true);
-        setPlaybackSpeed(1);
-        setIsPlaying(false);
-        setCurrentTime(0);
-        setDuration(0);
-        setVolume(1);
-        setShowControls(true);
-        setCurrentSubtitle("");
-
-        // Verifica e carrega legendas
-        const subtitleData = await checkAndLoadSubtitles(video.file_path);
-        if (subtitleData) {
-            const parsedSubtitles = parseSubtitles(subtitleData);
-            setSubtitles(parsedSubtitles);
-            setSubtitlesAvailable(true);
-            setSubtitlesEnabled(true); // Ativa legendas automaticamente quando detectadas
-        } else {
-            setSubtitles([]);
-            setSubtitlesAvailable(false);
-            setSubtitlesEnabled(false);
-        }
-    };
-
-    const handleCloseVideoPlayer = () => {
-        setShowVideoPlayer(false);
-        setPlayingVideo(null);
-        setIsFullscreen(false);
-        setIsPlaying(false);
-        if (controlsTimeout) {
-            clearTimeout(controlsTimeout);
-            setControlsTimeout(null);
-        }
-    };
-
     // Função para abrir configurações
     const handleOpenSettings = () => {
         setShowSettings(true);
@@ -503,211 +462,10 @@ function App() {
         }
     };
 
-    const handleSpeedChange = (speed: number) => {
-        setPlaybackSpeed(speed);
-        const video = document.querySelector('video') as HTMLVideoElement;
-        if (video) {
-            video.playbackRate = speed;
-        }
-    };
-
-    const toggleFullscreen = async () => {
-        try {
-            if (!isFullscreen) {
-                // Entra em tela cheia real (F11)
-                await document.documentElement.requestFullscreen();
-                setIsFullscreen(true);
-            } else {
-                // Sai da tela cheia real
-                await document.exitFullscreen();
-                setIsFullscreen(false);
-            }
-        } catch (error) {
-            console.error('Error toggling fullscreen:', error);
-            // Fallback para método simples se API não funcionar
-            setIsFullscreen(!isFullscreen);
-        }
-    };
-
-    const togglePlayPause = () => {
-        const video = document.querySelector('video') as HTMLVideoElement;
-        if (video) {
-            // Ativa a animação de transição
-            setIsIconChanging(true);
-
-            setTimeout(() => {
-                if (video.paused) {
-                    video.play();
-                    setIsPlaying(true);
-                } else {
-                    video.pause();
-                    setIsPlaying(false);
-                }
-
-                // Remove a animação após a mudança
-                setTimeout(() => setIsIconChanging(false), 150);
-            }, 75); // Metade da duração da transição CSS
-        }
-    };
-
-    const handleSeek = (time: number) => {
-        const video = document.querySelector('video') as HTMLVideoElement;
-        if (video) {
-            video.currentTime = time;
-            setCurrentTime(time);
-        }
-    };
-
-    const handleVolumeChange = (newVolume: number) => {
-        const video = document.querySelector('video') as HTMLVideoElement;
-        if (video) {
-            video.volume = newVolume;
-            setVolume(newVolume);
-        }
-    };
-
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    // Função para alternar legendas
-    const toggleSubtitles = () => {
-        if (subtitlesAvailable) {
-            setSubtitlesEnabled(!subtitlesEnabled);
-        }
-    };
-
-    // Estado para armazenar legendas processadas
-    const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
-
-    // Atualizar legenda atual baseada no tempo do vídeo
-    useEffect(() => {
-        if (showVideoPlayer && subtitlesEnabled) {
-            const newSubtitle = getCurrentSubtitle(currentTime, subtitles, subtitlesEnabled);
-            setCurrentSubtitle(newSubtitle);
-        } else {
-            setCurrentSubtitle("");
-        }
-    }, [currentTime, subtitlesEnabled, showVideoPlayer, subtitles]);
-
-    // Auto-hide controls em fullscreen
-    const resetControlsTimeout = () => {
-        if (controlsTimeout) {
-            clearTimeout(controlsTimeout);
-        }
-
-        setShowControls(true);
-
-        // Só esconde controles se estiver em fullscreen REAL
-        if (document.fullscreenElement) {
-            const timeout = setTimeout(() => {
-                setShowControls(false);
-            }, 3000);
-            setControlsTimeout(timeout);
-        }
-    };
-
-    // Controles de teclado para o player
-    useEffect(() => {
-        const handleKeyPress = (e: KeyboardEvent) => {
-            if (!showVideoPlayer) return;
-
-            switch (e.code) {
-                case 'Space':
-                    e.preventDefault();
-                    togglePlayPause();
-                    break;
-                case 'Escape':
-                    if (isFullscreen) {
-                        setIsFullscreen(false);
-                    } else {
-                        handleCloseVideoPlayer();
-                    }
-                    break;
-                case 'KeyF':
-                    e.preventDefault();
-                    toggleFullscreen();
-                    break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    handleSeek(Math.max(0, currentTime - 10));
-                    break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    handleSeek(Math.min(duration, currentTime + 10));
-                    break;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    handleVolumeChange(Math.min(1, volume + 0.1));
-                    break;
-                case 'ArrowDown':
-                    e.preventDefault();
-                    handleVolumeChange(Math.max(0, volume - 0.1));
-                    break;
-            }
-
-            resetControlsTimeout();
-        };
-
-        if (showVideoPlayer) {
-            document.addEventListener('keydown', handleKeyPress);
-            return () => {
-                document.removeEventListener('keydown', handleKeyPress);
-            };
-        }
-    }, [showVideoPlayer, isFullscreen, currentTime, duration, volume]);
-
-    // Auto-hide controls em fullscreen
-    useEffect(() => {
-        if (document.fullscreenElement) {
-            resetControlsTimeout();
-        } else {
-            setShowControls(true);
-            if (controlsTimeout) {
-                clearTimeout(controlsTimeout);
-                setControlsTimeout(null);
-            }
-        }
-    }, [isFullscreen]);
-
-    // Listener para detectar mudanças na tela cheia
-    useEffect(() => {
-        if (!showVideoPlayer) return;
-
-        const handleFullscreenChange = () => {
-            const isCurrentlyFullscreen = document.fullscreenElement !== null;
-            setIsFullscreen(isCurrentlyFullscreen);
-        };
-
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        };
-    }, [showVideoPlayer]);
-
-    // Atualizar progresso do vídeo durante reprodução
-    const handleVideoProgress = async (video: ProcessedVideo, currentTime: number) => {
-        if (video.id && video.duration_seconds && currentTime > 0) {
-            try {
-                await updateWatchProgress(video.id, currentTime, video.duration_seconds);
-
-                // Se atingiu 75%, marcar como assistido
-                const watchedThreshold = video.duration_seconds * 0.75;
-                if (currentTime >= watchedThreshold && !video.is_watched) {
-                    const updatedVideo = {...video, is_watched: true, watch_progress_seconds: currentTime};
-
-                    setProcessedVideos(prev => prev.map(v =>
-                        v.file_path === video.file_path ? updatedVideo : v
-                    ));
-
-                    await loadHomePageData();
-                }
-            } catch (error) {
-                console.error('Error updating video progress:', error);
-            }
-        }
     };
 
     // Função para reproduzir o próximo vídeo
@@ -721,17 +479,17 @@ function App() {
             setShowNextVideoPrompt(false);
 
             // Primeiro, configura o próximo vídeo para reprodução
-            setPlayingVideo(nextVideo);
+            videoPlayer.setPlayingVideo(nextVideo);
 
             // Verifica e carrega legendas do próximo vídeo
             const subtitleData = await checkAndLoadSubtitles(nextVideo.file_path);
             if (subtitleData) {
                 const parsedSubtitles = parseSubtitles(subtitleData);
-                setSubtitles(parsedSubtitles);
-                setSubtitlesAvailable(true);
+                videoPlayer.setSubtitles(parsedSubtitles);
+                videoPlayer.setSubtitlesAvailable(true);
             } else {
-                setSubtitles([]);
-                setSubtitlesAvailable(false);
+                videoPlayer.setSubtitles([]);
+                videoPlayer.setSubtitlesAvailable(false);
             }
 
             // Aplica as configurações salvas após um pequeno delay para garantir que o vídeo foi carregado
@@ -740,9 +498,9 @@ function App() {
                 if (video) {
                     video.playbackRate = savedPlaybackSettings.speed;
                     video.volume = savedPlaybackSettings.volume;
-                    setPlaybackSpeed(savedPlaybackSettings.speed);
-                    setVolume(savedPlaybackSettings.volume);
-                    setSubtitlesEnabled(savedPlaybackSettings.subtitlesEnabled);
+                    videoPlayer.handleSpeedChange(savedPlaybackSettings.speed);
+                    videoPlayer.handleVolumeChange(savedPlaybackSettings.volume);
+                    videoPlayer.setSubtitlesEnabled(savedPlaybackSettings.subtitlesEnabled);
                 }
             }, 100);
 
@@ -813,7 +571,7 @@ function App() {
                             searchTerm={searchState.searchTerm}
                             searchResults={searchState.searchResults}
                             searchProgress={searchState.searchProgress}
-                            onPlayVideo={handlePlayVideo}
+                            onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={handleContextMenu}
                             onOpenVideoDetails={handleOpenVideoDetails}
                         />
@@ -826,7 +584,7 @@ function App() {
                             suggestedVideos={suggestedVideos}
                             libraryFoldersWithPreviews={libraryFoldersWithPreviews}
                             onAddFolder={libraryActions.handleAddFolder}
-                            onPlayVideo={handlePlayVideo}
+                            onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={handleContextMenu}
                             onOpenVideoDetails={handleOpenVideoDetails}
                             onSelectFolder={handleSelectFolder}
@@ -859,7 +617,7 @@ function App() {
                             processedVideos={processedVideos}
                             directoryContents={directoryContents}
                             videoProcessingState={videoProcessingState}
-                            onPlayVideo={handlePlayVideo}
+                            onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={handleContextMenu}
                             onNavigateToDirectory={navigateToDirectory}
                             naturalSort={naturalSort}
@@ -887,7 +645,7 @@ function App() {
                 x={contextMenu.x}
                 y={contextMenu.y}
                 video={contextMenu.video}
-                onPlayVideo={handlePlayVideo}
+                onPlayVideo={videoPlayer.handlePlayVideo}
                 onOpenFile={handleOpenFile}
                 onOpenWith={handleOpenWith}
                 onToggleWatchedStatus={toggleVideoWatchedStatus}
@@ -896,43 +654,43 @@ function App() {
             />
 
             {/* Player de Vídeo Interno Customizado */}
-            {showVideoPlayer && playingVideo && (
+            {showVideoPlayer && videoPlayer.playingVideo && (
                 <VideoPlayer
-                    video={playingVideo}
-                    isPlaying={isPlaying}
-                    currentTime={currentTime}
-                    duration={duration}
-                    volume={volume}
-                    playbackSpeed={playbackSpeed}
-                    isFullscreen={isFullscreen}
-                    showControls={showControls}
-                    subtitlesEnabled={subtitlesEnabled}
-                    subtitlesAvailable={subtitlesAvailable}
-                    currentSubtitle={currentSubtitle}
-                    isIconChanging={isIconChanging}
-                    onClose={handleCloseVideoPlayer}
-                    onTogglePlayPause={togglePlayPause}
-                    onSeek={handleSeek}
-                    onVolumeChange={handleVolumeChange}
-                    onSpeedChange={handleSpeedChange}
-                    onToggleFullscreen={toggleFullscreen}
-                    onToggleSubtitles={toggleSubtitles}
+                    video={videoPlayer.playingVideo}
+                    isPlaying={videoPlayer.isPlaying}
+                    currentTime={videoPlayer.currentTime}
+                    duration={videoPlayer.duration}
+                    volume={videoPlayer.volume}
+                    playbackSpeed={videoPlayer.playbackSpeed}
+                    isFullscreen={videoPlayer.isFullscreen}
+                    showControls={videoPlayer.showControls}
+                    subtitlesEnabled={videoPlayer.subtitlesEnabled}
+                    subtitlesAvailable={videoPlayer.subtitlesAvailable}
+                    currentSubtitle={videoPlayer.currentSubtitle}
+                    isIconChanging={videoPlayer.isIconChanging}
+                    onClose={videoPlayer.handleCloseVideoPlayer}
+                    onTogglePlayPause={videoPlayer.togglePlayPause}
+                    onSeek={videoPlayer.handleSeek}
+                    onVolumeChange={videoPlayer.handleVolumeChange}
+                    onSpeedChange={videoPlayer.handleSpeedChange}
+                    onToggleFullscreen={videoPlayer.toggleFullscreen}
+                    onToggleSubtitles={videoPlayer.toggleSubtitles}
                     onVideoProgress={(video, time) => {
-                        setCurrentTime(time);
-                        handleVideoProgress(video, time);
+                        videoPlayer.setCurrentTime(time);
+                        videoPlayer.handleVideoProgress(video, time);
                     }}
                     onVideoEnded={() => {
-                        setIsPlaying(false);
+                        videoPlayer.setIsPlaying(false);
                         // Salva as configurações atuais
                         setSavedPlaybackSettings({
-                            speed: playbackSpeed,
-                            volume: volume,
-                            subtitlesEnabled: subtitlesEnabled
+                            speed: videoPlayer.playbackSpeed,
+                            volume: videoPlayer.volume,
+                            subtitlesEnabled: videoPlayer.subtitlesEnabled
                         });
 
                         // Procura o próximo vídeo
-                        if (playingVideo) {
-                            const currentIndex = processedVideos.findIndex(v => v.file_path === playingVideo.file_path);
+                        if (videoPlayer.playingVideo) {
+                            const currentIndex = processedVideos.findIndex(v => v.file_path === videoPlayer.playingVideo!.file_path);
                             if (currentIndex !== -1 && currentIndex < processedVideos.length - 1) {
                                 const next = processedVideos[currentIndex + 1];
                                 setNextVideo(next);
@@ -957,13 +715,13 @@ function App() {
                         }
                     }}
                     onLoadedMetadata={(videoDuration) => {
-                        setDuration(videoDuration);
+                        videoPlayer.setDuration(videoDuration);
                         // O playbackRate e volume já são setados no componente
                     }}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
+                    onPlay={() => videoPlayer.setIsPlaying(true)}
+                    onPause={() => videoPlayer.setIsPlaying(false)}
                     formatTime={formatTime}
-                    resetControlsTimeout={resetControlsTimeout}
+                    resetControlsTimeout={videoPlayer.resetControlsTimeout}
                 />
             )}
 
