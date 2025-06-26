@@ -30,6 +30,7 @@ import { useLibraryManagement } from "./hooks/useLibraryManagement";
 import { useVideoProcessing } from "./hooks/useVideoProcessing";
 import { useVideoSearch } from "./hooks/useVideoSearch";
 import { useVideoWatchedStatus } from "./hooks/useVideoWatchedStatus";
+import { useNavigation } from "./hooks/useNavigation";
 import { checkAndLoadSubtitles, parseSubtitles, getCurrentSubtitle, Subtitle } from "./utils/subtitleUtils";
 import "./styles/player.css";
 
@@ -105,10 +106,6 @@ function App() {
 
     // Estados para configurações
     const [showSettings, setShowSettings] = useState<boolean>(false);
-
-    // Estados para histórico de navegação
-    const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
-    const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
     // Estados para "próximo vídeo"
     const [showNextVideoPrompt, setShowNextVideoPrompt] = useState<boolean>(false);
@@ -219,69 +216,10 @@ function App() {
         initializeApp();
     }, []);
 
-    // Função para voltar à página inicial
-    const goToHomePage = () => {
-        setSelectedFolder(null);
-        setShowHomePage(true);
-        // Não limpa o termo de busca para mantê-lo persistente
-        loadHomePageData();
+    // Função para selecionar uma pasta na sidebar
+    const handleSelectFolder = (folder: string) => {
+        navigation.navigateToFolder(folder);
     };
-
-    // Função para navegar para uma pasta com histórico
-    const navigateToFolder = (folderPath: string) => {
-        // Adiciona à história se não estivermos navegando pelo histórico
-        if (historyIndex === navigationHistory.length - 1) {
-            const newHistory = [...navigationHistory, folderPath];
-            setNavigationHistory(newHistory);
-            setHistoryIndex(newHistory.length - 1);
-        } else {
-            // Se estivermos no meio da história, remove entradas posteriores
-            const newHistory = navigationHistory.slice(0, historyIndex + 1);
-            newHistory.push(folderPath);
-            setNavigationHistory(newHistory);
-            setHistoryIndex(newHistory.length - 1);
-        }
-
-        setSelectedFolder(folderPath);
-        setCurrentPath(folderPath);
-        setShowHomePage(false);
-        // Não limpa o termo de busca para mantê-lo persistente
-        loadDirectoryContents(folderPath);
-    };
-
-    // Função para voltar no histórico
-    const goBack = () => {
-        if (historyIndex > 0) {
-            const newIndex = historyIndex - 1;
-            setHistoryIndex(newIndex);
-            const folderPath = navigationHistory[newIndex];
-            setSelectedFolder(folderPath);
-            setCurrentPath(folderPath);
-            setShowHomePage(false);
-            loadDirectoryContents(folderPath);
-        } else if (historyIndex === 0) {
-            // Se estamos no primeiro item da história, volta à página inicial
-            setHistoryIndex(-1);
-            goToHomePage();
-        }
-    };
-
-    // Função para avançar no histórico
-    const goForward = () => {
-        if (historyIndex < navigationHistory.length - 1) {
-            const newIndex = historyIndex + 1;
-            setHistoryIndex(newIndex);
-            const folderPath = navigationHistory[newIndex];
-            setSelectedFolder(folderPath);
-            setCurrentPath(folderPath);
-            setShowHomePage(false);
-            loadDirectoryContents(folderPath);
-        }
-    };
-
-    // Verifica se pode voltar ou avançar
-    const canGoBack = historyIndex > -1;
-    const canGoForward = historyIndex < navigationHistory.length - 1;
 
     // Função para abrir modal de confirmação de remoção
     const handleRemoveFolderRequest = (folderPath: string) => {
@@ -293,7 +231,7 @@ function App() {
     const confirmRemoveFolder = async () => {
         if (!folderToRemove) return;
 
-        await libraryActions.confirmRemoveFolder(folderToRemove, selectedFolder, goToHomePage);
+        await libraryActions.confirmRemoveFolder(folderToRemove, selectedFolder, navigation.goToHomePage);
         setShowRemoveConfirmation(false);
         setFolderToRemove(null);
     };
@@ -302,11 +240,6 @@ function App() {
     const cancelRemoveFolder = () => {
         setShowRemoveConfirmation(false);
         setFolderToRemove(null);
-    };
-
-    // Função para selecionar uma pasta na sidebar
-    const handleSelectFolder = (folder: string) => {
-        navigateToFolder(folder);
     };
 
     // Função para carregar o conteúdo de um diretório
@@ -333,9 +266,18 @@ function App() {
         }
     };
 
+    // Hook para navegação
+    const navigation = useNavigation({
+        setSelectedFolder,
+        setCurrentPath,
+        setShowHomePage,
+        loadDirectoryContents,
+        loadHomePageData
+    });
+
     // Função para navegar para um diretório
     const navigateToDirectory = (path: string) => {
-        navigateToFolder(path);
+        navigation.navigateToFolder(path);
     };
 
     // Função para abrir o modal de detalhes do vídeo
@@ -448,13 +390,13 @@ function App() {
         const handleMouseButtons = (event: MouseEvent) => {
             if (event.button === 3) { // Botão "voltar" do mouse
                 event.preventDefault();
-                if (canGoBack) {
-                    goBack();
+                if (navigation.canGoBack) {
+                    navigation.goBack();
                 }
             } else if (event.button === 4) { // Botão "avançar" do mouse
                 event.preventDefault();
-                if (canGoForward) {
-                    goForward();
+                if (navigation.canGoForward) {
+                    navigation.goForward();
                 }
             }
         };
@@ -463,7 +405,7 @@ function App() {
         return () => {
             document.removeEventListener('mousedown', handleMouseButtons);
         };
-    }, [canGoBack, canGoForward]);
+    }, [navigation.canGoBack, navigation.canGoForward]);
 
     // Suporte para teclas de atalho de navegação
     useEffect(() => {
@@ -471,15 +413,15 @@ function App() {
             // Alt + seta esquerda = voltar
             if (event.altKey && event.key === 'ArrowLeft') {
                 event.preventDefault();
-                if (canGoBack) {
-                    goBack();
+                if (navigation.canGoBack) {
+                    navigation.goBack();
                 }
             }
             // Alt + seta direita = avançar
             else if (event.altKey && event.key === 'ArrowRight') {
                 event.preventDefault();
-                if (canGoForward) {
-                    goForward();
+                if (navigation.canGoForward) {
+                    navigation.goForward();
                 }
             }
         };
@@ -488,7 +430,7 @@ function App() {
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [canGoBack, canGoForward]);
+    }, [navigation.canGoBack, navigation.canGoForward]);
 
     // Funções do player de vídeo interno
     const handlePlayVideo = async (video: ProcessedVideo) => {
@@ -830,7 +772,7 @@ function App() {
                 onAddFolder={libraryActions.handleAddFolder}
                 onSelectFolder={handleSelectFolder}
                 onRemoveFolderRequest={handleRemoveFolderRequest}
-                onGoToHomePage={goToHomePage}
+                onGoToHomePage={navigation.goToHomePage}
                 onOpenSettings={handleOpenSettings}
             />
 
@@ -839,10 +781,10 @@ function App() {
                 {/* Top Bar */}
                 <TopBar
                     selectedFolder={selectedFolder}
-                    canGoBack={canGoBack}
-                    canGoForward={canGoForward}
-                    onGoBack={goBack}
-                    onGoForward={goForward}
+                    canGoBack={navigation.canGoBack}
+                    canGoForward={navigation.canGoForward}
+                    onGoBack={navigation.goBack}
+                    onGoForward={navigation.goForward}
                     searchTerm={searchState.searchTerm}
                     setSearchTerm={searchActions.setSearchTerm}
                     isSearching={searchState.isSearching}
