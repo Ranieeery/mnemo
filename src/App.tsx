@@ -27,6 +27,7 @@ import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
 import HomePage from "./components/HomePage/HomePage";
 import SearchResults from "./components/SearchResults/SearchResults";
+import VideoPlayer from "./components/VideoPlayer/VideoPlayer";
 import { useLibraryManagement } from "./hooks/useLibraryManagement";
 import { useVideoProcessing } from "./hooks/useVideoProcessing";
 import { useVideoSearch } from "./hooks/useVideoSearch";
@@ -1240,280 +1241,74 @@ function App() {
 
             {/* Player de Vídeo Interno Customizado */}
             {showVideoPlayer && playingVideo && (
-                <div
-                    className={`fixed inset-0 bg-black z-50 flex flex-col ${isFullscreen ? 'z-[100]' : ''}`}
-                    onMouseMove={resetControlsTimeout}
-                    onClick={resetControlsTimeout}
-                >
-                    {/* Header minimalista - apenas nome do vídeo, esconde em fullscreen */}
-                    {!isFullscreen && (
-                        <div className="bg-gray-900 bg-opacity-95 p-3 flex items-center justify-between">
-                            <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                <button
-                                    onClick={handleCloseVideoPlayer}
-                                    className="text-white hover:text-gray-300 transition-colors flex-shrink-0"
-                                    title="Close Player (Esc)"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                              d="M6 18L18 6M6 6l12 12"/>
-                                    </svg>
-                                </button>
-                                <h3 className="text-white font-medium text-lg truncate min-w-0 flex-1"
-                                    title={playingVideo.title}>
-                                    {playingVideo.title}
-                                </h3>
-                            </div>
-                        </div>
-                    )}
+                <VideoPlayer
+                    video={playingVideo}
+                    isPlaying={isPlaying}
+                    currentTime={currentTime}
+                    duration={duration}
+                    volume={volume}
+                    playbackSpeed={playbackSpeed}
+                    isFullscreen={isFullscreen}
+                    showControls={showControls}
+                    subtitlesEnabled={subtitlesEnabled}
+                    subtitlesAvailable={subtitlesAvailable}
+                    currentSubtitle={currentSubtitle}
+                    isIconChanging={isIconChanging}
+                    onClose={handleCloseVideoPlayer}
+                    onTogglePlayPause={togglePlayPause}
+                    onSeek={handleSeek}
+                    onVolumeChange={handleVolumeChange}
+                    onSpeedChange={handleSpeedChange}
+                    onToggleFullscreen={toggleFullscreen}
+                    onToggleSubtitles={toggleSubtitles}
+                    onVideoProgress={(video, time) => {
+                        setCurrentTime(time);
+                        handleVideoProgress(video, time);
+                    }}
+                    onVideoEnded={() => {
+                        setIsPlaying(false);
+                        // Salva as configurações atuais
+                        setSavedPlaybackSettings({
+                            speed: playbackSpeed,
+                            volume: volume,
+                            subtitlesEnabled: subtitlesEnabled
+                        });
 
-                    {/* Player de Vídeo */}
-                    <div className="flex-1 relative bg-black">
-                        <video
-                            src={convertFileSrc(playingVideo.file_path)}
-                            className="w-full h-full object-contain"
-                            onLoadedMetadata={(e) => {
-                                const video = e.currentTarget;
-                                setDuration(video.duration);
-                                video.playbackRate = playbackSpeed;
-                                video.volume = volume;
-                            }}
-                            onTimeUpdate={(e) => {
-                                const video = e.currentTarget;
-                                setCurrentTime(video.currentTime);
-                                // Update progress tracking
-                                if (playingVideo) {
-                                    handleVideoProgress(playingVideo, video.currentTime);
-                                }
-                            }}
-                            onPlay={() => setIsPlaying(true)}
-                            onPause={() => setIsPlaying(false)}
-                            onEnded={() => {
-                                setIsPlaying(false);
-                                // Salva as configurações atuais
-                                setSavedPlaybackSettings({
-                                    speed: playbackSpeed,
-                                    volume: volume,
-                                    subtitlesEnabled: subtitlesEnabled
-                                });
+                        // Procura o próximo vídeo
+                        if (playingVideo) {
+                            const currentIndex = processedVideos.findIndex(v => v.file_path === playingVideo.file_path);
+                            if (currentIndex !== -1 && currentIndex < processedVideos.length - 1) {
+                                const next = processedVideos[currentIndex + 1];
+                                setNextVideo(next);
+                                setShowNextVideoPrompt(true);
+                                setNextVideoCountdown(10);
 
-                                // Procura o próximo vídeo
-                                if (playingVideo) {
-                                    const currentIndex = processedVideos.findIndex(v => v.file_path === playingVideo.file_path);
-                                    if (currentIndex !== -1 && currentIndex < processedVideos.length - 1) {
-                                        const next = processedVideos[currentIndex + 1];
-                                        setNextVideo(next);
-                                        setShowNextVideoPrompt(true);
-                                        setNextVideoCountdown(10);
-
-                                        // Inicia o countdown automático
-                                        const countdownInterval = setInterval(() => {
-                                            setNextVideoCountdown(prev => {
-                                                if (prev <= 1) {
-                                                    clearInterval(countdownInterval);
-                                                    // Auto-play do próximo vídeo
-                                                    playNextVideo();
-                                                    return 0;
-                                                }
-                                                return prev - 1;
-                                            });
-                                        }, 1000);
-
-                                        setNextVideoTimeout(countdownInterval);
-                                    }
-                                }
-                            }}
-                            autoPlay
-                            preload="metadata"
-                        >
-                            Your browser does not support the video tag.
-                        </video>
-
-                        {/* Exibição de Legendas */}
-                        {subtitlesEnabled && currentSubtitle && (
-                            <div className="absolute bottom-20 left-0 right-0 flex justify-center pointer-events-none">
-                                <div
-                                    className="bg-black bg-opacity-80 text-white px-4 py-2 rounded-lg max-w-4xl mx-4 text-center">
-                                    <div
-                                        className="text-lg leading-tight"
-                                        style={{textShadow: '2px 2px 4px rgba(0,0,0,0.8)'}}
-                                        dangerouslySetInnerHTML={{__html: currentSubtitle.replace(/\n/g, '<br>')}}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Controles Customizados - estilo YouTube */}
-                        <div
-                            className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent p-4 transition-all duration-300 ${
-                                (document.fullscreenElement && !showControls) ? 'opacity-0 pointer-events-none transform translate-y-4' : 'opacity-100 transform translate-y-0'
-                            }`}
-                        >
-                            {/* Barra de Progresso - mais compacta */}
-                            <div className="mb-3">
-                                <div className="relative group">
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max={duration || 0}
-                                        value={currentTime}
-                                        onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                                        className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider transition-all duration-200 group-hover:h-2"
-                                        style={{
-                                            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(currentTime / duration) * 100}%, #4b5563 ${(currentTime / duration) * 100}%, #4b5563 100%)`
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Controles em linha única - estilo YouTube */}
-                            <div className="flex items-center justify-between">
-                                {/* Controles da esquerda */}
-                                <div className="flex items-center space-x-4">
-                                    {/* Play/Pause */}
-                                    <button
-                                        onClick={togglePlayPause}
-                                        className="play-pause-button text-white hover:text-blue-400"
-                                        title="Play/Pause (Space)"
-                                    >
-                                        {isPlaying ? (
-                                            <svg
-                                                className={`w-8 h-8 play-pause-icon ${isIconChanging ? 'changing' : ''}`}
-                                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                      d="M10 9v6m4-6v6"/>
-                                            </svg>
-                                        ) : (
-                                            <svg
-                                                className={`w-8 h-8 play-pause-icon ${isIconChanging ? 'changing' : ''}`}
-                                                fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M8 5v14l11-7z"/>
-                                            </svg>
-                                        )}
-                                    </button>
-
-                                    {/* Volume */}
-                                    <div className="flex items-center space-x-2 group">
-                                        <button
-                                            onClick={() => handleVolumeChange(volume > 0 ? 0 : 1)}
-                                            className="text-white hover:text-blue-400 transition-colors"
-                                            title="Mute/Unmute"
-                                        >
-                                            {volume === 0 ? (
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor"
-                                                     viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                          d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                          d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
-                                                </svg>
-                                            ) : volume < 0.5 ? (
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor"
-                                                     viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                          d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor"
-                                                     viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                          d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
-                                                </svg>
-                                            )}
-                                        </button>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1"
-                                            step="0.05"
-                                            value={volume}
-                                            onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                                            className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider opacity-70 group-hover:opacity-100 transition-opacity"
-                                            style={{
-                                                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #4b5563 ${volume * 100}%, #4b5563 100%)`
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Tempo atual / duração */}
-                                    <div className="text-white text-sm font-mono">
-                                        {formatTime(currentTime)} / {formatTime(duration)}
-                                    </div>
-                                </div>
-
-                                {/* Controles da direita */}
-                                <div className="flex items-center space-x-3">
-                                    {/* Botão de Legendas - agora funcional */}
-                                    <button
-                                        onClick={toggleSubtitles}
-                                        disabled={!subtitlesAvailable}
-                                        className={`transition-colors ${
-                                            !subtitlesAvailable
-                                                ? 'text-gray-600 cursor-not-allowed'
-                                                : subtitlesEnabled
-                                                    ? 'text-blue-400 hover:text-blue-300'
-                                                    : 'text-white hover:text-blue-400'
-                                        }`}
-                                        title={
-                                            !subtitlesAvailable
-                                                ? 'No subtitles available'
-                                                : subtitlesEnabled
-                                                    ? 'Hide subtitles'
-                                                    : 'Show subtitles'
+                                // Inicia o countdown automático
+                                const countdownInterval = setInterval(() => {
+                                    setNextVideoCountdown(prev => {
+                                        if (prev <= 1) {
+                                            clearInterval(countdownInterval);
+                                            // Auto-play do próximo vídeo
+                                            playNextVideo();
+                                            return 0;
                                         }
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                            {subtitlesEnabled && (
-                                                <circle cx="18" cy="6" r="3" fill="currentColor"
-                                                        className="text-blue-400"/>
-                                            )}
-                                        </svg>
-                                    </button>
+                                        return prev - 1;
+                                    });
+                                }, 1000);
 
-                                    {/* Velocidade */}
-                                    <select
-                                        value={playbackSpeed}
-                                        onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                                        className="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                                        title="Playback Speed"
-                                    >
-                                        <option value={0.25}>0.25x</option>
-                                        <option value={0.5}>0.5x</option>
-                                        <option value={0.75}>0.75x</option>
-                                        <option value={1}>1x</option>
-                                        <option value={1.25}>1.25x</option>
-                                        <option value={1.5}>1.5x</option>
-                                        <option value={1.75}>1.75x</option>
-                                        <option value={2}>2x</option>
-                                    </select>
-
-                                    {/* Tela Cheia */}
-                                    <button
-                                        onClick={toggleFullscreen}
-                                        className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
-                                        title="Toggle Fullscreen (F)"
-                                    >
-                                        {isFullscreen ? (
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor"
-                                                 viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                      d="M9 9V4.5M9 9H4.5M9 9L3.5 3.5M15 9h4.5M15 9V4.5M15 9l5.5-5.5M9 15v4.5M9 15H4.5M9 15l-5.5 5.5M15 15h4.5M15 15v4.5m0-4.5l5.5 5.5"/>
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor"
-                                                 viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                      d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5"/>
-                                            </svg>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                                setNextVideoTimeout(countdownInterval);
+                            }
+                        }
+                    }}
+                    onLoadedMetadata={(videoDuration) => {
+                        setDuration(videoDuration);
+                        // O playbackRate e volume já são setados no componente
+                    }}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    formatTime={formatTime}
+                    resetControlsTimeout={resetControlsTimeout}
+                />
             )}
 
             {/* Modal de Próximo Vídeo */}
