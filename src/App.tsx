@@ -8,8 +8,6 @@ import {
     getVideosInDirectoryOrderedByWatchStatus,
     getVideosInProgress,
     initDatabase,
-    markVideoAsUnwatched,
-    markVideoAsWatched,
     saveLibraryFolder,
     updateVideoDetails,
     updateWatchProgress
@@ -31,6 +29,7 @@ import DirectoryView from "./components/DirectoryView/DirectoryView";
 import { useLibraryManagement } from "./hooks/useLibraryManagement";
 import { useVideoProcessing } from "./hooks/useVideoProcessing";
 import { useVideoSearch } from "./hooks/useVideoSearch";
+import { useVideoWatchedStatus } from "./hooks/useVideoWatchedStatus";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -160,6 +159,18 @@ function App() {
             setShowHomePage(true);
             loadHomePageData();
         }
+    });
+
+    // Hook para gerenciar status de vídeos assistidos
+    const { toggleVideoWatchedStatus } = useVideoWatchedStatus({
+        setProcessedVideos,
+        setRecentVideos,
+        setVideosInProgress,
+        setSuggestedVideos,
+        loadHomePageData,
+        selectedFolder,
+        searchState,
+        searchActions
     });
 
     // Carregar pastas do banco de dados na inicialização
@@ -835,33 +846,6 @@ function App() {
             setCurrentSubtitle("");
         }
     }, [currentTime, subtitlesEnabled, showVideoPlayer]);
-
-    // ====== FUNÇÕES DE STATUS DE VÍDEO ======
-
-    // Marcar vídeo como assistido/não assistido
-    const toggleVideoWatchedStatus = async (video: ProcessedVideo) => {
-        try {
-            if (video.id) {
-                if (video.is_watched) {
-                    await markVideoAsUnwatched(video.id);
-                } else {
-                    await markVideoAsWatched(video.id, video.duration_seconds);
-                }
-
-                // Atualiza as listas locais
-                const updatedVideo = {...video, is_watched: !video.is_watched};
-
-                setProcessedVideos(prev => prev.map(v =>
-                    v.file_path === video.file_path ? updatedVideo : v
-                ));
-
-                // Recarrega dados da página inicial
-                await loadHomePageData();
-            }
-        } catch (error) {
-            console.error('Error toggling video watched status:', error);
-        }
-    };
 
     // Atualizar progresso do vídeo durante reprodução
     const handleVideoProgress = async (video: ProcessedVideo, currentTime: number) => {

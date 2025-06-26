@@ -18,6 +18,7 @@ export interface VideoSearchActions {
     handleSearch: (term: string) => Promise<void>;
     clearSearch: () => void;
     setSearchTerm: (term: string) => void;
+    updateSearchResult: (updatedVideo: ProcessedVideo) => void;
 }
 
 interface UseVideoSearchProps {
@@ -112,6 +113,13 @@ export const useVideoSearch = ({
         return () => clearTimeout(timeoutId);
     }, [searchTerm, selectedFolder]);
 
+    // Função para atualizar um vídeo específico nos resultados de busca
+    const updateSearchResult = (updatedVideo: ProcessedVideo) => {
+        setSearchResults(prev => prev.map(video => 
+            video.file_path === updatedVideo.file_path ? updatedVideo : video
+        ));
+    };
+
     const state: VideoSearchState = {
         searchTerm,
         searchResults,
@@ -123,7 +131,8 @@ export const useVideoSearch = ({
     const actions: VideoSearchActions = {
         handleSearch,
         clearSearch,
-        setSearchTerm
+        setSearchTerm,
+        updateSearchResult
     };
 
     return [state, actions];
