@@ -2,11 +2,7 @@ import {useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api/core";
 import {
     getLibraryFolders,
-    getLibraryFoldersWithPreviews,
-    getRecentlyWatchedVideos,
-    getUnwatchedVideos,
     getVideosInDirectoryOrderedByWatchStatus,
-    getVideosInProgress,
     saveLibraryFolder,
     updateWatchProgress
 } from "./database";
@@ -33,6 +29,7 @@ import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { useModals } from "./hooks/useModals";
 import { useContextMenu } from "./hooks/useContextMenu";
 import { useVideoLibrary } from "./contexts/VideoLibraryContext";
+import { VideoLibraryService } from "./services/VideoLibraryService";
 // import { useNavigation as useNavigationContext } from "./contexts/NavigationContext";
 import "./styles/player.css";
 
@@ -85,19 +82,14 @@ function App() {
     // Função para carregar dados da página inicial
     const loadHomePageData = async () => {
         try {
-            const [recent, inProgress, suggestions, foldersWithPreviews] = await Promise.all([
-                getRecentlyWatchedVideos(8),
-                getVideosInProgress(8),
-                getUnwatchedVideos(16),
-                getLibraryFoldersWithPreviews()
-            ]);
-
-            setRecentVideos(recent);
-            setVideosInProgress(inProgress);
-            setSuggestedVideos(suggestions);
-            setLibraryFoldersWithPreviews(foldersWithPreviews);
+            const homeData = await VideoLibraryService.loadHomePageData();
+            
+            setRecentVideos(homeData.recentVideos);
+            setVideosInProgress(homeData.videosInProgress);
+            setSuggestedVideos(homeData.suggestedVideos);
+            setLibraryFoldersWithPreviews(homeData.libraryFoldersWithPreviews);
         } catch (error) {
-            console.error('Error loading home page data:', error);
+            console.error('Erro ao carregar dados da página inicial:', error);
         }
     };
 

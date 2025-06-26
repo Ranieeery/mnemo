@@ -22,7 +22,7 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('Error caught by boundary:', error, errorInfo);
+        console.error('Erro capturado pelo boundary:', error, errorInfo);
         this.props.onError?.(error, errorInfo);
     }
 
@@ -48,8 +48,8 @@ class ErrorBoundary extends Component<Props, State> {
                                     </svg>
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-semibold text-red-400">Something went wrong</h2>
-                                    <p className="text-gray-400 text-sm">An unexpected error occurred</p>
+                                    <h2 className="text-xl font-semibold text-red-400">Algo deu errado</h2>
+                                    <p className="text-gray-400 text-sm">Ocorreu um erro inesperado</p>
                                 </div>
                             </div>
                             
@@ -66,13 +66,13 @@ class ErrorBoundary extends Component<Props, State> {
                                     onClick={this.handleRetry}
                                     className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
                                 >
-                                    Try Again
+                                    Tentar Novamente
                                 </button>
                                 <button
                                     onClick={() => window.location.reload()}
                                     className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors"
                                 >
-                                    Reload App
+                                    Recarregar App
                                 </button>
                             </div>
                         </div>

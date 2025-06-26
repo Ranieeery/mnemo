@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode, useReducer } from 'react';
 
-// Types
+// Tipos
 export interface NavigationState {
     history: string[];
     currentIndex: number;
@@ -15,7 +15,7 @@ export type NavigationAction =
     | { type: 'GO_TO_HOME' }
     | { type: 'SET_CURRENT_PATH'; payload: string };
 
-// Initial state
+// Estado inicial
 const initialState: NavigationState = {
     history: [],
     currentIndex: -1,
@@ -105,7 +105,7 @@ interface NavigationProviderProps {
 export function NavigationProvider({ children }: NavigationProviderProps) {
     const [state, dispatch] = useReducer(navigationReducer, initialState);
 
-    // Actions
+    // Ações
     const navigateTo = (path: string) => {
         dispatch({ type: 'NAVIGATE_TO', payload: path });
     };
@@ -126,7 +126,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         dispatch({ type: 'SET_CURRENT_PATH', payload: path });
     };
 
-    // Computed values
+    // Valores computados
     const canGoBack = state.currentIndex > 0;
     const canGoForward = state.currentIndex < state.history.length - 1;
 
@@ -154,7 +154,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
 export function useNavigation() {
     const context = useContext(NavigationContext);
     if (context === undefined) {
-        throw new Error('useNavigation must be used within a NavigationProvider');
+        throw new Error('useNavigation deve ser usado dentro de um NavigationProvider');
     }
     return context;
 }
