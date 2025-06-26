@@ -32,6 +32,7 @@ import { useVideoWatchedStatus } from "./hooks/useVideoWatchedStatus";
 import { useNavigation } from "./hooks/useNavigation";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { useModals } from "./hooks/useModals";
+import { useContextMenu } from "./hooks/useContextMenu";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -61,17 +62,7 @@ function App() {
         ffprobe: boolean
     }>({ffmpeg: false, ffprobe: false});
 
-    const [contextMenu, setContextMenu] = useState<{
-        show: boolean;
-        x: number;
-        y: number;
-        video: ProcessedVideo | null
-    }>({
-        show: false,
-        x: 0,
-        y: 0,
-        video: null
-    });
+
     const [showVideoPlayer, setShowVideoPlayer] = useState<boolean>(false);
 
     // Estados para página inicial
@@ -270,64 +261,9 @@ function App() {
         modals.handleCancelEdit();
     };
 
-    // Funções para o menu de contexto
-    const handleContextMenu = (event: React.MouseEvent, video: ProcessedVideo) => {
-        event.preventDefault();
-        setContextMenu({
-            show: true,
-            x: event.clientX,
-            y: event.clientY,
-            video: video
-        });
-    };
 
-    const handleCloseContextMenu = () => {
-        setContextMenu({
-            show: false,
-            x: 0,
-            y: 0,
-            video: null
-        });
-    };
 
-    const handleOpenFile = async (filePath: string) => {
-        try {
-            await invoke('open_file_externally', {filePath});
-            handleCloseContextMenu();
-        } catch (error) {
-            console.error('Error opening file:', error);
-            alert('Error opening file. Please check if the file exists.');
-        }
-    };
 
-    const handleOpenWith = async (filePath: string) => {
-        try {
-            await invoke('open_file_with_dialog', {filePath});
-            handleCloseContextMenu();
-        } catch (error) {
-            console.error('Error opening file dialog:', error);
-            alert('Error opening file dialog.');
-        }
-    };
-
-    const handleOpenProperties = (video: ProcessedVideo) => {
-        handleCloseContextMenu();
-        handleOpenVideoDetails(video);
-    };
-
-    // Fechar menu de contexto ao clicar fora
-    useEffect(() => {
-        const handleClickOutside = () => {
-            if (contextMenu.show) {
-                handleCloseContextMenu();
-            }
-        };
-
-        document.addEventListener('click', handleClickOutside);
-        return () => {
-            document.removeEventListener('click', handleClickOutside);
-        };
-    }, [contextMenu.show]);
 
     // Suporte para botões do mouse (voltar/avançar)
     useEffect(() => {
@@ -420,6 +356,11 @@ function App() {
         handleLibraryChanged
     });
 
+    // Hook para menu de contexto
+    const contextMenuHook = useContextMenu({
+        onOpenVideoDetails: handleOpenVideoDetails
+    });
+
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
@@ -488,7 +429,7 @@ function App() {
                             searchResults={searchState.searchResults}
                             searchProgress={searchState.searchProgress}
                             onPlayVideo={videoPlayer.handlePlayVideo}
-                            onContextMenu={handleContextMenu}
+                            onContextMenu={contextMenuHook.handleContextMenu}
                             onOpenVideoDetails={handleOpenVideoDetails}
                         />
                     ) : showHomePage && !selectedFolder ? (
@@ -501,7 +442,7 @@ function App() {
                             libraryFoldersWithPreviews={libraryFoldersWithPreviews}
                             onAddFolder={libraryActions.handleAddFolder}
                             onPlayVideo={videoPlayer.handlePlayVideo}
-                            onContextMenu={handleContextMenu}
+                            onContextMenu={contextMenuHook.handleContextMenu}
                             onOpenVideoDetails={handleOpenVideoDetails}
                             onSelectFolder={handleSelectFolder}
                         />
@@ -534,7 +475,7 @@ function App() {
                             directoryContents={directoryContents}
                             videoProcessingState={videoProcessingState}
                             onPlayVideo={videoPlayer.handlePlayVideo}
-                            onContextMenu={handleContextMenu}
+                            onContextMenu={contextMenuHook.handleContextMenu}
                             onNavigateToDirectory={navigateToDirectory}
                             naturalSort={naturalSort}
                         />
@@ -557,16 +498,16 @@ function App() {
 
             {/* Menu de contexto */}
             <ContextMenu
-                show={contextMenu.show}
-                x={contextMenu.x}
-                y={contextMenu.y}
-                video={contextMenu.video}
+                show={contextMenuHook.contextMenu.show}
+                x={contextMenuHook.contextMenu.x}
+                y={contextMenuHook.contextMenu.y}
+                video={contextMenuHook.contextMenu.video}
                 onPlayVideo={videoPlayer.handlePlayVideo}
-                onOpenFile={handleOpenFile}
-                onOpenWith={handleOpenWith}
+                onOpenFile={contextMenuHook.handleOpenFile}
+                onOpenWith={contextMenuHook.handleOpenWith}
                 onToggleWatchedStatus={toggleVideoWatchedStatus}
-                onOpenProperties={handleOpenProperties}
-                onClose={handleCloseContextMenu}
+                onOpenProperties={contextMenuHook.handleOpenProperties}
+                onClose={contextMenuHook.handleCloseContextMenu}
             />
 
             {/* Player de Vídeo Interno Customizado */}

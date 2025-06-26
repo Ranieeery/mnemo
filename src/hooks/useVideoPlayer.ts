@@ -42,14 +42,25 @@ export const useVideoPlayer = ({
         setShowControls(true);
         setCurrentSubtitle("");
 
+        // Reset subtitle states
+        setSubtitles([]);
+        setSubtitlesAvailable(false);
+        setSubtitlesEnabled(false);
+
         // Verifica e carrega legendas
-        const subtitleData = await checkAndLoadSubtitles(video.file_path);
-        if (subtitleData) {
-            const parsedSubtitles = parseSubtitles(subtitleData);
-            setSubtitles(parsedSubtitles);
-            setSubtitlesAvailable(true);
-            setSubtitlesEnabled(true); // Ativa legendas automaticamente quando detectadas
-        } else {
+        try {
+            const subtitleData = await checkAndLoadSubtitles(video.file_path);
+            if (subtitleData) {
+                const parsedSubtitles = parseSubtitles(subtitleData);
+                
+                if (parsedSubtitles.length > 0) {
+                    setSubtitles(parsedSubtitles);
+                    setSubtitlesAvailable(true);
+                    setSubtitlesEnabled(true); // Ativa legendas automaticamente quando detectadas
+                }
+            }
+        } catch (error) {
+            console.error('Error loading subtitles:', error);
             setSubtitles([]);
             setSubtitlesAvailable(false);
             setSubtitlesEnabled(false);
@@ -156,13 +167,17 @@ export const useVideoPlayer = ({
 
     // Atualizar legenda atual baseada no tempo do vídeo
     useEffect(() => {
-        if (playingVideo && subtitlesEnabled) {
+        if (playingVideo && subtitlesEnabled && subtitles.length > 0) {
             const newSubtitle = getCurrentSubtitle(currentTime, subtitles, subtitlesEnabled);
-            setCurrentSubtitle(newSubtitle);
+            if (newSubtitle !== currentSubtitle) {
+                setCurrentSubtitle(newSubtitle);
+            }
         } else {
-            setCurrentSubtitle("");
+            if (currentSubtitle !== "") {
+                setCurrentSubtitle("");
+            }
         }
-    }, [currentTime, subtitlesEnabled, playingVideo, subtitles]);
+    }, [currentTime, subtitlesEnabled, playingVideo, subtitles, currentSubtitle]);
 
     // Auto-hide controls em fullscreen
     useEffect(() => {
