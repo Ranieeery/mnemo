@@ -9,7 +9,6 @@ import {
     getVideosInProgress,
     initDatabase,
     saveLibraryFolder,
-    updateVideoDetails,
     updateWatchProgress
 } from "./database";
 import {checkVideoToolsAvailable, ProcessedVideo} from "./services/videoProcessor";
@@ -32,7 +31,7 @@ import { useVideoSearch } from "./hooks/useVideoSearch";
 import { useVideoWatchedStatus } from "./hooks/useVideoWatchedStatus";
 import { useNavigation } from "./hooks/useNavigation";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
-import { checkAndLoadSubtitles, parseSubtitles } from "./utils/subtitleUtils";
+import { useModals } from "./hooks/useModals";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -61,10 +60,7 @@ function App() {
         ffmpeg: boolean;
         ffprobe: boolean
     }>({ffmpeg: false, ffprobe: false});
-    const [selectedVideo, setSelectedVideo] = useState<ProcessedVideo | null>(null);
-    const [showVideoDetails, setShowVideoDetails] = useState<boolean>(false);
-    const [editingTitle, setEditingTitle] = useState<string>("");
-    const [editingDescription, setEditingDescription] = useState<string>("");
+
     const [contextMenu, setContextMenu] = useState<{
         show: boolean;
         x: number;
@@ -88,23 +84,7 @@ function App() {
         videos: ProcessedVideo[]
     }[]>([]);
 
-    // Estados para modal de confirmação de remoção
-    const [showRemoveConfirmation, setShowRemoveConfirmation] = useState<boolean>(false);
-    const [folderToRemove, setFolderToRemove] = useState<string | null>(null);
 
-    // Estados para configurações
-    const [showSettings, setShowSettings] = useState<boolean>(false);
-
-    // Estados para "próximo vídeo"
-    const [showNextVideoPrompt, setShowNextVideoPrompt] = useState<boolean>(false);
-    const [nextVideo, setNextVideo] = useState<ProcessedVideo | null>(null);
-    const [savedPlaybackSettings, setSavedPlaybackSettings] = useState<{
-        speed: number;
-        volume: number;
-        subtitlesEnabled: boolean;
-    }>({speed: 1, volume: 1, subtitlesEnabled: false});
-    const [nextVideoTimeout, setNextVideoTimeout] = useState<number | null>(null);
-    const [nextVideoCountdown, setNextVideoCountdown] = useState<number>(10);
 
     // Função para carregar dados da página inicial
     const loadHomePageData = async () => {
@@ -211,23 +191,17 @@ function App() {
 
     // Função para abrir modal de confirmação de remoção
     const handleRemoveFolderRequest = (folderPath: string) => {
-        setFolderToRemove(folderPath);
-        setShowRemoveConfirmation(true);
+        modals.handleRemoveFolderRequest(folderPath);
     };
 
     // Função para confirmar remoção da pasta
     const confirmRemoveFolder = async () => {
-        if (!folderToRemove) return;
-
-        await libraryActions.confirmRemoveFolder(folderToRemove, selectedFolder, navigation.goToHomePage);
-        setShowRemoveConfirmation(false);
-        setFolderToRemove(null);
+        await modals.confirmRemoveFolder();
     };
 
     // Função para cancelar remoção
     const cancelRemoveFolder = () => {
-        setShowRemoveConfirmation(false);
-        setFolderToRemove(null);
+        modals.cancelRemoveFolder();
     };
 
     // Função para carregar o conteúdo de um diretório
@@ -278,48 +252,22 @@ function App() {
 
     // Função para abrir o modal de detalhes do vídeo
     const handleOpenVideoDetails = (video: ProcessedVideo) => {
-        setSelectedVideo(video);
-        setEditingTitle(video.title);
-        setEditingDescription(video.description || "");
-        setShowVideoDetails(true);
+        modals.handleOpenVideoDetails(video);
     };
 
     // Função para fechar o modal de detalhes do vídeo
     const handleCloseVideoDetails = () => {
-        setShowVideoDetails(false);
-        setSelectedVideo(null);
+        modals.handleCloseVideoDetails();
     };
 
     // Função para salvar as alterações do vídeo
     const handleSaveVideoDetails = async () => {
-        if (!selectedVideo) return;
-
-        try {
-            await updateVideoDetails(selectedVideo.file_path, editingTitle, editingDescription);
-
-            // Atualiza o vídeo na lista local
-            setProcessedVideos(prev => prev.map(video =>
-                video.file_path === selectedVideo.file_path
-                    ? {...video, title: editingTitle, description: editingDescription}
-                    : video
-            ));
-
-            // Atualiza o vídeo selecionado
-            setSelectedVideo(prev => prev ? {...prev, title: editingTitle, description: editingDescription} : null);
-
-            console.log("Video details saved successfully");
-        } catch (error) {
-            console.error("Error saving video details:", error);
-            alert("Error saving video details. Please try again.");
-        }
+        await modals.handleSaveVideoDetails();
     };
 
     // Função para cancelar a edição
     const handleCancelEdit = () => {
-        if (selectedVideo) {
-            setEditingTitle(selectedVideo.title);
-            setEditingDescription(selectedVideo.description || "");
-        }
+        modals.handleCancelEdit();
     };
 
     // Funções para o menu de contexto
@@ -430,12 +378,12 @@ function App() {
 
     // Função para abrir configurações
     const handleOpenSettings = () => {
-        setShowSettings(true);
+        modals.handleOpenSettings();
     };
 
     // Função para fechar configurações
     const handleCloseSettings = () => {
-        setShowSettings(false);
+        modals.handleCloseSettings();
     };
 
     // Função chamada após importação de biblioteca (para recarregar dados)
@@ -462,6 +410,16 @@ function App() {
         }
     };
 
+    // Hook para modais
+    const modals = useModals({
+        setProcessedVideos,
+        libraryActions,
+        navigation,
+        videoPlayer,
+        selectedFolder,
+        handleLibraryChanged
+    });
+
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
@@ -470,54 +428,12 @@ function App() {
 
     // Função para reproduzir o próximo vídeo
     const playNextVideo = async () => {
-        if (nextVideo) {
-            if (nextVideoTimeout) {
-                clearInterval(nextVideoTimeout);
-                setNextVideoTimeout(null);
-            }
-
-            setShowNextVideoPrompt(false);
-
-            // Primeiro, configura o próximo vídeo para reprodução
-            videoPlayer.setPlayingVideo(nextVideo);
-
-            // Verifica e carrega legendas do próximo vídeo
-            const subtitleData = await checkAndLoadSubtitles(nextVideo.file_path);
-            if (subtitleData) {
-                const parsedSubtitles = parseSubtitles(subtitleData);
-                videoPlayer.setSubtitles(parsedSubtitles);
-                videoPlayer.setSubtitlesAvailable(true);
-            } else {
-                videoPlayer.setSubtitles([]);
-                videoPlayer.setSubtitlesAvailable(false);
-            }
-
-            // Aplica as configurações salvas após um pequeno delay para garantir que o vídeo foi carregado
-            setTimeout(() => {
-                const video = document.querySelector('video') as HTMLVideoElement;
-                if (video) {
-                    video.playbackRate = savedPlaybackSettings.speed;
-                    video.volume = savedPlaybackSettings.volume;
-                    videoPlayer.handleSpeedChange(savedPlaybackSettings.speed);
-                    videoPlayer.handleVolumeChange(savedPlaybackSettings.volume);
-                    videoPlayer.setSubtitlesEnabled(savedPlaybackSettings.subtitlesEnabled);
-                }
-            }, 100);
-
-            setNextVideo(null);
-            setNextVideoCountdown(10);
-        }
+        await modals.playNextVideo();
     };
 
     // Função para cancelar próximo vídeo
     const cancelNextVideo = () => {
-        if (nextVideoTimeout) {
-            clearInterval(nextVideoTimeout);
-            setNextVideoTimeout(null);
-        }
-        setShowNextVideoPrompt(false);
-        setNextVideo(null);
-        setNextVideoCountdown(10);
+        modals.cancelNextVideo();
     };
 
     return (
@@ -628,15 +544,15 @@ function App() {
 
             {/* Modal para detalhes do vídeo */}
             <VideoDetailsModal
-                show={showVideoDetails}
-                video={selectedVideo}
-                editingTitle={editingTitle}
-                editingDescription={editingDescription}
+                show={modals.showVideoDetails}
+                video={modals.selectedVideo}
+                editingTitle={modals.editingTitle}
+                editingDescription={modals.editingDescription}
                 onClose={handleCloseVideoDetails}
                 onSave={handleSaveVideoDetails}
                 onCancel={handleCancelEdit}
-                onTitleChange={setEditingTitle}
-                onDescriptionChange={setEditingDescription}
+                onTitleChange={modals.setEditingTitle}
+                onDescriptionChange={modals.setEditingDescription}
             />
 
             {/* Menu de contexto */}
@@ -681,36 +597,17 @@ function App() {
                     }}
                     onVideoEnded={() => {
                         videoPlayer.setIsPlaying(false);
-                        // Salva as configurações atuais
-                        setSavedPlaybackSettings({
-                            speed: videoPlayer.playbackSpeed,
-                            volume: videoPlayer.volume,
-                            subtitlesEnabled: videoPlayer.subtitlesEnabled
-                        });
-
-                        // Procura o próximo vídeo
+                        // Procura o próximo vídeo e inicia o countdown
                         if (videoPlayer.playingVideo) {
                             const currentIndex = processedVideos.findIndex(v => v.file_path === videoPlayer.playingVideo!.file_path);
                             if (currentIndex !== -1 && currentIndex < processedVideos.length - 1) {
                                 const next = processedVideos[currentIndex + 1];
-                                setNextVideo(next);
-                                setShowNextVideoPrompt(true);
-                                setNextVideoCountdown(10);
-
-                                // Inicia o countdown automático
-                                const countdownInterval = setInterval(() => {
-                                    setNextVideoCountdown(prev => {
-                                        if (prev <= 1) {
-                                            clearInterval(countdownInterval);
-                                            // Auto-play do próximo vídeo
-                                            playNextVideo();
-                                            return 0;
-                                        }
-                                        return prev - 1;
-                                    });
-                                }, 1000);
-
-                                setNextVideoTimeout(countdownInterval);
+                                const currentPlaybackSettings = {
+                                    speed: videoPlayer.playbackSpeed,
+                                    volume: videoPlayer.volume,
+                                    subtitlesEnabled: videoPlayer.subtitlesEnabled
+                                };
+                                modals.startNextVideoCountdown(next, currentPlaybackSettings);
                             }
                         }
                     }}
@@ -727,24 +624,24 @@ function App() {
 
             {/* Modal de Próximo Vídeo */}
             <NextVideoModal
-                show={showNextVideoPrompt}
-                nextVideo={nextVideo}
-                countdown={nextVideoCountdown}
-                savedSettings={savedPlaybackSettings}
+                show={modals.showNextVideoPrompt}
+                nextVideo={modals.nextVideo}
+                countdown={modals.nextVideoCountdown}
+                savedSettings={modals.savedPlaybackSettings}
                 onPlayNext={playNextVideo}
                 onCancel={cancelNextVideo}
             />
 
             {/* Modal de Confirmação de Remoção */}
             <ConfirmRemovalModal
-                show={showRemoveConfirmation}
-                folderToRemove={folderToRemove}
+                show={modals.showRemoveConfirmation}
+                folderToRemove={modals.folderToRemove}
                 onConfirm={confirmRemoveFolder}
                 onCancel={cancelRemoveFolder}
             />
 
             {/* Settings Modal */}
-            {showSettings && (
+            {modals.showSettings && (
                 <Settings
                     onClose={handleCloseSettings}
                     onLibraryChanged={handleLibraryChanged}
