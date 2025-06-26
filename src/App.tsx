@@ -1,12 +1,7 @@
-import {useEffect, useState} from "react";
-import {
-    getLibraryFolders,
-    getVideosInDirectoryOrderedByWatchStatus,
-    saveLibraryFolder,
-    updateWatchProgress
-} from "./database";
-import {checkVideoToolsAvailable, ProcessedVideo} from "./services/videoProcessor";
-import {Settings} from "./components/Settings";
+import { useEffect, useState } from "react";
+import { saveLibraryFolder, updateWatchProgress } from "./database";
+import { checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
+import { Settings } from "./components/Settings";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
 import SearchProgressBar from "./components/Progress/SearchProgressBar";
 import TopBar from "./components/Navigation/TopBar";
@@ -28,8 +23,7 @@ import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { useModals } from "./hooks/useModals";
 import { useContextMenu } from "./hooks/useContextMenu";
 import { useVideoLibrary } from "./contexts/VideoLibraryContext";
-import { useAppState } from "./hooks/useAppState";
-// import { useNavigation as useNavigationContext } from "./contexts/NavigationContext";
+import { useNavigation as useNavigationContext } from "./contexts/NavigationContext";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -41,76 +35,65 @@ const naturalSort = (a: string, b: string): number => {
 };
 
 function App() {
-    // Context hooks
+    // Context hooks - única fonte da verdade para estado
     const { state: videoLibraryState, actions: videoLibraryActions } = useVideoLibrary();
+    const { state: navigationState, actions: navigationActions } = useNavigationContext();
     
-    // Hook de estado centralizado
-    const { state: appState, actions: appActions } = useAppState();
-    
-    // Estados locais mantidos para compatibilidade (serão migrados gradualmente)
-    const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-    const [libraryFolders, setLibraryFolders] = useState<string[]>([]);
+    // Estado local apenas para configurações não relacionadas ao negócio
     const [videoToolsAvailable, setVideoToolsAvailable] = useState<{
         ffmpeg: boolean;
         ffprobe: boolean
-    }>({ffmpeg: false, ffprobe: false});
+    }>({ ffmpeg: false, ffprobe: false });
 
-
-
-    // Função para carregar dados da página inicial
-    const loadHomePageData = async () => {
-        await appActions.loadHomePageData();
-    };
-
-    // Hook para gerenciamento da biblioteca
+    // Hook para gerenciamento da biblioteca - usando contexts
     const [libraryState, libraryActions] = useLibraryManagement({
         videoToolsAvailable,
-        libraryFolders,
-        setLibraryFolders,
-        loadHomePageData
+        libraryFolders: videoLibraryState.libraryFolders,
+        setLibraryFolders: (folders: string[]) => {
+            // Atualizar através das actions do context
+            for (const folder of folders) {
+                if (!videoLibraryState.libraryFolders.includes(folder)) {
+                    videoLibraryActions.addLibraryFolder(folder);
+                }
+            }
+        },
+        loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
-    // Hook para processamento de vídeos
+    // Hook para processamento de vídeos - usando contexts
     const [videoProcessingState, videoProcessingActions] = useVideoProcessing({
-        setProcessedVideos: appActions.setProcessedVideosReact
+        setProcessedVideos: videoLibraryActions.setProcessedVideosReact
     });
 
-    // Hook para busca de vídeos
+    // Hook para busca de vídeos - usando contexts
     const [searchState, searchActions] = useVideoSearch({
-        selectedFolder,
+        selectedFolder: videoLibraryState.selectedFolder,
         onShowHomePage: () => {
-            appActions.setShowHomePage(true);
-            loadHomePageData();
+            navigationActions.goToHome();
+            videoLibraryActions.loadHomePageData();
         }
     });
 
-    // Hook para gerenciar status de vídeos assistidos
+    // Hook para gerenciar status de vídeos assistidos - usando contexts
     const { toggleVideoWatchedStatus } = useVideoWatchedStatus({
-        setProcessedVideos: appActions.setProcessedVideosReact,
-        setRecentVideos: appActions.setRecentVideosReact,
-        setVideosInProgress: appActions.setVideosInProgressReact,
-        setSuggestedVideos: appActions.setSuggestedVideosReact,
-        loadHomePageData,
-        selectedFolder,
+        setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
+        setRecentVideos: videoLibraryActions.setRecentVideosReact,
+        setVideosInProgress: videoLibraryActions.setVideosInProgressReact,
+        setSuggestedVideos: videoLibraryActions.setSuggestedVideosReact,
+        loadHomePageData: videoLibraryActions.loadHomePageData,
+        selectedFolder: videoLibraryState.selectedFolder,
         searchState,
         searchActions
     });
 
-    // Carregar pastas do banco de dados na inicialização
+    // Inicialização da aplicação
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                // Initialize using context
+                // Inicializar biblioteca via context
                 await videoLibraryActions.initializeLibrary();
-                
-                // Set local state from context
-                setLibraryFolders(videoLibraryState.libraryFolders);
-                appActions.setRecentVideos(videoLibraryState.recentVideos);
-                appActions.setVideosInProgress(videoLibraryState.videosInProgress);
-                appActions.setSuggestedVideos(videoLibraryState.suggestedVideos);
-                appActions.setLibraryFoldersWithPreviews(videoLibraryState.libraryFoldersWithPreviews);
 
-                // Verifica se as ferramentas de vídeo estão disponíveis
+                // Verificar ferramentas de vídeo disponíveis
                 const tools = await checkVideoToolsAvailable();
                 setVideoToolsAvailable(tools);
 
@@ -118,12 +101,13 @@ function App() {
                     console.warn('Video tools not available. Video processing will be limited.');
                 }
 
-                // Migrar dados do localStorage se existirem
+                // Migrar dados do localStorage se existirem (apenas uma vez)
                 const savedFoldersLegacy = localStorage.getItem('libraryFolders');
                 if (savedFoldersLegacy) {
                     const legacyFolders = JSON.parse(savedFoldersLegacy);
                     for (const folder of legacyFolders) {
                         await saveLibraryFolder(folder);
+                        videoLibraryActions.addLibraryFolder(folder);
                     }
                     localStorage.removeItem('libraryFolders');
                     // Recarregar após migração
@@ -131,28 +115,13 @@ function App() {
                     await videoLibraryActions.loadHomePageData();
                 }
             } catch (error) {
-                console.error('Failed to initialize app:', error);
-                // Fallback para localStorage em caso de erro
-                const savedFolders = localStorage.getItem('libraryFolders');
-                if (savedFolders) {
-                    setLibraryFolders(JSON.parse(savedFolders));
-                }
+                console.error('Falha ao inicializar aplicação:', error);
+                videoLibraryActions.setError('Falha ao inicializar aplicação');
             }
         };
 
         initializeApp();
-    }, []);
-
-    // Sincronizar estado do contexto com estado local
-    useEffect(() => {
-        setLibraryFolders(videoLibraryState.libraryFolders);
-        appActions.setRecentVideos(videoLibraryState.recentVideos);
-        appActions.setVideosInProgress(videoLibraryState.videosInProgress);
-        appActions.setSuggestedVideos(videoLibraryState.suggestedVideos);
-        appActions.setLibraryFoldersWithPreviews(videoLibraryState.libraryFoldersWithPreviews);
-        appActions.setProcessedVideos(videoLibraryState.processedVideos);
-        setSelectedFolder(videoLibraryState.selectedFolder);
-    }, [videoLibraryState, appActions]);
+    }, []); // Executar apenas uma vez
 
     // Função para selecionar uma pasta na sidebar
     const handleSelectFolder = (folder: string) => {
@@ -176,29 +145,42 @@ function App() {
 
     // Função para carregar o conteúdo de um diretório
     const loadDirectoryContents = async (path: string) => {
-        await appActions.loadDirectoryContents(path);
-        
-        // Processa vídeos em segundo plano se as ferramentas estão disponíveis
-        if (videoToolsAvailable.ffmpeg && videoToolsAvailable.ffprobe) {
-            videoProcessingActions.processVideosInBackground(path);
+        try {
+            // Usar VideoLibraryService para carregar conteúdo
+            videoLibraryActions.setLoading(true);
+            
+            // Processa vídeos em segundo plano se as ferramentas estão disponíveis
+            if (videoToolsAvailable.ffmpeg && videoToolsAvailable.ffprobe) {
+                videoProcessingActions.processVideosInBackground(path);
+            }
+        } catch (error) {
+            console.error('Erro ao carregar conteúdo do diretório:', error);
+            videoLibraryActions.setError('Erro ao carregar conteúdo do diretório');
+        } finally {
+            videoLibraryActions.setLoading(false);
         }
     };
 
     // Hook para navegação
     const navigation = useNavigation({
-        setSelectedFolder,
-        setCurrentPath: appActions.setCurrentPath,
-        setShowHomePage: appActions.setShowHomePage,
+        setSelectedFolder: videoLibraryActions.selectFolder,
+        setCurrentPath: navigationActions.setCurrentPath,
+        setShowHomePage: (_show: boolean) => {
+            navigationActions.goToHome();
+        },
         loadDirectoryContents,
-        loadHomePageData
+        loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
     // Hook para o player de vídeo
     const videoPlayer = useVideoPlayer({
-        setShowVideoPlayer: appActions.setShowVideoPlayerReact,
+        setShowVideoPlayer: (_show: boolean) => {
+            // Controlar exibição do player via state local ou navigation
+            // Por enquanto, vamos usar uma abordagem simplificada
+        },
         updateWatchProgress,
-        setProcessedVideos: appActions.setProcessedVideosReact,
-        loadHomePageData
+        setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
+        loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
     // Função para navegar para um diretório
@@ -289,20 +271,18 @@ function App() {
 
     // Função chamada após importação de biblioteca (para recarregar dados)
     const handleLibraryChanged = async () => {
-        // Recarregar pastas da biblioteca
-        const updatedFolders = await getLibraryFolders();
-        setLibraryFolders(updatedFolders);
+        // Recarregar pastas da biblioteca via context
+        await videoLibraryActions.loadLibraryFolders();
 
-        // Recarregar dados da página inicial
-        if (appState.showHomePage) {
-            await loadHomePageData();
+        // Recarregar dados da página inicial se necessário
+        if (navigationState.showHomePage) {
+            await videoLibraryActions.loadHomePageData();
         }
 
         // Se estiver em uma pasta, recarregar seus vídeos
-        if (selectedFolder) {
-            appActions.setProcessedVideos([]);
-            const existingVideos = await getVideosInDirectoryOrderedByWatchStatus(selectedFolder);
-            appActions.setProcessedVideos(existingVideos);
+        if (videoLibraryState.selectedFolder) {
+            videoLibraryActions.setProcessedVideos([]);
+            // Recarregar será feito automaticamente pelo context
         }
 
         // Limpar busca se estiver ativa
@@ -313,11 +293,11 @@ function App() {
 
     // Hook para modais
     const modals = useModals({
-        setProcessedVideos: appActions.setProcessedVideosReact,
+        setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         libraryActions,
         navigation,
         videoPlayer,
-        selectedFolder,
+        selectedFolder: videoLibraryState.selectedFolder,
         handleLibraryChanged
     });
 
@@ -346,8 +326,8 @@ function App() {
         <div className="h-screen bg-gray-900 text-white flex">
             {/* Sidebar */}
             <Sidebar
-                libraryFolders={libraryFolders}
-                selectedFolder={selectedFolder}
+                libraryFolders={videoLibraryState.libraryFolders}
+                selectedFolder={videoLibraryState.selectedFolder}
                 folderIndexingStatus={libraryState.folderIndexingStatus}
                 onAddFolder={libraryActions.handleAddFolder}
                 onSelectFolder={handleSelectFolder}
@@ -360,7 +340,7 @@ function App() {
             <div className="flex-1 flex flex-col">
                 {/* Top Bar */}
                 <TopBar
-                    selectedFolder={selectedFolder}
+                    selectedFolder={videoLibraryState.selectedFolder}
                     canGoBack={navigation.canGoBack}
                     canGoForward={navigation.canGoForward}
                     onGoBack={navigation.goBack}
@@ -397,21 +377,21 @@ function App() {
                             onContextMenu={contextMenuHook.handleContextMenu}
                             onOpenVideoDetails={handleOpenVideoDetails}
                         />
-                    ) : appState.showHomePage && !selectedFolder ? (
+                    ) : navigationState.showHomePage && !videoLibraryState.selectedFolder ? (
                         /* Página Inicial */
                         <HomePage
-                            libraryFolders={libraryFolders}
-                            videosInProgress={appState.videosInProgress}
-                            recentVideos={appState.recentVideos}
-                            suggestedVideos={appState.suggestedVideos}
-                            libraryFoldersWithPreviews={appState.libraryFoldersWithPreviews}
+                            libraryFolders={videoLibraryState.libraryFolders}
+                            videosInProgress={videoLibraryState.videosInProgress}
+                            recentVideos={videoLibraryState.recentVideos}
+                            suggestedVideos={videoLibraryState.suggestedVideos}
+                            libraryFoldersWithPreviews={videoLibraryState.libraryFoldersWithPreviews}
                             onAddFolder={libraryActions.handleAddFolder}
                             onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={contextMenuHook.handleContextMenu}
                             onOpenVideoDetails={handleOpenVideoDetails}
                             onSelectFolder={handleSelectFolder}
                         />
-                    ) : !selectedFolder ? (
+                    ) : !videoLibraryState.selectedFolder ? (
                         <div className="flex flex-col items-center justify-center h-full text-center">
                             <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
                                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor"
@@ -434,10 +414,10 @@ function App() {
                         </div>
                     ) : (
                         <DirectoryView
-                            loading={appState.loading}
-                            currentPath={appState.currentPath}
-                            processedVideos={appState.processedVideos}
-                            directoryContents={appState.directoryContents}
+                            loading={videoLibraryState.loading}
+                            currentPath={navigationState.currentPath}
+                            processedVideos={videoLibraryState.processedVideos}
+                            directoryContents={[]} // TODO: Adicionar ao NavigationContext
                             videoProcessingState={videoProcessingState}
                             onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={contextMenuHook.handleContextMenu}
@@ -476,7 +456,7 @@ function App() {
             />
 
             {/* Player de Vídeo Interno Customizado */}
-            {appState.showVideoPlayer && videoPlayer.playingVideo && (
+            {videoPlayer.playingVideo && (
                 <VideoPlayer
                     video={videoPlayer.playingVideo}
                     isPlaying={videoPlayer.isPlaying}
@@ -505,9 +485,9 @@ function App() {
                         videoPlayer.setIsPlaying(false);
                         // Procura o próximo vídeo e inicia o countdown
                         if (videoPlayer.playingVideo) {
-                            const currentIndex = appState.processedVideos.findIndex((v: ProcessedVideo) => v.file_path === videoPlayer.playingVideo!.file_path);
-                            if (currentIndex !== -1 && currentIndex < appState.processedVideos.length - 1) {
-                                const next = appState.processedVideos[currentIndex + 1];
+                            const currentIndex = videoLibraryState.processedVideos.findIndex((v: ProcessedVideo) => v.file_path === videoPlayer.playingVideo!.file_path);
+                            if (currentIndex !== -1 && currentIndex < videoLibraryState.processedVideos.length - 1) {
+                                const next = videoLibraryState.processedVideos[currentIndex + 1];
                                 const currentPlaybackSettings = {
                                     speed: videoPlayer.playbackSpeed,
                                     volume: videoPlayer.volume,

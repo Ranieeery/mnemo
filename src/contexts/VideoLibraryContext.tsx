@@ -117,6 +117,18 @@ interface VideoLibraryContextType {
         selectFolder: (folder: string | null) => void;
         updateVideo: (video: ProcessedVideo) => void;
         clearError: () => void;
+        setRecentVideos: (videos: ProcessedVideo[]) => void;
+        setVideosInProgress: (videos: ProcessedVideo[]) => void;
+        setSuggestedVideos: (videos: ProcessedVideo[]) => void;
+        setProcessedVideos: (videos: ProcessedVideo[]) => void;
+        setLibraryFoldersWithPreviews: (folders: { folder: string; videos: ProcessedVideo[] }[]) => void;
+        setLoading: (loading: boolean) => void;
+        setError: (error: string | null) => void;
+        // Wrappers compatíveis com React.Dispatch
+        setProcessedVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
+        setRecentVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
+        setVideosInProgressReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
+        setSuggestedVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
     };
 }
 
@@ -213,6 +225,57 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
         selectFolder,
         updateVideo,
         clearError,
+        // Setters diretos
+        setRecentVideos: (videos: ProcessedVideo[]) => {
+            dispatch({ type: 'SET_RECENT_VIDEOS', payload: videos });
+        },
+        setVideosInProgress: (videos: ProcessedVideo[]) => {
+            dispatch({ type: 'SET_VIDEOS_IN_PROGRESS', payload: videos });
+        },
+        setSuggestedVideos: (videos: ProcessedVideo[]) => {
+            dispatch({ type: 'SET_SUGGESTED_VIDEOS', payload: videos });
+        },
+        setProcessedVideos: (videos: ProcessedVideo[]) => {
+            dispatch({ type: 'SET_PROCESSED_VIDEOS', payload: videos });
+        },
+        setLibraryFoldersWithPreviews: (folders: { folder: string; videos: ProcessedVideo[] }[]) => {
+            dispatch({ type: 'SET_LIBRARY_FOLDERS_WITH_PREVIEWS', payload: folders });
+        },
+        setLoading: (loading: boolean) => {
+            dispatch({ type: 'SET_LOADING', payload: loading });
+        },
+        setError: (error: string | null) => {
+            dispatch({ type: 'SET_ERROR', payload: error });
+        },
+        // Wrappers compatíveis com React.Dispatch para hooks existentes
+        setProcessedVideosReact: ((value: React.SetStateAction<ProcessedVideo[]>) => {
+            if (typeof value === 'function') {
+                dispatch({ type: 'SET_PROCESSED_VIDEOS', payload: value(state.processedVideos) });
+            } else {
+                dispatch({ type: 'SET_PROCESSED_VIDEOS', payload: value });
+            }
+        }) as React.Dispatch<React.SetStateAction<ProcessedVideo[]>>,
+        setRecentVideosReact: ((value: React.SetStateAction<ProcessedVideo[]>) => {
+            if (typeof value === 'function') {
+                dispatch({ type: 'SET_RECENT_VIDEOS', payload: value(state.recentVideos) });
+            } else {
+                dispatch({ type: 'SET_RECENT_VIDEOS', payload: value });
+            }
+        }) as React.Dispatch<React.SetStateAction<ProcessedVideo[]>>,
+        setVideosInProgressReact: ((value: React.SetStateAction<ProcessedVideo[]>) => {
+            if (typeof value === 'function') {
+                dispatch({ type: 'SET_VIDEOS_IN_PROGRESS', payload: value(state.videosInProgress) });
+            } else {
+                dispatch({ type: 'SET_VIDEOS_IN_PROGRESS', payload: value });
+            }
+        }) as React.Dispatch<React.SetStateAction<ProcessedVideo[]>>,
+        setSuggestedVideosReact: ((value: React.SetStateAction<ProcessedVideo[]>) => {
+            if (typeof value === 'function') {
+                dispatch({ type: 'SET_SUGGESTED_VIDEOS', payload: value(state.suggestedVideos) });
+            } else {
+                dispatch({ type: 'SET_SUGGESTED_VIDEOS', payload: value });
+            }
+        }) as React.Dispatch<React.SetStateAction<ProcessedVideo[]>>,
     };
 
     return (
