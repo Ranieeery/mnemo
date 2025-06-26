@@ -7,7 +7,6 @@ import {
     getUnwatchedVideos,
     getVideosInDirectoryOrderedByWatchStatus,
     getVideosInProgress,
-    initDatabase,
     saveLibraryFolder,
     updateWatchProgress
 } from "./database";
@@ -33,6 +32,8 @@ import { useNavigation } from "./hooks/useNavigation";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { useModals } from "./hooks/useModals";
 import { useContextMenu } from "./hooks/useContextMenu";
+import { useVideoLibrary } from "./contexts/VideoLibraryContext";
+// import { useNavigation as useNavigationContext } from "./contexts/NavigationContext";
 import "./styles/player.css";
 
 // Função para ordenação natural (numérica) de strings
@@ -51,6 +52,10 @@ interface DirEntry {
 }
 
 function App() {
+    // Context hooks (will be used gradually)
+    const { state: videoLibraryState, actions: videoLibraryActions } = useVideoLibrary();
+    // const { state: navigationState, actions: navigationActions } = useNavigationContext();
+
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [libraryFolders, setLibraryFolders] = useState<string[]>([]);
     const [currentPath, setCurrentPath] = useState<string>("");
@@ -134,12 +139,15 @@ function App() {
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                await initDatabase();
-                const folders = await getLibraryFolders();
-                setLibraryFolders(folders);
-
-                // Carrega dados da página inicial
-                await loadHomePageData();
+                // Initialize using context
+                await videoLibraryActions.initializeLibrary();
+                
+                // Set local state from context
+                setLibraryFolders(videoLibraryState.libraryFolders);
+                setRecentVideos(videoLibraryState.recentVideos);
+                setVideosInProgress(videoLibraryState.videosInProgress);
+                setSuggestedVideos(videoLibraryState.suggestedVideos);
+                setLibraryFoldersWithPreviews(videoLibraryState.libraryFoldersWithPreviews);
 
                 // Verifica se as ferramentas de vídeo estão disponíveis
                 const tools = await checkVideoToolsAvailable();
@@ -158,9 +166,8 @@ function App() {
                     }
                     localStorage.removeItem('libraryFolders');
                     // Recarregar após migração
-                    const updatedFolders = await getLibraryFolders();
-                    setLibraryFolders(updatedFolders);
-                    await loadHomePageData();
+                    await videoLibraryActions.loadLibraryFolders();
+                    await videoLibraryActions.loadHomePageData();
                 }
             } catch (error) {
                 console.error('Failed to initialize app:', error);
@@ -174,6 +181,17 @@ function App() {
 
         initializeApp();
     }, []);
+
+    // Sync context state with local state
+    useEffect(() => {
+        setLibraryFolders(videoLibraryState.libraryFolders);
+        setRecentVideos(videoLibraryState.recentVideos);
+        setVideosInProgress(videoLibraryState.videosInProgress);
+        setSuggestedVideos(videoLibraryState.suggestedVideos);
+        setLibraryFoldersWithPreviews(videoLibraryState.libraryFoldersWithPreviews);
+        setProcessedVideos(videoLibraryState.processedVideos);
+        setSelectedFolder(videoLibraryState.selectedFolder);
+    }, [videoLibraryState]);
 
     // Função para selecionar uma pasta na sidebar
     const handleSelectFolder = (folder: string) => {
