@@ -1,11 +1,20 @@
 import { createContext, useContext, ReactNode, useReducer } from 'react';
 
+// Interface para entrada de diretório
+export interface DirEntry {
+    name: string;
+    path: string;
+    is_dir: boolean;
+    is_video: boolean;
+}
+
 // Tipos
 export interface NavigationState {
     history: string[];
     currentIndex: number;
     currentPath: string;
     showHomePage: boolean;
+    directoryContents: DirEntry[];
 }
 
 export type NavigationAction =
@@ -13,7 +22,8 @@ export type NavigationAction =
     | { type: 'GO_BACK' }
     | { type: 'GO_FORWARD' }
     | { type: 'GO_TO_HOME' }
-    | { type: 'SET_CURRENT_PATH'; payload: string };
+    | { type: 'SET_CURRENT_PATH'; payload: string }
+    | { type: 'SET_DIRECTORY_CONTENTS'; payload: DirEntry[] };
 
 // Estado inicial
 const initialState: NavigationState = {
@@ -21,6 +31,7 @@ const initialState: NavigationState = {
     currentIndex: -1,
     currentPath: '',
     showHomePage: true,
+    directoryContents: [],
 };
 
 // Reducer
@@ -73,6 +84,12 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
                 currentPath: action.payload,
             };
         }
+        case 'SET_DIRECTORY_CONTENTS': {
+            return {
+                ...state,
+                directoryContents: action.payload,
+            };
+        }
         default:
             return state;
     }
@@ -88,6 +105,7 @@ interface NavigationContextType {
         goForward: () => void;
         goToHome: () => void;
         setCurrentPath: (path: string) => void;
+        setDirectoryContents: (contents: DirEntry[]) => void;
     };
     computed: {
         canGoBack: boolean;
@@ -126,6 +144,10 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         dispatch({ type: 'SET_CURRENT_PATH', payload: path });
     };
 
+    const setDirectoryContents = (contents: DirEntry[]) => {
+        dispatch({ type: 'SET_DIRECTORY_CONTENTS', payload: contents });
+    };
+
     // Valores computados
     const canGoBack = state.currentIndex > 0;
     const canGoForward = state.currentIndex < state.history.length - 1;
@@ -136,6 +158,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         goForward,
         goToHome,
         setCurrentPath,
+        setDirectoryContents,
     };
 
     const computed = {

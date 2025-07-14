@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { invoke } from '@tauri-apps/api/core';
 import { saveLibraryFolder, updateWatchProgress } from "./database";
 import { checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
+import { VideoLibraryService } from "./services/VideoLibraryService";
 import { Settings } from "./components/Settings";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
 import SearchProgressBar from "./components/Progress/SearchProgressBar";
@@ -125,7 +127,9 @@ function App() {
 
     // Função para selecionar uma pasta na sidebar
     const handleSelectFolder = (folder: string) => {
-        navigation.navigateToFolder(folder);
+        navigationActions.navigateTo(folder);
+        videoLibraryActions.selectFolder(folder);
+        loadDirectoryContents(folder);
     };
 
     // Função para abrir modal de confirmação de remoção
@@ -148,6 +152,14 @@ function App() {
         try {
             // Usar VideoLibraryService para carregar conteúdo
             videoLibraryActions.setLoading(true);
+            
+            // Carregar vídeos processados do diretório
+            const processedVideos = await VideoLibraryService.getVideosInDirectory(path);
+            videoLibraryActions.setProcessedVideos(processedVideos);
+            
+            // Carregar conteúdo do diretório (pastas e arquivos não processados)
+            const directoryContents: any[] = await invoke('read_directory', { path });
+            navigationActions.setDirectoryContents(directoryContents);
             
             // Processa vídeos em segundo plano se as ferramentas estão disponíveis
             if (videoToolsAvailable.ffmpeg && videoToolsAvailable.ffprobe) {
@@ -185,7 +197,8 @@ function App() {
 
     // Função para navegar para um diretório
     const navigateToDirectory = (path: string) => {
-        navigation.navigateToFolder(path);
+        navigationActions.navigateTo(path);
+        loadDirectoryContents(path);
     };
 
     // Função para abrir o modal de detalhes do vídeo
@@ -426,7 +439,7 @@ function App() {
                             loading={videoLibraryState.loading}
                             currentPath={navigationState.currentPath}
                             processedVideos={videoLibraryState.processedVideos}
-                            directoryContents={[]} // TODO: Adicionar ao NavigationContext
+                            directoryContents={navigationState.directoryContents}
                             videoProcessingState={videoProcessingState}
                             onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={contextMenuHook.handleContextMenu}

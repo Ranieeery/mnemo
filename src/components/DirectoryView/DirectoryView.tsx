@@ -2,13 +2,7 @@ import React from 'react';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { ProcessedVideo } from "../../services/videoProcessor";
 import { formatDuration } from "../../utils/videoUtils";
-
-interface DirEntry {
-    name: string;
-    path: string;
-    is_dir: boolean;
-    is_video: boolean;
-}
+import { DirEntry } from "../../contexts/NavigationContext";
 
 interface DirectoryViewProps {
     loading: boolean;
