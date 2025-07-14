@@ -237,6 +237,15 @@ function App() {
     // Suporte para teclas de atalho de navegação
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // ESC - Sair do vídeo se estiver tocando
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                if (videoPlayer.playingVideo) {
+                    videoPlayer.handleCloseVideoPlayer();
+                }
+                return;
+            }
+
             // Alt + seta esquerda = voltar
             if (event.altKey && event.key === 'ArrowLeft') {
                 event.preventDefault();
@@ -257,7 +266,7 @@ function App() {
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [navigation.canGoBack, navigation.canGoForward]);
+    }, [navigation.canGoBack, navigation.canGoForward, videoPlayer.playingVideo, videoPlayer.handleCloseVideoPlayer]);
 
     // Função para abrir configurações
     const handleOpenSettings = () => {
