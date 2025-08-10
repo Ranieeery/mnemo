@@ -4,6 +4,7 @@ import { saveLibraryFolder, updateWatchProgress } from "./database";
 import { checkVideoToolsAvailable } from "./services/videoProcessor";
 import { ProcessedVideo } from "./types/video";
 import { VideoLibraryService } from "./services/VideoLibraryService";
+import { getVideosInDirectoryOrderedByWatchStatus } from "./database";
 import { Settings } from "./components/Settings";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
 import SearchProgressBar from "./components/Progress/SearchProgressBar";
@@ -72,6 +73,35 @@ function App() {
         navigationActions.goToHome();
         videoLibraryActions.selectFolder(null);
         videoLibraryActions.loadHomePageData();
+    };
+
+    // Wrapper para iniciar playback a partir da Home definindo uma playlist coerente
+    const playFromHome = async (video: ProcessedVideo, fallbackList: ProcessedVideo[]) => {
+        // Derive directory path from file path (remove filename)
+        const path = video.file_path;
+        const lastSlash = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
+        let directory = '';
+        if (lastSlash !== -1) {
+            directory = path.substring(0, lastSlash + 1); // include trailing slash for LIKE pattern semantics
+        }
+
+        let playlist: ProcessedVideo[] = fallbackList;
+        try {
+            if (directory) {
+                // Load full directory ordered list so Up Next follows real folder context
+                playlist = await getVideosInDirectoryOrderedByWatchStatus(directory);
+            }
+        } catch (e) {
+            console.warn('Failed to load directory playlist, using fallback list', e);
+        }
+
+        // Guarantee the clicked video is inside playlist; if not, prepend
+        if (!playlist.find(v => v.file_path === video.file_path)) {
+            playlist = [video, ...playlist];
+        }
+
+        videoLibraryActions.setProcessedVideosReact(playlist);
+        videoPlayer.handlePlayVideo(video);
     };
 
     // Video search hook
@@ -412,7 +442,10 @@ function App() {
                             suggestedVideos={videoLibraryState.suggestedVideos}
                             libraryFoldersWithPreviews={videoLibraryState.libraryFoldersWithPreviews}
                             onAddFolder={libraryActions.handleAddFolder}
-                            onPlayVideo={videoPlayer.handlePlayVideo}
+                            onPlayVideo={async (video: ProcessedVideo, list?: ProcessedVideo[]) => {
+                                const baseList = list && list.length ? list : (videoLibraryState.suggestedVideos.length ? videoLibraryState.suggestedVideos : [video]);
+                                await playFromHome(video, baseList);
+                            }}
                             onContextMenu={contextMenuHook.handleContextMenu}
                             onOpenVideoDetails={handleOpenVideoDetails}
                             onSelectFolder={handleSelectFolder}

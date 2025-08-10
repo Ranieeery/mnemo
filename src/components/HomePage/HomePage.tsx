@@ -10,7 +10,7 @@ interface HomePageProps {
     suggestedVideos: ProcessedVideo[];
     libraryFoldersWithPreviews: { folder: string; videos: ProcessedVideo[] }[];
     onAddFolder: () => void;
-    onPlayVideo: (video: ProcessedVideo) => void;
+    onPlayVideo: (video: ProcessedVideo, list?: ProcessedVideo[]) => void;
     onContextMenu: (event: React.MouseEvent, video: ProcessedVideo) => void;
     onOpenVideoDetails: (video: ProcessedVideo) => void;
     onSelectFolder: (folder: string) => void;
@@ -70,7 +70,7 @@ export default function HomePage({
                                     <div
                                         key={`progress-${video.file_path}-${index}`}
                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
-                                        onClick={() => onPlayVideo(video)}
+                                        onClick={() => onPlayVideo(video, videosInProgress)}
                                         onContextMenu={(e) => onContextMenu(e, video)}
                                     >
                                         <div className="aspect-video bg-gray-700 relative">
@@ -141,7 +141,7 @@ export default function HomePage({
                                     <div
                                         key={`recent-${video.file_path}-${index}`}
                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
-                                        onClick={() => onPlayVideo(video)}
+                                        onClick={() => onPlayVideo(video, recentVideos)}
                                         onContextMenu={(e) => onContextMenu(e, video)}
                                     >
                                         <div className="aspect-video bg-gray-700 relative">
@@ -213,7 +213,7 @@ export default function HomePage({
                                     <div
                                         key={`suggested-${video.file_path}-${index}`}
                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
-                                        onClick={() => onPlayVideo(video)}
+                                        onClick={() => onPlayVideo(video, suggestedVideos)}
                                         onContextMenu={(e) => onContextMenu(e, video)}
                                     >
                                         <div className="aspect-video bg-gray-700 relative">
@@ -301,7 +301,7 @@ export default function HomePage({
                                                     <div
                                                         key={`folder-video-${video.file_path}-${videoIndex}`}
                                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
-                                                        onClick={() => onPlayVideo(video)}
+                                                        onClick={() => onPlayVideo(video, folderData.videos)}
                                                         onContextMenu={(e) => onContextMenu(e, video)}
                                                     >
                                                         <div className="aspect-video bg-gray-700 relative">
