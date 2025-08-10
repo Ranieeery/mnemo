@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ProcessedVideo } from '../services/videoProcessor';
+import { ProcessedVideo } from '../types/video';
 
 interface UseContextMenuProps {
     onOpenVideoDetails: (video: ProcessedVideo) => void;

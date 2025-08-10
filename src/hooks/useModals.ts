@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ProcessedVideo } from '../services/videoProcessor';
+import { ProcessedVideo } from '../types/video';
 import { updateVideoDetails } from '../database';
 import { checkAndLoadSubtitles, parseSubtitles } from '../utils/subtitleUtils';
 

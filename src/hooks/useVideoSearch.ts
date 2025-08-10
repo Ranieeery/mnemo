@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { searchVideos, searchVideosRecursive } from '../database';
-import { ProcessedVideo } from '../services/videoProcessor';
+import { ProcessedVideo } from '../types/video';
 
 export interface VideoSearchState {
     searchTerm: string;

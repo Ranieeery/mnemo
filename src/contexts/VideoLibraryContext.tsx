@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode, useReducer } from 'react';
-import { ProcessedVideo } from '../services/videoProcessor';
+import { ProcessedVideo } from '../types/video';
 import { 
     getLibraryFolders, 
     getRecentlyWatchedVideos, 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ProcessedVideo } from "../../services/videoProcessor";
+import { ProcessedVideo } from "../../types/video";
 import { formatDuration } from "../../utils/videoUtils";
 
 interface SearchResultsProps {

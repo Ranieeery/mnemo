@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {addTagToVideo, getAllTags, getVideoTags, removeTagFromVideo, Tag} from '../database';
-import {ProcessedVideo} from '../services/videoProcessor';
+import {ProcessedVideo} from '../types/video';
 
 interface VideoTagsManagerProps {
     video: ProcessedVideo;

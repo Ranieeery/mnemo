@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getVideosInDirectoryOrderedByWatchStatus } from '../database';
-import { processVideo, ProcessedVideo } from '../services/videoProcessor';
+import { ProcessedVideo } from '../types/video';
+import { processVideo } from '../services/videoProcessor';
 import { isVideoFile } from '../utils/videoUtils';
 
 export interface VideoProcessingState {
