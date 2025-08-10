@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { ProcessedVideo } from '../../services/videoProcessor';
 import { formatDuration } from '../../utils/videoUtils';
@@ -27,29 +27,38 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
     onTitleChange,
     onDescriptionChange
 }) => {
-    if (!show || !video) {
-        return null;
-    }
+    // Bloqueia scroll de fundo quando modal aberto
+    useEffect(() => {
+        if (show) {
+            const original = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = original;
+            };
+        }
+    }, [show]);
+
+    if (!show || !video) return null;
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
-            {/* Backdrop */}
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8">
+            {/* Backdrop com blur */}
             <div
-                className="fixed inset-0 bg-black bg-opacity-50"
+                className="absolute inset-0 backdrop-blur-md bg-black/30 transition-opacity animate-fade-in"
                 onClick={onClose}
-            ></div>
+            />
 
-            {/* Modal Content */}
-            <div className="relative bg-gray-800 rounded-lg shadow-lg max-w-lg w-full mx-4 p-6"
+            {/* Modal Content (responsivo) */}
+            <div className="relative max-h-full overflow-y-auto w-full max-w-2xl bg-gray-900/90 border border-gray-700 shadow-2xl rounded-2xl p-6 backdrop-blur-xl animate-scale-in"
                  onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-300">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                    <h3 className="text-xl font-semibold text-gray-100 tracking-tight">
                         Video Details
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-200"
+                        className="self-start sm:self-auto text-gray-400 hover:text-gray-200 transition-colors"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -59,15 +68,22 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                 </div>
 
                 {/* Video Thumbnail */}
-                <div className="mb-4">
+                <div className="mb-6 grid gap-4 sm:grid-cols-2">
                     {video.thumbnail_path ? (
-                        <img
-                            src={convertFileSrc(video.thumbnail_path)}
-                            alt={video.title}
-                            className="w-full h-auto rounded-lg"
-                        />
+                        <div className="relative group">
+                            <img
+                                src={convertFileSrc(video.thumbnail_path)}
+                                alt={video.title}
+                                className="w-full h-full object-cover rounded-lg border border-gray-700 shadow"
+                            />
+                            {video.is_watched && (
+                                <span className="absolute top-2 right-2 px-2 py-1 text-xs font-medium rounded bg-green-600/80 text-white backdrop-blur">
+                                    Watched
+                                </span>
+                            )}
+                        </div>
                     ) : (
-                        <div className="w-full h-40 bg-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="w-full h-40 bg-gray-800 rounded-lg flex items-center justify-center border border-gray-700">
                             <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor"
                                  viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -75,10 +91,29 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                             </svg>
                         </div>
                     )}
+                    {/* Meta rápida */}
+                    <div className="flex flex-col gap-3 text-sm text-gray-300">
+                        {video.duration_seconds && video.duration_seconds > 0 && (
+                            <div className="flex items-center justify-between">
+                                <span className="uppercase tracking-wide text-xs text-gray-400">Duration</span>
+                                <span className="font-medium text-gray-200">{formatDuration(video.duration_seconds)}</span>
+                            </div>
+                        )}
+                        {video.watch_progress_seconds != null && video.duration_seconds != null && (
+                            <div className="flex items-center justify-between">
+                                <span className="uppercase tracking-wide text-xs text-gray-400">Progress</span>
+                                <span className="font-medium text-gray-200">{Math.round((video.watch_progress_seconds / video.duration_seconds) * 100)}%</span>
+                            </div>
+                        )}
+                        <div className="flex flex-col gap-1">
+                            <span className="uppercase tracking-wide text-xs text-gray-400">Path</span>
+                            <span className="text-xs break-all text-gray-400 font-mono bg-gray-800/60 rounded p-2 border border-gray-700/60">{video.file_path}</span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Title and Description */}
-                <div className="mb-4">
+        <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-300 mb-1">
                         Title
                     </label>
@@ -86,44 +121,31 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                         type="text"
                         value={editingTitle}
                         onChange={(e) => onTitleChange(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                     />
                 </div>
 
-                <div className="mb-4">
+                <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-300 mb-1">
                         Description
                     </label>
                     <textarea
                         value={editingDescription}
                         onChange={(e) => onDescriptionChange(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                         rows={3}
                         placeholder="Add a description..."
                     />
                 </div>
 
-                {/* Video Metadata */}
-                <div className="mb-4 p-3 bg-gray-700 rounded-lg">
-                    <h4 className="text-sm font-medium text-gray-300 mb-2">Video Information</h4>
-                    <div className="space-y-1 text-sm text-gray-400">
-                        {video.duration_seconds && video.duration_seconds > 0 && (
-                            <div>
-                                <span className="font-medium">Duration:</span> {formatDuration(video.duration_seconds)}
-                            </div>
-                        )}
-                        <div>
-                            <span className="font-medium">File Path:</span>
-                            <div className="break-all mt-1 text-xs">{video.file_path}</div>
-                        </div>
-                    </div>
+                {/* Tags Section */}
+                <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-200 mb-2">Tags</h4>
+                    <VideoTagsManager video={video}/>
                 </div>
 
-                {/* Tags Section */}
-                <VideoTagsManager video={video}/>
-
                 {/* Actions */}
-                <div className="flex justify-end space-x-2">
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
                     <button
                         onClick={onCancel}
                         className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
@@ -132,13 +154,13 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                     </button>
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+                        className="px-4 py-2 text-sm bg-gray-800/70 hover:bg-gray-700 text-gray-200 rounded-md transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onSave}
-                        className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                        className="px-4 py-2 text-sm bg-blue-600/90 hover:bg-blue-700 text-white rounded-md transition-colors shadow"
                     >
                         Save Changes
                     </button>

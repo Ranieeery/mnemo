@@ -1,4 +1,4 @@
-import { ProcessedVideo } from '../services/videoProcessor';
+import { ProcessedVideo } from '../types/video';
 import { markVideoAsWatched, markVideoAsUnwatched, getVideosInDirectoryOrderedByWatchStatus } from '../database';
 import { VideoSearchActions, VideoSearchState } from './useVideoSearch';
 
@@ -11,6 +11,9 @@ export interface UseVideoWatchedStatusProps {
     selectedFolder: string | null;
     searchState: VideoSearchState;
     searchActions: VideoSearchActions;
+    // Para atualização imediata do vídeo sendo reproduzido
+    currentlyPlayingVideo: ProcessedVideo | null;
+    setPlayingVideo: React.Dispatch<React.SetStateAction<ProcessedVideo | null>>;
 }
 
 export const useVideoWatchedStatus = ({
@@ -21,54 +24,46 @@ export const useVideoWatchedStatus = ({
     loadHomePageData,
     selectedFolder,
     searchState,
-    searchActions
+    searchActions,
+    currentlyPlayingVideo,
+    setPlayingVideo
 }: UseVideoWatchedStatusProps) => {
-    
     const toggleVideoWatchedStatus = async (video: ProcessedVideo) => {
         try {
-            if (!video.id) {
-                return;
-            }
-
-            // Atualiza status no banco de dados
+            if (!video.id) return;
             if (video.is_watched) {
                 await markVideoAsUnwatched(video.id);
             } else {
                 await markVideoAsWatched(video.id, video.duration_seconds);
             }
-
-            // Cria o vídeo atualizado
-            const updatedVideo = { ...video, is_watched: !video.is_watched };
-
-            // Função auxiliar para atualizar listas
-            const updateVideoInList = (videos: ProcessedVideo[]) => 
+            const updatedVideo: ProcessedVideo = { ...video, is_watched: !video.is_watched };
+            const updateVideoInList = (videos: ProcessedVideo[]): ProcessedVideo[] =>
                 videos.map(v => v.file_path === video.file_path ? updatedVideo : v);
-
-            // Atualiza todas as listas locais
-            setProcessedVideos(prev => updateVideoInList(prev));
-            setRecentVideos(prev => updateVideoInList(prev));
-            setVideosInProgress(prev => updateVideoInList(prev));
-            setSuggestedVideos(prev => updateVideoInList(prev));
-
-            // Atualiza resultados de busca se existirem
+            setProcessedVideos((prev: ProcessedVideo[]) => updateVideoInList(prev));
+            setRecentVideos((prev: ProcessedVideo[]) => updateVideoInList(prev));
+            setVideosInProgress((prev: ProcessedVideo[]) => updateVideoInList(prev));
+            setSuggestedVideos((prev: ProcessedVideo[]) => updateVideoInList(prev));
             if (searchState.searchResults.length > 0) {
                 searchActions.updateSearchResult(updatedVideo);
             }
-
-            // Recarrega dados da página inicial para garantir consistência
-            await loadHomePageData();
-            
-            // Se estiver em uma pasta, recarrega os vídeos da pasta atual
-            if (selectedFolder) {
-                const existingVideos = await getVideosInDirectoryOrderedByWatchStatus(selectedFolder);
-                setProcessedVideos(existingVideos);
+            if (currentlyPlayingVideo && currentlyPlayingVideo.file_path === video.file_path) {
+                setPlayingVideo((prev: ProcessedVideo | null) => (prev && prev.file_path === video.file_path) ? updatedVideo : prev);
             }
+            setTimeout(async () => {
+                try {
+                    await loadHomePageData();
+                    if (selectedFolder) {
+                        const existingVideos = await getVideosInDirectoryOrderedByWatchStatus(selectedFolder);
+                        setProcessedVideos(existingVideos);
+                    }
+                } catch (e) {
+                    console.error('Error refreshing data after toggle watched:', e);
+                }
+            }, 0);
         } catch (error) {
             console.error('Error toggling video watched status:', error);
         }
     };
 
-    return {
-        toggleVideoWatchedStatus
-    };
+    return { toggleVideoWatchedStatus };
 };

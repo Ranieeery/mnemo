@@ -1,5 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
-import {ProcessedVideo} from "./services/videoProcessor";
+import { ProcessedVideo } from "./types/video";
 import {isVideoFile} from "./utils/videoUtils";
 import {invoke} from '@tauri-apps/api/core';
 

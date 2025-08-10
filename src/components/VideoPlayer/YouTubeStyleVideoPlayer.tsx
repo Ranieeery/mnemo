@@ -1,5 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ProcessedVideo } from "../../services/videoProcessor";
+import { ProcessedVideo } from "../../types/video";
 import { formatDuration } from "../../utils/videoUtils";
 
 interface YouTubeStyleVideoPlayerProps {
@@ -29,6 +29,8 @@ interface YouTubeStyleVideoPlayerProps {
     onPlay: () => void;
     onPause: () => void;
     onPlayVideo: (video: ProcessedVideo) => void;
+    onToggleWatchedStatus: (video: ProcessedVideo) => void;
+    onOpenProperties: (video: ProcessedVideo) => void;
     formatTime: (seconds: number) => string;
     resetControlsTimeout: () => void;
 }
@@ -60,13 +62,16 @@ export default function YouTubeStyleVideoPlayer({
     onPlay,
     onPause,
     onPlayVideo,
+    onToggleWatchedStatus,
+    onOpenProperties,
     formatTime,
     resetControlsTimeout
 }: YouTubeStyleVideoPlayerProps) {
-    // Filtra próximos vídeos (excluindo o atual) e limita a 6
-    const nextVideos = playlistVideos
-        .filter(v => v.file_path !== video.file_path)
-        .slice(0, 6);
+    // Encontra o índice do vídeo atual e pega os próximos 6 vídeos na sequência
+    const currentIndex = playlistVideos.findIndex(v => v.file_path === video.file_path);
+    const nextVideos = currentIndex !== -1 
+        ? playlistVideos.slice(currentIndex + 1, currentIndex + 7) // Próximos 6 vídeos após o atual
+        : playlistVideos.slice(0, 6); // Se não encontrar o atual, pega os primeiros 6
 
     if (isFullscreen) {
         // Fullscreen mode - layout simples como antes
@@ -135,7 +140,7 @@ export default function YouTubeStyleVideoPlayer({
                                     onSeek(percent * duration);
                                 }}>
                                     <div 
-                                        className="bg-red-600 h-1 rounded-full transition-all duration-100"
+                                        className="bg-blue-500 h-1 rounded-full transition-all duration-100"
                                         style={{width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`}}
                                     ></div>
                                 </div>
@@ -340,7 +345,7 @@ export default function YouTubeStyleVideoPlayer({
                                         onSeek(percent * duration);
                                     }}>
                                         <div 
-                                            className="bg-red-600 h-1 rounded-full transition-all duration-100"
+                                            className="bg-blue-500 h-1 rounded-full transition-all duration-100"
                                             style={{width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`}}
                                         ></div>
                                     </div>
@@ -464,24 +469,50 @@ export default function YouTubeStyleVideoPlayer({
                     {/* Video information */}
                     <div className="p-4 bg-gray-800 border-b border-gray-700">
                         <h2 className="text-xl font-semibold text-white mb-2">{video.title}</h2>
-                        <div className="flex items-center space-x-4 text-gray-300 text-sm">
-                            <span>Duration: {formatDuration(video.duration_seconds || 0)}</span>
-                            {video.watch_progress_seconds && video.watch_progress_seconds > 0 && (
-                                <span>Progress: {formatDuration(video.watch_progress_seconds)}</span>
-                            )}
-                            {video.is_watched && (
-                                <span className="flex items-center space-x-1 text-green-400">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4 text-gray-300 text-sm">
+                                <span>Duration: {formatDuration(video.duration_seconds || 0)}</span>
+                                {video.watch_progress_seconds && video.watch_progress_seconds > 0 && !video.is_watched && (
+                                    <span>Progress: {formatDuration(video.watch_progress_seconds)}</span>
+                                )}
+                            </div>
+                            
+                            {/* Action buttons */}
+                            <div className="flex items-center space-x-3">
+                                <button
+                                    onClick={() => onToggleWatchedStatus(video)}
+                                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                                        video.is_watched 
+                                            ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                                    }`}
+                                    title={video.is_watched ? "Mark as unwatched" : "Mark as watched"}
+                                >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
                                     </svg>
-                                    <span>Watched</span>
-                                </span>
-                            )}
+                                    <span>{video.is_watched ? 'Watched' : 'Mark as Watched'}</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => onOpenProperties(video)}
+                                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors text-sm"
+                                    title="Video Properties"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    </svg>
+                                    <span>Properties</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Description area */}
-                    <div className="flex-1 p-4 bg-gray-800 overflow-y-auto">                        
+                    {/* Video info and controls */}
+                    <div className="flex-1 p-4 bg-gray-800 overflow-y-auto">
+                        {/* Description */}
                         {video.description && (
                             <div>
                                 <h3 className="text-lg font-medium text-white mb-2">Description</h3>

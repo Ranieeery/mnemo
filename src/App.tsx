@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { saveLibraryFolder, updateWatchProgress } from "./database";
-import { checkVideoToolsAvailable, ProcessedVideo } from "./services/videoProcessor";
+import { checkVideoToolsAvailable } from "./services/videoProcessor";
+import { ProcessedVideo } from "./types/video";
 import { VideoLibraryService } from "./services/VideoLibraryService";
 import { Settings } from "./components/Settings";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
@@ -14,7 +15,7 @@ import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
 import HomePage from "./components/HomePage/HomePage";
 import SearchResults from "./components/SearchResults/SearchResults";
-import VideoPlayer from "./components/VideoPlayer/VideoPlayer";
+import YouTubeStyleVideoPlayer from "./components/VideoPlayer/YouTubeStyleVideoPlayer";
 import DirectoryView from "./components/DirectoryView/DirectoryView";
 import { useLibraryManagement } from "./hooks/useLibraryManagement";
 import { useVideoProcessing } from "./hooks/useVideoProcessing";
@@ -76,17 +77,9 @@ function App() {
         }
     });
 
-    // Hook para gerenciar status de vídeos assistidos - usando contexts
-    const { toggleVideoWatchedStatus } = useVideoWatchedStatus({
-        setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
-        setRecentVideos: videoLibraryActions.setRecentVideosReact,
-        setVideosInProgress: videoLibraryActions.setVideosInProgressReact,
-        setSuggestedVideos: videoLibraryActions.setSuggestedVideosReact,
-        loadHomePageData: videoLibraryActions.loadHomePageData,
-        selectedFolder: videoLibraryState.selectedFolder,
-        searchState,
-        searchActions
-    });
+    // Hook para gerenciar status de vídeos assistidos - usando contexts (declarado depois que videoPlayer existir)
+    // Será inicializado mais abaixo após videoPlayer
+    let toggleVideoWatchedStatus: (video: ProcessedVideo) => Promise<void>;
 
     // Inicialização da aplicação
     useEffect(() => {
@@ -194,6 +187,20 @@ function App() {
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         loadHomePageData: videoLibraryActions.loadHomePageData
     });
+
+    // Agora que videoPlayer foi criado, inicializamos o hook de watched status
+    ({ toggleVideoWatchedStatus } = useVideoWatchedStatus({
+        setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
+        setRecentVideos: videoLibraryActions.setRecentVideosReact,
+        setVideosInProgress: videoLibraryActions.setVideosInProgressReact,
+        setSuggestedVideos: videoLibraryActions.setSuggestedVideosReact,
+        loadHomePageData: videoLibraryActions.loadHomePageData,
+        selectedFolder: videoLibraryState.selectedFolder,
+        searchState,
+        searchActions,
+        currentlyPlayingVideo: videoPlayer.playingVideo,
+        setPlayingVideo: videoPlayer.setPlayingVideo
+    }));
 
     // Função para navegar para um diretório
     const navigateToDirectory = (path: string) => {
@@ -479,8 +486,10 @@ function App() {
 
             {/* Player de Vídeo Interno Customizado */}
             {videoPlayer.playingVideo && (
-                <VideoPlayer
+                <YouTubeStyleVideoPlayer
+                    key={`${videoPlayer.playingVideo.file_path}-${videoPlayer.playingVideo.is_watched}-${videoPlayer.playingVideo.watch_progress_seconds}`}
                     video={videoPlayer.playingVideo}
+                    playlistVideos={videoLibraryState.processedVideos}
                     isPlaying={videoPlayer.isPlaying}
                     currentTime={videoPlayer.currentTime}
                     duration={videoPlayer.duration}
@@ -499,7 +508,8 @@ function App() {
                     onSpeedChange={videoPlayer.handleSpeedChange}
                     onToggleFullscreen={videoPlayer.toggleFullscreen}
                     onToggleSubtitles={videoPlayer.toggleSubtitles}
-                    onVideoProgress={(video, time) => {
+                    onPlayVideo={videoPlayer.handlePlayVideo}
+                    onVideoProgress={(video: ProcessedVideo, time: number) => {
                         videoPlayer.setCurrentTime(time);
                         videoPlayer.handleVideoProgress(video, time);
                     }}
@@ -519,12 +529,14 @@ function App() {
                             }
                         }
                     }}
-                    onLoadedMetadata={(videoDuration) => {
+                    onLoadedMetadata={(videoDuration: number) => {
                         videoPlayer.setDuration(videoDuration);
                         // O playbackRate e volume já são setados no componente
                     }}
                     onPlay={() => videoPlayer.setIsPlaying(true)}
                     onPause={() => videoPlayer.setIsPlaying(false)}
+                    onToggleWatchedStatus={toggleVideoWatchedStatus}
+                    onOpenProperties={handleOpenVideoDetails}
                     formatTime={formatTime}
                     resetControlsTimeout={videoPlayer.resetControlsTimeout}
                 />

@@ -2,6 +2,7 @@ import {invoke} from "@tauri-apps/api/core";
 import {appDataDir, join} from "@tauri-apps/api/path";
 import {getVideoByPath, saveVideo} from "../database";
 import {getVideoTitle, isVideoFile} from "../utils/videoUtils";
+import type { ProcessedVideo } from "../types/video";
 
 // Interface para metadados de vídeo vindos do Rust
 interface VideoMetadata {
@@ -11,24 +12,6 @@ interface VideoMetadata {
     bitrate?: number;
     codec?: string;
     file_size: number;
-}
-
-// Interface para vídeo processado
-export interface ProcessedVideo {
-    id?: number;
-    file_path: string;
-    title: string;
-    description?: string;
-    duration_seconds: number;
-    thumbnail_path?: string;
-    is_watched?: boolean;
-    watch_progress_seconds?: number;
-    last_watched_at?: string;
-    created_at?: string;
-    updated_at?: string;
-    // Campos computados/auxiliares
-    duration?: string; // Duração formatada
-    size?: number; // Tamanho do arquivo
 }
 
 // Processa um único vídeo (extrai metadados e gera thumbnail)
