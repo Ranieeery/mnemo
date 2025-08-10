@@ -1,4 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { useEffect, useRef, useState } from "react";
 import { ProcessedVideo } from "../../types/video";
 import { formatDuration } from "../../utils/videoUtils";
 
@@ -91,6 +92,110 @@ export default function YouTubeStyleVideoPlayer({
     ? playlistVideos.slice(currentIndex + 1, currentIndex + 7)
     : playlistVideos.slice(0, 6);
 
+    // Keep last non-zero volume to restore after mute
+    const lastVolumeRef = useRef(volume || 1);
+    if (volume > 0) lastVolumeRef.current = volume; // update when not muted
+
+    // Skip indicator state (forward/back)
+    const [skipIndicator, setSkipIndicator] = useState<{ dir: 'back' | 'forward'; amount: number } | null>(null);
+    const skipTimeoutRef = useRef<number | null>(null);
+
+    const showSkipIndicator = (delta: number) => {
+        const dir = delta < 0 ? 'back' : 'forward';
+        const amount = Math.abs(delta);
+        setSkipIndicator({ dir, amount });
+        if (skipTimeoutRef.current) {
+            window.clearTimeout(skipTimeoutRef.current);
+        }
+        skipTimeoutRef.current = window.setTimeout(() => {
+            setSkipIndicator(null);
+            skipTimeoutRef.current = null;
+        }, 650);
+    };
+
+    const handleSeekDelta = (delta: number) => {
+        const newTime = Math.min(Math.max(0, currentTime + delta), duration);
+        onSeek(newTime);
+        showSkipIndicator(delta);
+        resetControlsTimeout();
+    };
+
+    // Keyboard shortcuts (YouTube style)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            // Avoid typing conflicts
+            const target = e.target as HTMLElement | null;
+            if (target) {
+                const tag = target.tagName.toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || target.isContentEditable) return;
+                if (tag === 'select') return;
+            }
+            const key = e.key.toLowerCase();
+
+            const seek = (delta: number) => {
+                handleSeekDelta(delta);
+            };
+            const changeVolume = (delta: number) => {
+                const newVol = Math.min(1, Math.max(0, volume + delta));
+                onVolumeChange(Number(newVol.toFixed(2)));
+            };
+
+            switch (key) {
+                case 'j': // Back 10s
+                    e.preventDefault();
+                    seek(-10);
+                    break;
+                case 'l': // Forward 10s
+                    e.preventDefault();
+                    seek(10);
+                    break;
+                case 'k': // toggle play
+                case ' ': // space
+                    e.preventDefault();
+                    onTogglePlayPause();
+                    break;
+                case 'c':
+                    e.preventDefault();
+                    if (subtitlesAvailable) onToggleSubtitles();
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    if (volume > 0) {
+                        onVolumeChange(0);
+                    } else {
+                        onVolumeChange(lastVolumeRef.current || 1);
+                    }
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    onToggleFullscreen();
+                    break;
+                case 'arrowleft': // Back 5s
+                    e.preventDefault();
+                    seek(-5);
+                    break;
+                case 'arrowright': // Forward 5s
+                    e.preventDefault();
+                    seek(5);
+                    break;
+                case 'arrowup':
+                    e.preventDefault();
+                    changeVolume(0.05);
+                    break;
+                case 'arrowdown':
+                    e.preventDefault();
+                    changeVolume(-0.05);
+                    break;
+                default:
+                    return;
+            }
+            // Any interaction resets control hide timer
+            resetControlsTimeout();
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [currentTime, duration, volume, subtitlesAvailable, onSeek, onTogglePlayPause, onToggleSubtitles, onToggleFullscreen, onVolumeChange, resetControlsTimeout]);
+
     if (isFullscreen) {
     // Fullscreen mode (minimal chrome)
         return (
@@ -132,7 +237,7 @@ export default function YouTubeStyleVideoPlayer({
                     {/* Transitional play/pause icon */}
                     {isIconChanging && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="bg-black bg-opacity-50 rounded-full p-4 animate-fade-in-out">
+                            <div className="rounded-full p-4 animate-fade-in-out center-indicator-bg">
                                 {isPlaying ? (
                                     <svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
                                         <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
@@ -146,8 +251,40 @@ export default function YouTubeStyleVideoPlayer({
                         </div>
                     )}
 
+                    {/* Skip indicators */}
+                    {skipIndicator && (
+                        <div className="absolute inset-0 pointer-events-none select-none">
+                            {skipIndicator.dir === 'back' && (
+                                <div className="absolute top-1/2 -translate-y-1/2 skip-indicator skip-indicator-left text-white flex flex-col items-center gap-1 center-indicator-bg rounded-xl px-4 py-3 shadow-lg">
+                                    <div className="flex items-center gap-2 text-lg font-semibold">
+                                        <span className="text-xl">⏪</span>
+                                        <span className="amount">{skipIndicator.amount}s</span>
+                                    </div>
+                                    {/* removed key label */}
+                                </div>
+                            )}
+                            {skipIndicator.dir === 'forward' && (
+                                <div className="absolute top-1/2 -translate-y-1/2 skip-indicator skip-indicator-right text-white flex flex-col items-center gap-1 center-indicator-bg rounded-xl px-4 py-3 shadow-lg">
+                                    <div className="flex items-center gap-2 text-lg font-semibold">
+                                        <span className="amount">{skipIndicator.amount}s</span>
+                                        <span className="text-xl">⏩</span>
+                                    </div>
+                                    {/* removed key label */}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Overlay controls */}
-                    <div className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    <div
+                        className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                        onClick={(e) => {
+                            // Only toggle if background (not a control) is clicked
+                            if (e.target === e.currentTarget) {
+                                onTogglePlayPause();
+                            }
+                        }}
+                    >
                         {/* Progress bar */}
                         <div className="absolute bottom-16 left-4 right-4">
                             <div className="flex items-center space-x-2 text-white text-sm mb-2">
@@ -172,7 +309,7 @@ export default function YouTubeStyleVideoPlayer({
                                 {/* Play/Pause */}
                                 {/* Rewind 10s */}
                                 <button
-                                    onClick={() => onSeek(Math.max(0, currentTime - 10))}
+                                    onClick={() => handleSeekDelta(-10)}
                                     className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                     title="Back 10s (J)"
                                     aria-label="Back 10 seconds"
@@ -196,7 +333,7 @@ export default function YouTubeStyleVideoPlayer({
                                 </button>
                                 {/* Forward 10s */}
                                 <button
-                                    onClick={() => onSeek(Math.min(duration, currentTime + 10))}
+                                    onClick={() => handleSeekDelta(10)}
                                     className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                     title="Forward 10s (L)"
                                     aria-label="Forward 10 seconds"
@@ -355,7 +492,7 @@ export default function YouTubeStyleVideoPlayer({
                         {/* Transitional play/pause icon */}
                         {isIconChanging && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="bg-black bg-opacity-50 rounded-full p-4 animate-fade-in-out">
+                                <div className="rounded-full p-4 animate-fade-in-out center-indicator-bg">
                                     {isPlaying ? (
                                         <svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
@@ -369,8 +506,39 @@ export default function YouTubeStyleVideoPlayer({
                             </div>
                         )}
 
+                        {/* Skip indicators */}
+                        {skipIndicator && (
+                            <div className="absolute inset-0 pointer-events-none select-none">
+                                {skipIndicator.dir === 'back' && (
+                                    <div className="absolute top-1/2 -translate-y-1/2 skip-indicator skip-indicator-left text-white flex flex-col items-center gap-1 center-indicator-bg rounded-xl px-4 py-3 shadow-lg">
+                                        <div className="flex items-center gap-2 text-lg font-semibold">
+                                            <span className="text-xl">⏪</span>
+                                            <span className="amount">{skipIndicator.amount}s</span>
+                                        </div>
+                                        {/* removed key label */}
+                                    </div>
+                                )}
+                                {skipIndicator.dir === 'forward' && (
+                                    <div className="absolute top-1/2 -translate-y-1/2 skip-indicator skip-indicator-right text-white flex flex-col items-center gap-1 center-indicator-bg rounded-xl px-4 py-3 shadow-lg">
+                                        <div className="flex items-center gap-2 text-lg font-semibold">
+                                            <span className="amount">{skipIndicator.amount}s</span>
+                                            <span className="text-xl">⏩</span>
+                                        </div>
+                                        {/* removed key label */}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Custom Controls Overlay */}
-                        <div className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                        <div
+                            className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                            onClick={(e) => {
+                                if (e.target === e.currentTarget) {
+                                    onTogglePlayPause();
+                                }
+                            }}
+                        >
                             {/* Progress bar */}
                             <div className="absolute bottom-16 left-4 right-4">
                                 <div className="flex items-center space-x-2 text-white text-sm mb-2">
@@ -395,7 +563,7 @@ export default function YouTubeStyleVideoPlayer({
                                     {/* Play/Pause */}
                                     {/* Rewind 10s */}
                                     <button
-                                        onClick={() => onSeek(Math.max(0, currentTime - 10))}
+                                        onClick={() => handleSeekDelta(-10)}
                                         className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                         title="Back 10s (J)"
                                         aria-label="Back 10 seconds"
@@ -419,7 +587,7 @@ export default function YouTubeStyleVideoPlayer({
                                     </button>
                                     {/* Forward 10s */}
                                     <button
-                                        onClick={() => onSeek(Math.min(duration, currentTime + 10))}
+                                        onClick={() => handleSeekDelta(10)}
                                         className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                         title="Forward 10s (L)"
                                         aria-label="Forward 10 seconds"
