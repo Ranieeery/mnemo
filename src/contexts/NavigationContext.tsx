@@ -25,10 +25,10 @@ export type NavigationAction =
     | { type: 'SET_CURRENT_PATH'; payload: string }
     | { type: 'SET_DIRECTORY_CONTENTS'; payload: DirEntry[] };
 
-// Initial state
+// Initial state (home seeded as first history entry)
 const initialState: NavigationState = {
-    history: [],
-    currentIndex: -1,
+    history: [''],
+    currentIndex: 0,
     currentPath: '',
     showHomePage: true,
     directoryContents: [],
@@ -38,6 +38,9 @@ const initialState: NavigationState = {
 function navigationReducer(state: NavigationState, action: NavigationAction): NavigationState {
     switch (action.type) {
         case 'NAVIGATE_TO': {
+            if (action.payload === '') {
+                return navigationReducer(state, { type: 'GO_TO_HOME' });
+            }
             const newHistory = [...state.history.slice(0, state.currentIndex + 1), action.payload];
             return {
                 ...state,
@@ -50,11 +53,12 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
         case 'GO_BACK': {
             if (state.currentIndex > 0) {
                 const newIndex = state.currentIndex - 1;
+                const newPath = state.history[newIndex];
                 return {
                     ...state,
                     currentIndex: newIndex,
-                    currentPath: state.history[newIndex],
-                    showHomePage: false,
+                    currentPath: newPath,
+                    showHomePage: newPath === '',
                 };
             }
             return state;
@@ -62,26 +66,34 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
         case 'GO_FORWARD': {
             if (state.currentIndex < state.history.length - 1) {
                 const newIndex = state.currentIndex + 1;
+                const newPath = state.history[newIndex];
                 return {
                     ...state,
                     currentIndex: newIndex,
-                    currentPath: state.history[newIndex],
-                    showHomePage: false,
+                    currentPath: newPath,
+                    showHomePage: newPath === '',
                 };
             }
             return state;
         }
         case 'GO_TO_HOME': {
+            const alreadyHome = state.currentPath === '' && state.showHomePage;
+            if (alreadyHome) return state;
+            const newHistory = [...state.history.slice(0, state.currentIndex + 1), ''];
             return {
                 ...state,
-                showHomePage: true,
+                history: newHistory,
+                currentIndex: newHistory.length - 1,
                 currentPath: '',
+                showHomePage: true,
+                directoryContents: [],
             };
         }
         case 'SET_CURRENT_PATH': {
             return {
                 ...state,
                 currentPath: action.payload,
+                showHomePage: action.payload === '',
             };
         }
         case 'SET_DIRECTORY_CONTENTS': {
@@ -110,6 +122,7 @@ interface NavigationContextType {
     computed: {
         canGoBack: boolean;
         canGoForward: boolean;
+    isHome: boolean;
     };
 }
 
@@ -164,6 +177,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
     const computed = {
         canGoBack,
         canGoForward,
+        isHome: state.showHomePage && state.currentPath === '',
     };
 
     return (
