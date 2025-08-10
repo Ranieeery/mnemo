@@ -1,4 +1,5 @@
 import React from 'react';
+import appIcon from '../../../src-tauri/icons/icon.png';
 
 interface SidebarProps {
     libraryFolders: string[];
@@ -25,14 +26,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-gray-700">
-                <h1
-                    className="text-xl font-bold text-blue-400 cursor-pointer hover:text-blue-300 transition-colors"
+                <div
+                    className="flex items-center gap-2 cursor-pointer group"
                     onClick={onGoToHomePage}
                     title="Return to Home"
                 >
-                    Mnemo
-                </h1>
-                <p className="text-sm text-gray-400">Video Library</p>
+                    <img
+                        src={appIcon}
+                        alt="Mnemo Logo"
+                        className="w-8 h-8 rounded shadow-sm group-hover:scale-105 transition-transform"
+                    />
+                    <h1 className="text-xl font-bold text-blue-400 group-hover:text-blue-300 transition-colors">Mnemo</h1>
+                </div>
+                <p className="text-sm text-gray-400 mt-1">Video Library</p>
             </div>
 
             {/* Library Section */}

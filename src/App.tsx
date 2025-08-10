@@ -67,13 +67,17 @@ function App() {
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact
     });
 
+    // Unified Home navigation handler (ensures selectedFolder cleared)
+    const handleGoHome = () => {
+        navigationActions.goToHome();
+        videoLibraryActions.selectFolder(null);
+        videoLibraryActions.loadHomePageData();
+    };
+
     // Video search hook
     const [searchState, searchActions] = useVideoSearch({
         selectedFolder: videoLibraryState.selectedFolder,
-        onShowHomePage: () => {
-            navigationActions.goToHome();
-            videoLibraryActions.loadHomePageData();
-        }
+        onShowHomePage: handleGoHome
     });
 
     // Will be assigned after videoPlayer is created (cyclic dependency)
@@ -317,7 +321,7 @@ function App() {
     const modals = useModals({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         libraryActions,
-        navigation: { goToHomePage: navigationActions.goToHome },
+        navigation: { goToHomePage: handleGoHome },
         videoPlayer,
         selectedFolder: videoLibraryState.selectedFolder,
         handleLibraryChanged
@@ -354,7 +358,7 @@ function App() {
                 onAddFolder={libraryActions.handleAddFolder}
                 onSelectFolder={handleSelectFolder}
                 onRemoveFolderRequest={handleRemoveFolderRequest}
-                onGoToHomePage={navigationActions.goToHome}
+                onGoToHomePage={handleGoHome}
                 onOpenSettings={handleOpenSettings}
             />
 
