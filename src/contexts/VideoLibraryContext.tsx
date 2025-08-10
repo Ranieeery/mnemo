@@ -142,7 +142,7 @@ interface VideoLibraryProviderProps {
 export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
     const [state, dispatch] = useReducer(videoLibraryReducer, initialState);
 
-    // Ações
+    // Actions
     const loadHomePageData = async () => {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
@@ -160,9 +160,9 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
             dispatch({ type: 'SET_SUGGESTED_VIDEOS', payload: suggestions });
             dispatch({ type: 'SET_LIBRARY_FOLDERS_WITH_PREVIEWS', payload: foldersWithPreviews });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Falha ao carregar dados da página inicial';
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load home page data';
             dispatch({ type: 'SET_ERROR', payload: errorMessage });
-            console.error('Erro ao carregar dados da página inicial:', error);
+            console.error('Error loading home page data:', error);
         } finally {
             dispatch({ type: 'SET_LOADING', payload: false });
         }
@@ -173,9 +173,9 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
             const folders = await getLibraryFolders();
             dispatch({ type: 'SET_LIBRARY_FOLDERS', payload: folders });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Falha ao carregar pastas da biblioteca';
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load library folders';
             dispatch({ type: 'SET_ERROR', payload: errorMessage });
-            console.error('Erro ao carregar pastas da biblioteca:', error);
+            console.error('Error loading library folders:', error);
         }
     };
 

@@ -253,7 +253,7 @@ export const useVideoPlayer = ({
         subtitles,
         setSubtitles,
 
-        // Funções
+        // Functions
         handlePlayVideo,
         handleCloseVideoPlayer,
         handleSpeedChange,

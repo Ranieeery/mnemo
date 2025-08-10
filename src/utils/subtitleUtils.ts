@@ -169,7 +169,7 @@ export const parseSubtitles = (subtitleData: { content: string; format: string }
                 if (parts.length >= 10) {
                     const startTime = parseAssTime(parts[1]);
                     const endTime = parseAssTime(parts[2]);
-                    const text = parts.slice(9).join(',').replace(/\{[^}]*\}/g, ''); // Remove tags de formatação
+                    const text = parts.slice(9).join(',').replace(/\{[^}]*\}/g, ''); // Remove formatting tags
                     
                     if (text && startTime !== null && endTime !== null) {
                         subtitles.push({
@@ -186,7 +186,7 @@ export const parseSubtitles = (subtitleData: { content: string; format: string }
     return subtitles;
 };
 
-// Função auxiliar para converter tempo ASS para segundos
+// Helper function to convert ASS time to seconds
 function parseAssTime(timeStr: string): number | null {
     const match = timeStr.match(/(\d):(\d{2}):(\d{2})\.(\d{2})/);
     if (!match) return null;
@@ -199,7 +199,7 @@ function parseAssTime(timeStr: string): number | null {
     return hours * 3600 + minutes * 60 + seconds + centiseconds / 100;
 };
 
-// Função para encontrar legenda atual baseada no tempo
+// Function to find current subtitle based on time
 export const getCurrentSubtitle = (currentTime: number, subtitles: Subtitle[], subtitlesEnabled: boolean): string => {
     if (!subtitlesEnabled || !subtitles.length) return "";
 

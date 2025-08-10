@@ -19,7 +19,7 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         video: null
     });
 
-    // Função para abrir o menu de contexto
+    // Open context menu
     const handleContextMenu = (event: React.MouseEvent, video: ProcessedVideo) => {
         event.preventDefault();
         setContextMenu({
@@ -30,7 +30,7 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         });
     };
 
-    // Função para fechar o menu de contexto
+    // Close context menu
     const handleCloseContextMenu = () => {
         setContextMenu({
             show: false,
@@ -40,7 +40,7 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         });
     };
 
-    // Função para abrir arquivo externamente
+    // Open file externally
     const handleOpenFile = async (filePath: string) => {
         try {
             await invoke('open_file_externally', { filePath });
@@ -51,7 +51,7 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         }
     };
 
-    // Função para abrir com diálogo
+    // Open file with dialog
     const handleOpenWith = async (filePath: string) => {
         try {
             await invoke('open_file_with_dialog', { filePath });
@@ -62,13 +62,13 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         }
     };
 
-    // Função para abrir propriedades (detalhes do vídeo)
+    // Open properties (video details)
     const handleOpenProperties = (video: ProcessedVideo) => {
         handleCloseContextMenu();
         onOpenVideoDetails(video);
     };
 
-    // Fechar menu de contexto ao clicar fora
+    // Close context menu when clicking outside
     useEffect(() => {
         const handleClickOutside = () => {
             if (contextMenu.show) {
@@ -83,10 +83,10 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
     }, [contextMenu.show]);
 
     return {
-        // Estados
+        // State
         contextMenu,
 
-        // Funções
+        // Functions
         handleContextMenu,
         handleCloseContextMenu,
         handleOpenFile,

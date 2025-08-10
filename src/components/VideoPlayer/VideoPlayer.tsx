@@ -120,7 +120,7 @@ export default function VideoPlayer({
                     className="absolute inset-0 flex items-center justify-center cursor-pointer"
                     onClick={onTogglePlayPause}
                 >
-                    {/* Ícone de play/pause centralizado */}
+                    {/* Centered play/pause icon */}
                     <div className={`transition-all duration-300 ${isIconChanging ? 'scale-125 opacity-100' : 'scale-100 opacity-0'}`}>
                         <div className="bg-black bg-opacity-50 rounded-full p-4">
                             {isPlaying ? (
@@ -218,7 +218,7 @@ export default function VideoPlayer({
                                 />
                             </div>
 
-                            {/* Tempo atual / duração */}
+                            {/* Current time / duration */}
                             <div className="text-white text-sm font-mono">
                                 {formatTime(currentTime)} / {formatTime(duration)}
                             </div>

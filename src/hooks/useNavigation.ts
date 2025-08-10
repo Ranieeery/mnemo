@@ -18,23 +18,23 @@ export const useNavigation = ({
     const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
-    // Função para voltar à página inicial
+    // Go to home page
     const goToHomePage = () => {
         setSelectedFolder(null);
         setShowHomePage(true);
-        // Não limpa o termo de busca para mantê-lo persistente
+        // Don't clear search term to keep it persistent
         loadHomePageData();
     };
 
-    // Função para navegar para uma pasta com histórico
+    // Navigate to folder with history
     const navigateToFolder = (folderPath: string) => {
-        // Adiciona à história se não estivermos navegando pelo histórico
+        // Add to history if we're not navigating through history
         if (historyIndex === navigationHistory.length - 1) {
             const newHistory = [...navigationHistory, folderPath];
             setNavigationHistory(newHistory);
             setHistoryIndex(newHistory.length - 1);
         } else {
-            // Se estivermos no meio da história, remove entradas posteriores
+            // If we're in the middle of history, remove later entries
             const newHistory = navigationHistory.slice(0, historyIndex + 1);
             newHistory.push(folderPath);
             setNavigationHistory(newHistory);
@@ -44,11 +44,11 @@ export const useNavigation = ({
         setSelectedFolder(folderPath);
         setCurrentPath(folderPath);
         setShowHomePage(false);
-        // Não limpa o termo de busca para mantê-lo persistente
+        // Don't clear search term to keep it persistent
         loadDirectoryContents(folderPath);
     };
 
-    // Função para voltar no histórico
+    // Go back in history
     const goBack = () => {
         if (historyIndex > 0) {
             const newIndex = historyIndex - 1;
@@ -59,13 +59,13 @@ export const useNavigation = ({
             setShowHomePage(false);
             loadDirectoryContents(folderPath);
         } else if (historyIndex === 0) {
-            // Se estamos no primeiro item da história, volta à página inicial
+            // If we're at the first item in history, go to home page
             setHistoryIndex(-1);
             goToHomePage();
         }
     };
 
-    // Função para avançar no histórico
+    // Go forward in history
     const goForward = () => {
         if (historyIndex < navigationHistory.length - 1) {
             const newIndex = historyIndex + 1;
@@ -78,7 +78,7 @@ export const useNavigation = ({
         }
     };
 
-    // Verifica se pode voltar ou avançar
+    // Check if can go back or forward
     const canGoBack = historyIndex > -1;
     const canGoForward = historyIndex < navigationHistory.length - 1;
 

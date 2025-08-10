@@ -41,7 +41,7 @@ export const useVideoSearch = ({
         currentFile: string;
     }>({ current: 0, total: 0, currentFile: "" });
 
-    // Função para realizar busca
+    // Perform search
     const handleSearch = async (term: string) => {
         setSearchTerm(term);
 
@@ -61,11 +61,11 @@ export const useVideoSearch = ({
         try {
             let results: ProcessedVideo[];
 
-            // Se não há pasta selecionada (página inicial), busca apenas nos vídeos indexados
+            // If no folder is selected (home page), search only in indexed videos
             if (!selectedFolder) {
                 results = await searchVideos(term);
             } else {
-                // Se há pasta selecionada, usa busca recursiva completa
+                // If there's a selected folder, use full recursive search
                 results = await searchVideosRecursive(term, (current, total, currentFile) => {
                     setSearchProgress({ current, total, currentFile });
                 });
@@ -82,25 +82,25 @@ export const useVideoSearch = ({
         }
     };
 
-    // Função para limpar busca
+    // Clear search
     const clearSearch = () => {
         setSearchTerm("");
         setSearchResults([]);
         setShowSearchResults(false);
 
-        // Se não há pasta selecionada, volta à página inicial
+        // If no folder is selected, go to home page
         if (!selectedFolder) {
             onShowHomePage();
         }
     };
 
-    // Debounce para busca automática
+    // Debounce for automatic search
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             if (searchTerm.trim()) {
                 handleSearch(searchTerm);
             } else {
-                // Se searchTerm está vazio, limpa a busca e volta à página inicial se necessário
+                // If searchTerm is empty, clear search and go to home page if necessary
                 setSearchResults([]);
                 setShowSearchResults(false);
                 
@@ -113,7 +113,7 @@ export const useVideoSearch = ({
         return () => clearTimeout(timeoutId);
     }, [searchTerm, selectedFolder]);
 
-    // Função para atualizar um vídeo específico nos resultados de busca
+    // Update a specific video in search results
     const updateSearchResult = (updatedVideo: ProcessedVideo) => {
         setSearchResults(prev => prev.map(video => 
             video.file_path === updatedVideo.file_path ? updatedVideo : video

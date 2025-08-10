@@ -171,7 +171,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
         }
     };
 
-    // Função de debug para inspecionar o banco de dados
+    // Debug function to inspect the database
     const handleDebugDatabase = async () => {
         setIsDebugging(true);
         try {

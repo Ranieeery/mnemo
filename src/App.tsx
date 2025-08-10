@@ -175,8 +175,6 @@ function App() {
     // Video player hook
     const videoPlayer = useVideoPlayer({
         setShowVideoPlayer: (_show: boolean) => {
-            // Controlar exibição do player via state local ou navigation
-            // Por enquanto, vamos usar uma abordagem simplificada
         },
         updateWatchProgress,
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
@@ -402,7 +400,7 @@ function App() {
                             onOpenVideoDetails={handleOpenVideoDetails}
                         />
                     ) : navigationState.showHomePage && !videoLibraryState.selectedFolder ? (
-                        /* Página Inicial */
+                        /* Home Page */
                         <HomePage
                             libraryFolders={videoLibraryState.libraryFolders}
                             videosInProgress={videoLibraryState.videosInProgress}

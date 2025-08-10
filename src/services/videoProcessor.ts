@@ -42,7 +42,7 @@ export async function processVideo(videoPath: string): Promise<ProcessedVideo | 
         await invoke('generate_thumbnail', {
             videoPath,
             outputPath: thumbnailPath,
-            timestamp: Math.min(10.0, metadata.duration / 4) // 10s ou 1/4 da duração
+            timestamp: Math.min(10.0, metadata.duration / 4) // 10s or 1/4 of duration
         });
 
     // Compose processed video object

@@ -89,7 +89,7 @@ export default function DirectoryView({
                                             />
                                         ) : null}
                                         
-                                        {/* Ícone de fallback */}
+                                        {/* Fallback icon */}
                                         <div
                                             className={`fallback-icon absolute inset-0 flex items-center justify-center ${
                                                 video.thumbnail_path ? 'hidden' : 'flex'

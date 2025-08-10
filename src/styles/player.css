@@ -106,7 +106,7 @@ video::-ms-media-controls {
     display: none !important;
 }
 
-/* Animações para controles */
+/* Control animations */
 .controls-fade-in {
     animation: fadeIn 0.3s ease-in-out;
 }
@@ -142,7 +142,7 @@ video::-ms-media-controls {
     cursor: none;
 }
 
-/* Botão Play/Pause com tamanho fixo e transições */
+/* Play/Pause button with fixed size and transitions */
 .play-pause-button {
     width: 48px !important;
     height: 48px !important;
@@ -164,7 +164,7 @@ video::-ms-media-controls {
     transform: scale(0.95) !important;
 }
 
-/* Ícones do play/pause com transições */
+/* Play/pause icons with transitions */
 .play-pause-icon {
     transition: all 0.15s ease-in-out !important;
     transform-origin: center !important;

@@ -34,9 +34,9 @@ export const useVideoProcessing = ({
     }>({ total: 0, processed: 0, currentFile: "" });
     const [showProcessingProgress, setShowProcessingProgress] = useState<boolean>(false);
 
-    // Função para processar vídeos em segundo plano com progresso
+    // Processes videos in the background with progress updates
     const processVideosInBackground = async (directoryPath: string) => {
-        if (processingVideos) return; // Evita processamento simultâneo
+    if (processingVideos) return; // Prevents simultaneous processing
 
         setProcessingVideos(true);
         setShowProcessingProgress(true);
@@ -45,13 +45,13 @@ export const useVideoProcessing = ({
         try {
             console.log(`Starting background video processing for: ${directoryPath}`);
 
-            // Primeiro, conta quantos arquivos de vídeo existem
+            // First, count how many video files exist
             const allFiles: any[] = await invoke('scan_directory_recursive', { path: directoryPath });
             const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
 
             setProcessingProgress(prev => ({ ...prev, total: videoFiles.length }));
 
-            // Processa cada vídeo com callback de progresso
+            // Process each video and update progress
             let processedCount = 0;
             const processedVideos = [];
 
@@ -81,7 +81,7 @@ export const useVideoProcessing = ({
             }));
 
             if (processedVideos.length > 0) {
-                // Atualiza a lista de vídeos processados com a nova ordenação
+                // Update the processed videos list with new ordering
                 const updatedVideos = await getVideosInDirectoryOrderedByWatchStatus(directoryPath);
                 setProcessedVideos(updatedVideos);
                 console.log(`Background processing completed. Processed ${processedVideos.length} new videos.`);
@@ -90,7 +90,7 @@ export const useVideoProcessing = ({
             console.error('Error in background video processing:', error);
         } finally {
             setProcessingVideos(false);
-            // Mantém a barra de progresso visível por um momento
+            // Keeps the progress bar visible for a short time
             setTimeout(() => {
                 setShowProcessingProgress(false);
             }, 2000);

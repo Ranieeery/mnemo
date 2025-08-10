@@ -13,7 +13,7 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
     const [newTagName, setNewTagName] = useState<string>("");
     const [loading, setLoading] = useState<boolean>(false);
 
-    // Carregar tags quando o componente monta ou o vídeo muda
+    // Load tags when component mounts or video changes
     useEffect(() => {
         loadTags();
     }, [video.id]);
@@ -43,13 +43,13 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
         try {
             await addTagToVideo(video.id, newTagName.trim());
 
-            // Recarregar tags
+            // Reload tags
             await loadTags();
 
-            // Limpar input
+            // Clear input
             setNewTagName("");
 
-            // Notificar mudança
+            // Notify change
             onTagsChange?.();
         } catch (error) {
             console.error("Error adding tag:", error);
@@ -63,10 +63,10 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
         try {
             await removeTagFromVideo(video.id, tagId);
 
-            // Recarregar tags
+            // Reload tags
             await loadTags();
 
-            // Notificar mudança
+            // Notify change
             onTagsChange?.();
         } catch (error) {
             console.error("Error removing tag:", error);
@@ -77,22 +77,22 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
     const handleAddExistingTag = async (tagId: number) => {
         if (!video.id) return;
 
-        // Verificar se a tag já está no vídeo
+        // Check if tag is already on the video
         if (videoTags.some(tag => tag.id === tagId)) {
             return;
         }
 
         try {
-            // Encontrar o nome da tag
+            // Find the tag name
             const tag = allTags.find(t => t.id === tagId);
             if (!tag) return;
 
             await addTagToVideo(video.id, tag.name);
 
-            // Recarregar tags
+            // Reload tags
             await loadTags();
 
-            // Notificar mudança
+            // Notify change
             onTagsChange?.();
         } catch (error) {
             console.error("Error adding existing tag:", error);

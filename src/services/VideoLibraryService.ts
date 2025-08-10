@@ -42,8 +42,8 @@ export class VideoLibraryService {
                 libraryFoldersWithPreviews: foldersWithPreviews
             };
         } catch (error) {
-            console.error('Erro ao carregar dados da página inicial:', error);
-            throw new Error('Falha ao carregar dados da página inicial');
+            console.error('Error loading home page data:', error);
+            throw new Error('Failed to load home page data');
         }
     }
 
@@ -82,8 +82,8 @@ export class VideoLibraryService {
         try {
             return await getVideosInDirectoryOrderedByWatchStatus(directoryPath);
         } catch (error) {
-            console.error('Erro ao carregar vídeos do diretório:', error);
-            throw new Error('Falha ao carregar vídeos do diretório');
+            console.error('Error loading directory videos:', error);
+            throw new Error('Failed to load directory videos');
         }
     }
 
@@ -92,8 +92,8 @@ export class VideoLibraryService {
         try {
             await updateWatchProgress(videoId, currentTime, duration);
         } catch (error) {
-            console.error('Erro ao atualizar progresso do vídeo:', error);
-            throw new Error('Falha ao atualizar progresso do vídeo');
+            console.error('Error updating video progress:', error);
+            throw new Error('Failed to update video progress');
         }
     }
 
@@ -106,8 +106,8 @@ export class VideoLibraryService {
                 totalCount: videos.length
             };
         } catch (error) {
-            console.error('Erro ao buscar vídeos:', error);
-            throw new Error('Falha ao buscar vídeos');
+            console.error('Error searching videos:', error);
+            throw new Error('Failed to search videos');
         }
     }
 
@@ -145,12 +145,12 @@ export class VideoLibraryService {
 
     // Derive a user facing status label
     static getVideoStatusText(video: ProcessedVideo): string {
-        if (!video.duration_seconds) return 'Duração desconhecida';
+        if (!video.duration_seconds) return 'Unknown duration';
         
         const percentage = this.calculateWatchPercentage(video.watch_progress_seconds || 0, video.duration_seconds);
         
         if (percentage >= 90) return 'Assistido';
         if (percentage > 5) return `${Math.round(percentage)}% assistido`;
-        return 'Não assistido';
+        return 'Not watched';
     }
 }

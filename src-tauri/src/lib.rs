@@ -146,7 +146,7 @@ struct VideoMetadata {
 
 #[tauri::command]
 async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, String> {
-    // Verifica se o arquivo existe
+    // Check if file exists
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err("File does not exist".to_string());
@@ -173,7 +173,7 @@ async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, Stri
             let parsed: serde_json::Value = serde_json::from_str(&json_str)
                 .map_err(|e| format!("Failed to parse FFprobe output: {}", e))?;
 
-            // Extrai informações do primeiro stream de vídeo
+            // Extract information from the first video stream
             let streams = parsed["streams"].as_array()
                 .ok_or("No streams found")?;
 
@@ -191,7 +191,7 @@ async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, Stri
                 .and_then(|b| b.parse::<i64>().ok());
             let codec = video_stream["codec_name"].as_str().map(|s| s.to_string());
 
-            // Obtém o tamanho do arquivo
+            // Get file size
             let file_size = path.metadata()
                 .map_err(|e| format!("Failed to get file size: {}", e))?
                 .len();
@@ -217,7 +217,7 @@ async fn generate_thumbnail(
 ) -> Result<String, String> {
     let timestamp_str = timestamp.unwrap_or(10.0).to_string();
     
-    // Cria o diretório de saída se não existir
+    // Create output directory if it doesn't exist
     if let Some(parent) = Path::new(&output_path).parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create thumbnail directory: {}", e))?;
@@ -228,7 +228,7 @@ async fn generate_thumbnail(
             "-i", &video_path,
             "-ss", &timestamp_str,
             "-vframes", "1",
-            "-y", // Sobrescreve arquivo existente
+            "-y", // Overwrite existing file
             "-vf", "scale=320:240:force_original_aspect_ratio=decrease,pad=320:240:(ow-iw)/2:(oh-ih)/2",
             &output_path
         ])

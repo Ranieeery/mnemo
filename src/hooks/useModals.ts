@@ -31,20 +31,20 @@ export const useModals = ({
     selectedFolder,
     handleLibraryChanged
 }: UseModalsProps) => {
-    // Estados para modal de detalhes do vídeo
+    // Video details modal states
     const [selectedVideo, setSelectedVideo] = useState<ProcessedVideo | null>(null);
     const [showVideoDetails, setShowVideoDetails] = useState<boolean>(false);
     const [editingTitle, setEditingTitle] = useState<string>("");
     const [editingDescription, setEditingDescription] = useState<string>("");
 
-    // Estados para modal de confirmação de remoção
+    // Removal confirmation modal states
     const [showRemoveConfirmation, setShowRemoveConfirmation] = useState<boolean>(false);
     const [folderToRemove, setFolderToRemove] = useState<string | null>(null);
 
-    // Estados para configurações
+    // Settings states
     const [showSettings, setShowSettings] = useState<boolean>(false);
 
-    // Estados para "próximo vídeo"
+    // Next video states
     const [showNextVideoPrompt, setShowNextVideoPrompt] = useState<boolean>(false);
     const [nextVideo, setNextVideo] = useState<ProcessedVideo | null>(null);
     const [savedPlaybackSettings, setSavedPlaybackSettings] = useState<{
@@ -55,7 +55,7 @@ export const useModals = ({
     const [nextVideoTimeout, setNextVideoTimeout] = useState<number | null>(null);
     const [nextVideoCountdown, setNextVideoCountdown] = useState<number>(10);
 
-    // Funções para modal de detalhes do vídeo
+    // Video details modal functions
     const handleOpenVideoDetails = (video: ProcessedVideo) => {
         setSelectedVideo(video);
         setEditingTitle(video.title);
@@ -74,14 +74,14 @@ export const useModals = ({
         try {
             await updateVideoDetails(selectedVideo.file_path, editingTitle, editingDescription);
 
-            // Atualiza o vídeo na lista local
+            // Update video in local list
             setProcessedVideos(prev => prev.map(video =>
                 video.file_path === selectedVideo.file_path
                     ? {...video, title: editingTitle, description: editingDescription}
                     : video
             ));
 
-            // Atualiza o vídeo selecionado
+            // Update selected video
             setSelectedVideo(prev => prev ? {...prev, title: editingTitle, description: editingDescription} : null);
 
             console.log("Video details saved successfully");
@@ -98,7 +98,7 @@ export const useModals = ({
         }
     };
 
-    // Funções para modal de confirmação de remoção
+    // Removal confirmation modal functions
     const handleRemoveFolderRequest = (folderPath: string) => {
         setFolderToRemove(folderPath);
         setShowRemoveConfirmation(true);
@@ -117,7 +117,7 @@ export const useModals = ({
         setFolderToRemove(null);
     };
 
-    // Funções para configurações
+    // Settings functions
     const handleOpenSettings = () => {
         setShowSettings(true);
     };
@@ -126,7 +126,7 @@ export const useModals = ({
         setShowSettings(false);
     };
 
-    // Funções para próximo vídeo
+    // Next video functions
     const playNextVideo = async () => {
         if (nextVideo) {
             if (nextVideoTimeout) {
@@ -136,10 +136,10 @@ export const useModals = ({
 
             setShowNextVideoPrompt(false);
 
-            // Primeiro, configura o próximo vídeo para reprodução
+            // First, set up the next video for playback
             videoPlayer.setPlayingVideo(nextVideo);
 
-            // Verifica e carrega legendas do próximo vídeo
+            // Check and load subtitles for the next video
             const subtitleData = await checkAndLoadSubtitles(nextVideo.file_path);
             if (subtitleData) {
                 const parsedSubtitles = parseSubtitles(subtitleData);
@@ -150,7 +150,7 @@ export const useModals = ({
                 videoPlayer.setSubtitlesAvailable(false);
             }
 
-            // Aplica as configurações salvas após um pequeno delay para garantir que o vídeo foi carregado
+            // Apply saved settings after a short delay to ensure the video is loaded
             setTimeout(() => {
                 const video = document.querySelector('video') as HTMLVideoElement;
                 if (video) {
@@ -183,12 +183,12 @@ export const useModals = ({
         setShowNextVideoPrompt(true);
         setNextVideoCountdown(10);
 
-        // Inicia o countdown automático
+        // Start automatic countdown
         const countdownInterval = setInterval(() => {
             setNextVideoCountdown(prev => {
                 if (prev <= 1) {
                     clearInterval(countdownInterval);
-                    // Auto-play do próximo vídeo
+                    // Auto-play next video
                     playNextVideo();
                     return 0;
                 }
@@ -215,7 +215,7 @@ export const useModals = ({
         savedPlaybackSettings,
         nextVideoCountdown,
 
-        // Funções
+        // Functions
         handleOpenVideoDetails,
         handleCloseVideoDetails,
         handleSaveVideoDetails,
