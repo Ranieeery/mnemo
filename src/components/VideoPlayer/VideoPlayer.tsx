@@ -1,5 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ProcessedVideo } from "../../services/videoProcessor";
+import { ProcessedVideo } from "../../types/video";
 
 interface VideoPlayerProps {
     video: ProcessedVideo;
