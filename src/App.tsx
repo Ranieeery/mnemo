@@ -29,7 +29,6 @@ import { useVideoLibrary } from "./contexts/VideoLibraryContext";
 import { useNavigation as useNavigationContext } from "./contexts/NavigationContext";
 import "./styles/player.css";
 
-// Natural (numeric-aware) string comparator for folder/file names
 const naturalSort = (a: string, b: string): number => {
     return a.localeCompare(b, undefined, {
         numeric: true,
@@ -38,22 +37,18 @@ const naturalSort = (a: string, b: string): number => {
 };
 
 function App() {
-    // Context hooks – single source of truth for shared state
     const { state: videoLibraryState, actions: videoLibraryActions } = useVideoLibrary();
     const { state: navigationState, actions: navigationActions, computed: navigationComputed } = useNavigationContext();
     
-    // Local state only for technical capabilities (not domain data)
     const [videoToolsAvailable, setVideoToolsAvailable] = useState<{
         ffmpeg: boolean;
         ffprobe: boolean
     }>({ ffmpeg: false, ffprobe: false });
 
-    // Library management hook wired to context actions
     const [libraryState, libraryActions] = useLibraryManagement({
         videoToolsAvailable,
         libraryFolders: videoLibraryState.libraryFolders,
         setLibraryFolders: (folders: string[]) => {
-            // Atualizar através das actions do context
             for (const folder of folders) {
                 if (!videoLibraryState.libraryFolders.includes(folder)) {
                     videoLibraryActions.addLibraryFolder(folder);
@@ -63,39 +58,33 @@ function App() {
         loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
-    // Video processing hook
     const [videoProcessingState, videoProcessingActions] = useVideoProcessing({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact
     });
 
-    // Unified Home navigation handler (ensures selectedFolder cleared)
     const handleGoHome = () => {
         navigationActions.goToHome();
         videoLibraryActions.selectFolder(null);
         videoLibraryActions.loadHomePageData();
     };
 
-    // Wrapper para iniciar playback a partir da Home definindo uma playlist coerente
     const playFromHome = async (video: ProcessedVideo, fallbackList: ProcessedVideo[]) => {
-        // Derive directory path from file path (remove filename)
         const path = video.file_path;
         const lastSlash = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
         let directory = '';
         if (lastSlash !== -1) {
-            directory = path.substring(0, lastSlash + 1); // include trailing slash for LIKE pattern semantics
+            directory = path.substring(0, lastSlash + 1);
         }
 
         let playlist: ProcessedVideo[] = fallbackList;
         try {
             if (directory) {
-                // Load full directory ordered list so Up Next follows real folder context
                 playlist = await getVideosInDirectoryOrderedByWatchStatus(directory);
             }
         } catch (e) {
             console.warn('Failed to load directory playlist, using fallback list', e);
         }
 
-        // Guarantee the clicked video is inside playlist; if not, prepend
         if (!playlist.find(v => v.file_path === video.file_path)) {
             playlist = [video, ...playlist];
         }
@@ -104,29 +93,23 @@ function App() {
         videoPlayer.handlePlayVideo(video);
     };
 
-    // Video search hook
     const [searchState, searchActions] = useVideoSearch({
         selectedFolder: videoLibraryState.selectedFolder,
         onShowHomePage: handleGoHome
     });
 
-    // Will be assigned after videoPlayer is created (cyclic dependency)
     let toggleVideoWatchedStatus: (video: ProcessedVideo) => Promise<void>;
 
-    // App initialization
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                // Initialize library via context
                 await videoLibraryActions.initializeLibrary();
 
-                // Detect external video tools availability
                 const tools = await checkVideoToolsAvailable();
                 setVideoToolsAvailable(tools);
 
                 if (!tools.ffmpeg || !tools.ffprobe) console.warn('Video tools not available. Video processing will be limited.');
 
-                // One‑time migration from localStorage if legacy data exists
                 const savedFoldersLegacy = localStorage.getItem('libraryFolders');
                 if (savedFoldersLegacy) {
                     const legacyFolders = JSON.parse(savedFoldersLegacy);
@@ -135,7 +118,6 @@ function App() {
                         videoLibraryActions.addLibraryFolder(folder);
                     }
                     localStorage.removeItem('libraryFolders');
-                    // Reload after migration
                     await videoLibraryActions.loadLibraryFolders();
                     await videoLibraryActions.loadHomePageData();
                 }
@@ -146,45 +128,36 @@ function App() {
         };
 
         initializeApp();
-    }, []); // Executar apenas uma vez
+    }, []);
 
-    // Select a folder from sidebar
     const handleSelectFolder = (folder: string) => {
         navigationActions.navigateTo(folder);
         videoLibraryActions.selectFolder(folder);
         loadDirectoryContents(folder);
     };
 
-    // Open remove-folder confirmation modal
     const handleRemoveFolderRequest = (folderPath: string) => {
         modals.handleRemoveFolderRequest(folderPath);
     };
 
-    // Confirm folder removal
     const confirmRemoveFolder = async () => {
         await modals.confirmRemoveFolder();
     };
 
-    // Cancel folder removal
     const cancelRemoveFolder = () => {
         modals.cancelRemoveFolder();
     };
 
-    // Load directory contents (folders + processed videos)
     const loadDirectoryContents = async (path: string) => {
         try {
-            // Use service layer to load processed videos
             videoLibraryActions.setLoading(true);
             
-        // Load processed videos for directory
             const processedVideos = await VideoLibraryService.getVideosInDirectory(path);
             videoLibraryActions.setProcessedVideos(processedVideos);
             
-        // Raw directory listing (subfolders + files) for navigation
             const directoryContents: any[] = await invoke('read_directory', { path });
             navigationActions.setDirectoryContents(directoryContents);
             
-        // Background (re)processing if tools available
             if (videoToolsAvailable.ffmpeg && videoToolsAvailable.ffprobe) {
                 videoProcessingActions.processVideosInBackground(path);
             }
@@ -196,7 +169,6 @@ function App() {
         }
     };
 
-    // Sync folder selection & contents when navigating via history (back/forward)
     useEffect(() => {
         if (!navigationState.showHomePage && navigationState.currentPath) {
             if (videoLibraryState.selectedFolder !== navigationState.currentPath) {
@@ -206,7 +178,6 @@ function App() {
         }
     }, [navigationState.currentPath, navigationState.showHomePage]);
 
-    // Video player hook
     const videoPlayer = useVideoPlayer({
         setShowVideoPlayer: (_show: boolean) => {
         },
@@ -215,7 +186,6 @@ function App() {
         loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
-    // Initialize watched-status hook now that player exists
     ({ toggleVideoWatchedStatus } = useVideoWatchedStatus({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         setRecentVideos: videoLibraryActions.setRecentVideosReact,
@@ -229,28 +199,23 @@ function App() {
         setPlayingVideo: videoPlayer.setPlayingVideo
     }));
 
-    // Navigate to a directory
     const navigateToDirectory = (path: string) => {
         navigationActions.navigateTo(path);
         loadDirectoryContents(path);
     };
 
-    // Open video details modal
     const handleOpenVideoDetails = (video: ProcessedVideo) => {
         modals.handleOpenVideoDetails(video);
     };
 
-    // Close video details modal
     const handleCloseVideoDetails = () => {
         modals.handleCloseVideoDetails();
     };
 
-    // Persist video detail edits
     const handleSaveVideoDetails = async () => {
         await modals.handleSaveVideoDetails();
     };
 
-    // Cancel video detail editing session
     const handleCancelEdit = () => {
         modals.handleCancelEdit();
     };
@@ -259,15 +224,14 @@ function App() {
 
 
 
-    // Mouse back/forward button support
     useEffect(() => {
         const handleMouseButtons = (event: MouseEvent) => {
-            if (event.button === 3) { // Back button
+            if (event.button === 3) {
                 event.preventDefault();
                 if (navigationComputed.canGoBack) {
                     navigationActions.goBack();
                 }
-            } else if (event.button === 4) { // Forward button
+            } else if (event.button === 4) {
                 event.preventDefault();
                 if (navigationComputed.canGoForward) {
                     navigationActions.goForward();
@@ -281,10 +245,8 @@ function App() {
         };
     }, [navigationComputed.canGoBack, navigationComputed.canGoForward]);
 
-    // Keyboard shortcuts (navigation + player)
     useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-            // ESC: close player
             if (event.key === 'Escape') {
                 event.preventDefault();
                 if (videoPlayer.playingVideo) {
@@ -293,14 +255,12 @@ function App() {
                 return;
             }
 
-            // Alt+Left: back
             if (event.altKey && event.key === 'ArrowLeft') {
                 event.preventDefault();
                 if (navigationComputed.canGoBack) {
                     navigationActions.goBack();
                 }
             }
-            // Alt+Right: forward
             else if (event.altKey && event.key === 'ArrowRight') {
                 event.preventDefault();
                 if (navigationComputed.canGoForward) {
@@ -310,14 +270,11 @@ function App() {
         };
 
         const handlePointerDown = (event: MouseEvent) => {
-            // Mouse button codes: 3 = X1 (back), 4 = X2 (forward) in some browsers; in standard event.button: 3 & 4 rarely used
-            // Many browsers map X1 -> button 3 (event.button === 3) or 'BrowserBack', X2 -> button 4
-            // We'll use event.button checks.
-            if (event.button === 3) { // Back button: close video if open
+            if (event.button === 3) {
                 if (videoPlayer.playingVideo) {
                     videoPlayer.handleCloseVideoPlayer();
                 }
-            } else if (event.button === 4) { // Forward button: reopen last video if none playing
+            } else if (event.button === 4) {
                 if (!videoPlayer.playingVideo) {
                     videoPlayer.reopenLastVideo?.();
                 }
@@ -332,39 +289,30 @@ function App() {
         };
     }, [navigationComputed.canGoBack, navigationComputed.canGoForward, videoPlayer.playingVideo, videoPlayer.handleCloseVideoPlayer]);
 
-    // Open settings
     const handleOpenSettings = () => {
         modals.handleOpenSettings();
     };
 
-    // Close settings
     const handleCloseSettings = () => {
         modals.handleCloseSettings();
     };
 
-    // Library import side-effects (refresh data)
     const handleLibraryChanged = async () => {
-    // Reload library folders
         await videoLibraryActions.loadLibraryFolders();
 
-    // Refresh home page data if visible
         if (navigationState.showHomePage) {
             await videoLibraryActions.loadHomePageData();
         }
 
-    // If in a folder, clear and let context reload
         if (videoLibraryState.selectedFolder) {
             videoLibraryActions.setProcessedVideos([]);
-            // Recarregar será feito automaticamente pelo context
         }
 
-    // Reset search if active
         if (searchState.searchTerm) {
             searchActions.clearSearch();
         }
     };
 
-    // Modals management hook
     const modals = useModals({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         libraryActions,
@@ -374,7 +322,6 @@ function App() {
         handleLibraryChanged
     });
 
-    // Context menu hook
     const contextMenuHook = useContextMenu({
         onOpenVideoDetails: handleOpenVideoDetails
     });
@@ -385,19 +332,16 @@ function App() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Play next video (after countdown modal)
     const playNextVideo = async () => {
         await modals.playNextVideo();
     };
 
-    // Cancel next video autoplay
     const cancelNextVideo = () => {
         modals.cancelNextVideo();
     };
 
     return (
         <div className="h-screen bg-gray-900 text-white flex">
-            {/* Sidebar */}
             <Sidebar
                 libraryFolders={videoLibraryState.libraryFolders}
                 selectedFolder={videoLibraryState.selectedFolder}
@@ -409,9 +353,7 @@ function App() {
                 onOpenSettings={handleOpenSettings}
             />
 
-            {/* Main Content Area */}
             <div className="flex-1 flex flex-col">
-                {/* Top Bar */}
                 <TopBar
                     selectedFolder={videoLibraryState.selectedFolder}
                     canGoBack={navigationComputed.canGoBack}
@@ -424,23 +366,19 @@ function App() {
                     onClearSearch={searchActions.clearSearch}
                 />
 
-                {/* Progress Bar for Video Processing */}
                 <ProcessingProgressBar
                     show={libraryState.showProcessingProgress}
                     progress={libraryState.processingProgress}
                     currentIndexingFolder={libraryState.currentIndexingFolder}
                 />
 
-                {/* Progress Bar for Search */}
                 <SearchProgressBar
                     show={searchState.isSearching}
                     progress={searchState.searchProgress}
                 />
 
-                {/* Content Area */}
                 <div className="flex-1 p-6 overflow-auto">
                     {searchState.showSearchResults ? (
-                        /* Search Results */
                         <SearchResults
                             isSearching={searchState.isSearching}
                             searchTerm={searchState.searchTerm}
@@ -451,7 +389,6 @@ function App() {
                             onOpenVideoDetails={handleOpenVideoDetails}
                         />
                     ) : navigationState.showHomePage && !videoLibraryState.selectedFolder ? (
-                        /* Home Page */
                         <HomePage
                             libraryFolders={videoLibraryState.libraryFolders}
                             videosInProgress={videoLibraryState.videosInProgress}
@@ -504,7 +441,6 @@ function App() {
                 </div>
             </div>
 
-            {/* Video Details Modal */}
             <VideoDetailsModal
                 show={modals.showVideoDetails}
                 video={modals.selectedVideo}
@@ -517,7 +453,6 @@ function App() {
                 onDescriptionChange={modals.setEditingDescription}
             />
 
-            {/* Context Menu */}
             <ContextMenu
                 show={contextMenuHook.contextMenu.show}
                 x={contextMenuHook.contextMenu.x}
@@ -531,7 +466,6 @@ function App() {
                 onClose={contextMenuHook.handleCloseContextMenu}
             />
 
-            {/* Internal Custom Video Player */}
             {videoPlayer.playingVideo && (
                 <YouTubeStyleVideoPlayer
                     key={`${videoPlayer.playingVideo.file_path}-${videoPlayer.playingVideo.is_watched}-${videoPlayer.playingVideo.watch_progress_seconds}`}
@@ -562,7 +496,6 @@ function App() {
                     }}
                     onVideoEnded={() => {
                         videoPlayer.setIsPlaying(false);
-                        // Find next playlist item and start countdown
                         if (videoPlayer.playingVideo) {
                             const currentIndex = videoLibraryState.processedVideos.findIndex((v: ProcessedVideo) => v.file_path === videoPlayer.playingVideo!.file_path);
                             if (currentIndex !== -1 && currentIndex < videoLibraryState.processedVideos.length - 1) {
@@ -578,7 +511,6 @@ function App() {
                     }}
                     onLoadedMetadata={(videoDuration: number) => {
                         videoPlayer.setDuration(videoDuration);
-                        // Playback rate & volume already applied by component
                     }}
                     onPlay={() => videoPlayer.setIsPlaying(true)}
                     onPause={() => videoPlayer.setIsPlaying(false)}
@@ -589,7 +521,6 @@ function App() {
                 />
             )}
 
-            {/* Next Video Modal */}
             <NextVideoModal
                 show={modals.showNextVideoPrompt}
                 nextVideo={modals.nextVideo}
@@ -599,7 +530,6 @@ function App() {
                 onCancel={cancelNextVideo}
             />
 
-            {/* Remove Folder Confirmation Modal */}
             <ConfirmRemovalModal
                 show={modals.showRemoveConfirmation}
                 folderToRemove={modals.folderToRemove}
@@ -607,7 +537,6 @@ function App() {
                 onCancel={cancelRemoveFolder}
             />
 
-            {/* Settings Modal */}
             {modals.showSettings && (
                 <Settings
                     onClose={handleCloseSettings}

@@ -25,7 +25,6 @@ export interface VideoSearchResult {
 }
 
 export class VideoLibraryService {
-    // Load aggregate data required for the home dashboard
     static async loadHomePageData(): Promise<HomePageData> {
         try {
             const [recent, inProgress, suggestions, foldersWithPreviews] = await Promise.all([
@@ -47,7 +46,6 @@ export class VideoLibraryService {
         }
     }
 
-    // Return all library folder paths
     static async getLibraryFolders(): Promise<string[]> {
         try {
             return await getLibraryFolders();
@@ -57,7 +55,6 @@ export class VideoLibraryService {
         }
     }
 
-    // Add a folder path to the library
     static async addLibraryFolder(folderPath: string): Promise<void> {
         try {
             await saveLibraryFolder(folderPath);
@@ -67,7 +64,6 @@ export class VideoLibraryService {
         }
     }
 
-    // Remove a folder from the library
     static async removeLibraryFolder(folderPath: string): Promise<void> {
         try {
             await dbRemoveLibraryFolder(folderPath);
@@ -77,7 +73,6 @@ export class VideoLibraryService {
         }
     }
 
-    // Get videos in a directory ordered by watch status
     static async getVideosInDirectory(directoryPath: string): Promise<ProcessedVideo[]> {
         try {
             return await getVideosInDirectoryOrderedByWatchStatus(directoryPath);
@@ -87,7 +82,6 @@ export class VideoLibraryService {
         }
     }
 
-    // Update persisted watch progress
     static async updateVideoProgress(videoId: number, currentTime: number, duration: number): Promise<void> {
         try {
             await updateWatchProgress(videoId, currentTime, duration);
@@ -97,7 +91,6 @@ export class VideoLibraryService {
         }
     }
 
-    // Run a search query (title, description, tags)
     static async searchVideos(query: string): Promise<VideoSearchResult> {
         try {
             const videos = await searchVideos(query);
@@ -111,14 +104,12 @@ export class VideoLibraryService {
         }
     }
 
-    // Simple video path extension validation
     static isValidVideoPath(filePath: string): boolean {
         const videoExtensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v'];
         const extension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
         return videoExtensions.includes(extension);
     }
 
-    // Human readable duration formatting
     static formatDuration(seconds: number): string {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
@@ -131,19 +122,16 @@ export class VideoLibraryService {
         }
     }
 
-    // Compute watch percentage (0..100)
     static calculateWatchPercentage(currentTime: number, duration: number): number {
         if (duration === 0) return 0;
         return Math.min(100, Math.max(0, (currentTime / duration) * 100));
     }
 
-    // Determine if a video counts as watched
     static isVideoWatched(currentTime: number, duration: number): boolean {
         const percentage = this.calculateWatchPercentage(currentTime, duration);
-        return percentage >= 90; // Considera assistido se 90% ou mais foi visualizado
+        return percentage >= 90;
     }
 
-    // Derive a user facing status label
     static getVideoStatusText(video: ProcessedVideo): string {
         if (!video.duration_seconds) return 'Unknown duration';
         

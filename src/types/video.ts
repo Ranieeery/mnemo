@@ -1,21 +1,18 @@
-// Central video domain types
-// This consolidates video-related interfaces and helpers to reduce duplication.
 
 export interface ProcessedVideo {
   id?: number;
   file_path: string;
   title: string;
   description?: string;
-  duration_seconds: number; // raw duration in seconds
+  duration_seconds: number;
   thumbnail_path?: string;
   is_watched?: boolean;
   watch_progress_seconds?: number;
   last_watched_at?: string | null;
   created_at?: string;
   updated_at?: string;
-  // Derived fields
-  duration?: string; // formatted duration
-  size?: number; // optional file size
+  duration?: string;
+  size?: number;
 }
 
 export type VideoDbRow = Record<string, any>;

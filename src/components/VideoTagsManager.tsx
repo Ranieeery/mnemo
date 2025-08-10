@@ -13,7 +13,6 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
     const [newTagName, setNewTagName] = useState<string>("");
     const [loading, setLoading] = useState<boolean>(false);
 
-    // Load tags when component mounts or video changes
     useEffect(() => {
         loadTags();
     }, [video.id]);
@@ -43,13 +42,10 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
         try {
             await addTagToVideo(video.id, newTagName.trim());
 
-            // Reload tags
             await loadTags();
 
-            // Clear input
             setNewTagName("");
 
-            // Notify change
             onTagsChange?.();
         } catch (error) {
             console.error("Error adding tag:", error);
@@ -63,10 +59,8 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
         try {
             await removeTagFromVideo(video.id, tagId);
 
-            // Reload tags
             await loadTags();
 
-            // Notify change
             onTagsChange?.();
         } catch (error) {
             console.error("Error removing tag:", error);
@@ -77,22 +71,18 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
     const handleAddExistingTag = async (tagId: number) => {
         if (!video.id) return;
 
-        // Check if tag is already on the video
         if (videoTags.some(tag => tag.id === tagId)) {
             return;
         }
 
         try {
-            // Find the tag name
             const tag = allTags.find(t => t.id === tagId);
             if (!tag) return;
 
             await addTagToVideo(video.id, tag.name);
 
-            // Reload tags
             await loadTags();
 
-            // Notify change
             onTagsChange?.();
         } catch (error) {
             console.error("Error adding existing tag:", error);

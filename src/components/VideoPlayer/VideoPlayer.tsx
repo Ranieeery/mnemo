@@ -64,7 +64,6 @@ export default function VideoPlayer({
             onMouseMove={resetControlsTimeout}
             onClick={resetControlsTimeout}
         >
-            {/* Header com close button (apenas quando não está em fullscreen) */}
             {!isFullscreen && (
                 <div className="flex items-center justify-between p-4 bg-gray-900">
                     <h3 className="text-white font-medium truncate">{video.title}</h3>
@@ -80,7 +79,6 @@ export default function VideoPlayer({
                 </div>
             )}
 
-            {/* Video container */}
             <div className="flex-1 relative bg-black">
                 <video
                     src={convertFileSrc(video.file_path)}
@@ -104,7 +102,6 @@ export default function VideoPlayer({
                     Your browser does not support the video tag.
                 </video>
 
-                {/* Legendas */}
                 {subtitlesEnabled && currentSubtitle && (
                     <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 max-w-4xl">
                         <div className="bg-black bg-opacity-75 text-white text-center px-4 py-2 rounded-lg text-lg leading-tight">
@@ -115,12 +112,10 @@ export default function VideoPlayer({
                     </div>
                 )}
 
-                {/* Click overlay para play/pause */}
                 <div 
                     className="absolute inset-0 flex items-center justify-center cursor-pointer"
                     onClick={onTogglePlayPause}
                 >
-                    {/* Centered play/pause icon */}
                     <div className={`transition-all duration-300 ${isIconChanging ? 'scale-125 opacity-100' : 'scale-100 opacity-0'}`}>
                         <div className="bg-black bg-opacity-50 rounded-full p-4">
                             {isPlaying ? (
@@ -136,13 +131,11 @@ export default function VideoPlayer({
                     </div>
                 </div>
 
-                {/* Controles do player */}
                 <div
                     className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent p-4 transition-all duration-300 ${
                         (document.fullscreenElement && !showControls) ? 'opacity-0 pointer-events-none transform translate-y-4' : 'opacity-100 transform translate-y-0'
                     }`}
                 >
-                    {/* Progress bar */}
                     <div className="mb-4">
                         <input
                             type="range"
@@ -157,11 +150,8 @@ export default function VideoPlayer({
                         />
                     </div>
 
-                    {/* Controles principais */}
                     <div className="flex items-center justify-between">
-                        {/* Controles da esquerda */}
                         <div className="flex items-center space-x-4">
-                            {/* Play/Pause */}
                             <button
                                 onClick={onTogglePlayPause}
                                 className="play-pause-button text-white hover:text-blue-400 transition-colors"
@@ -178,7 +168,6 @@ export default function VideoPlayer({
                                 )}
                             </button>
 
-                            {/* Volume */}
                             <div className="flex items-center space-x-2 group">
                                 <button
                                     onClick={() => onVolumeChange(volume > 0 ? 0 : 1)}
@@ -218,15 +207,12 @@ export default function VideoPlayer({
                                 />
                             </div>
 
-                            {/* Current time / duration */}
                             <div className="text-white text-sm font-mono">
                                 {formatTime(currentTime)} / {formatTime(duration)}
                             </div>
                         </div>
 
-                        {/* Controles da direita */}
                         <div className="flex items-center space-x-3">
-                            {/* Legendas */}
                             <button
                                 onClick={onToggleSubtitles}
                                 disabled={!subtitlesAvailable}
@@ -254,7 +240,6 @@ export default function VideoPlayer({
                                 </svg>
                             </button>
 
-                            {/* Velocidade */}
                             <select
                                 value={playbackSpeed}
                                 onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
@@ -271,7 +256,6 @@ export default function VideoPlayer({
                                 <option value={2}>2x</option>
                             </select>
 
-                            {/* Fullscreen */}
                             <button
                                 onClick={onToggleFullscreen}
                                 className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"

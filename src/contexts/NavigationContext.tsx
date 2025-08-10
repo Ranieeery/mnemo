@@ -1,6 +1,5 @@
 import { createContext, useContext, ReactNode, useReducer } from 'react';
 
-// Directory entry representation
 export interface DirEntry {
     name: string;
     path: string;
@@ -8,7 +7,6 @@ export interface DirEntry {
     is_video: boolean;
 }
 
-// Navigation state types
 export interface NavigationState {
     history: string[];
     currentIndex: number;
@@ -25,7 +23,6 @@ export type NavigationAction =
     | { type: 'SET_CURRENT_PATH'; payload: string }
     | { type: 'SET_DIRECTORY_CONTENTS'; payload: DirEntry[] };
 
-// Initial state (home seeded as first history entry)
 const initialState: NavigationState = {
     history: [''],
     currentIndex: 0,
@@ -34,7 +31,6 @@ const initialState: NavigationState = {
     directoryContents: [],
 };
 
-// Reducer managing navigation history stack and current path
 function navigationReducer(state: NavigationState, action: NavigationAction): NavigationState {
     switch (action.type) {
         case 'NAVIGATE_TO': {
@@ -107,7 +103,6 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
     }
 }
 
-// Context
 interface NavigationContextType {
     state: NavigationState;
     dispatch: React.Dispatch<NavigationAction>;
@@ -128,7 +123,6 @@ interface NavigationContextType {
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
-// Provider
 interface NavigationProviderProps {
     children: ReactNode;
 }
@@ -136,7 +130,6 @@ interface NavigationProviderProps {
 export function NavigationProvider({ children }: NavigationProviderProps) {
     const [state, dispatch] = useReducer(navigationReducer, initialState);
 
-    // Action helpers
     const navigateTo = (path: string) => {
         dispatch({ type: 'NAVIGATE_TO', payload: path });
     };
@@ -161,7 +154,6 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         dispatch({ type: 'SET_DIRECTORY_CONTENTS', payload: contents });
     };
 
-    // Computed flags
     const canGoBack = state.currentIndex > 0;
     const canGoForward = state.currentIndex < state.history.length - 1;
 
@@ -187,7 +179,6 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
     );
 }
 
-// Hook
 export function useNavigation() {
     const context = useContext(NavigationContext);
     if (context === undefined) {

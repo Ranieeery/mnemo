@@ -29,7 +29,6 @@ const TopBar: React.FC<TopBarProps> = ({
         <div className="bg-gray-800 border-b border-gray-700 p-4">
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                    {/* Navigation Buttons */}
                     <NavigationButtons
                         canGoBack={canGoBack}
                         canGoForward={canGoForward}
@@ -42,7 +41,6 @@ const TopBar: React.FC<TopBarProps> = ({
                     </h2>
                 </div>
 
-                {/* Search Bar */}
                 <SearchBar
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}

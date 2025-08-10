@@ -11,11 +11,9 @@ import { processVideo } from '../services/videoProcessor';
 import { isVideoFile } from '../utils/videoUtils';
 
 export interface LibraryManagementState {
-    // Folder indexing states
     folderIndexingStatus: { [key: string]: boolean };
     currentIndexingFolder: string | null;
     
-    // Estados para progresso de processamento
     processingProgress: {
         total: number;
         processed: number;
@@ -47,11 +45,9 @@ export const useLibraryManagement = ({
     setLibraryFolders,
     loadHomePageData
 }: UseLibraryManagementProps): [LibraryManagementState, LibraryManagementActions] => {
-    // Folder indexing states
     const [folderIndexingStatus, setFolderIndexingStatus] = useState<{ [key: string]: boolean }>({});
     const [currentIndexingFolder, setCurrentIndexingFolder] = useState<string | null>(null);
     
-    // Processing progress states
     const [processingProgress, setProcessingProgress] = useState<{
         total: number;
         processed: number;
@@ -59,7 +55,6 @@ export const useLibraryManagement = ({
     }>({ total: 0, processed: 0, currentFile: "" });
     const [showProcessingProgress, setShowProcessingProgress] = useState<boolean>(false);
 
-    // Add a new folder
     const handleAddFolder = async () => {
         try {
             const selectedPath = await open({
@@ -72,10 +67,8 @@ export const useLibraryManagement = ({
                 const updatedFolders = await getLibraryFolders();
                 setLibraryFolders(updatedFolders);
 
-                // Start immediate folder indexing
                 await indexFolderRecursively(selectedPath);
 
-                // Reload home page data
                 await loadHomePageData();
             }
         } catch (error) {
@@ -83,7 +76,6 @@ export const useLibraryManagement = ({
         }
     };
 
-    // Index a folder recursively
     const indexFolderRecursively = async (folderPath: string) => {
         if (!videoToolsAvailable.ffmpeg || !videoToolsAvailable.ffprobe) {
             console.warn('Video tools not available. Skipping indexing.');
@@ -98,13 +90,11 @@ export const useLibraryManagement = ({
         try {
             console.log(`Starting recursive indexing for: ${folderPath}`);
 
-            // First, count how many video files exist recursively
             const allFiles: any[] = await invoke('scan_directory_recursive', { path: folderPath });
             const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
 
             setProcessingProgress(prev => ({ ...prev, total: videoFiles.length }));
 
-            // Process each video with progress callback
             let processedCount = 0;
 
             for (const videoFile of videoFiles) {
@@ -136,36 +126,29 @@ export const useLibraryManagement = ({
             setFolderIndexingStatus(prev => ({ ...prev, [folderPath]: false }));
             setCurrentIndexingFolder(null);
 
-            // Keep progress bar visible for a moment
             setTimeout(() => {
                 setShowProcessingProgress(false);
             }, 2000);
         }
     };
 
-    // Confirm folder removal
     const confirmRemoveFolder = async (folderToRemove: string, selectedFolder: string | null, onSuccess: () => void) => {
         try {
-            // Debug: check videos before removal
             console.log(`=== BEFORE REMOVAL ===`);
             await debugVideosInFolder(folderToRemove);
 
-            // Remove folder and all indexed videos
             await removeLibraryFolder(folderToRemove);
 
-            // Debug: verificar se os vídeos foram removidos
             console.log(`=== AFTER REMOVAL ===`);
             await debugVideosInFolder(folderToRemove);
 
             const updatedFolders = await getLibraryFolders();
             setLibraryFolders(updatedFolders);
 
-            // Se a pasta removida estava selecionada, executa callback de sucesso
             if (selectedFolder === folderToRemove) {
                 onSuccess();
             }
 
-            // Recarrega dados da página inicial
             await loadHomePageData();
 
             console.log(`Successfully removed folder: ${folderToRemove}`);
@@ -174,7 +157,6 @@ export const useLibraryManagement = ({
         }
     };
 
-    // Update library folders list
     const updateLibraryFolders = async (): Promise<string[]> => {
         try {
             const folders = await getLibraryFolders();

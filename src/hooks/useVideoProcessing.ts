@@ -34,9 +34,8 @@ export const useVideoProcessing = ({
     }>({ total: 0, processed: 0, currentFile: "" });
     const [showProcessingProgress, setShowProcessingProgress] = useState<boolean>(false);
 
-    // Processes videos in the background with progress updates
     const processVideosInBackground = async (directoryPath: string) => {
-    if (processingVideos) return; // Prevents simultaneous processing
+    if (processingVideos) return;
 
         setProcessingVideos(true);
         setShowProcessingProgress(true);
@@ -45,13 +44,11 @@ export const useVideoProcessing = ({
         try {
             console.log(`Starting background video processing for: ${directoryPath}`);
 
-            // First, count how many video files exist
             const allFiles: any[] = await invoke('scan_directory_recursive', { path: directoryPath });
             const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
 
             setProcessingProgress(prev => ({ ...prev, total: videoFiles.length }));
 
-            // Process each video and update progress
             let processedCount = 0;
             const processedVideos = [];
 
@@ -81,7 +78,6 @@ export const useVideoProcessing = ({
             }));
 
             if (processedVideos.length > 0) {
-                // Update the processed videos list with new ordering
                 const updatedVideos = await getVideosInDirectoryOrderedByWatchStatus(directoryPath);
                 setProcessedVideos(updatedVideos);
                 console.log(`Background processing completed. Processed ${processedVideos.length} new videos.`);
@@ -90,7 +86,6 @@ export const useVideoProcessing = ({
             console.error('Error in background video processing:', error);
         } finally {
             setProcessingVideos(false);
-            // Keeps the progress bar visible for a short time
             setTimeout(() => {
                 setShowProcessingProgress(false);
             }, 2000);

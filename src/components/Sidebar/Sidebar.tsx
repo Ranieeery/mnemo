@@ -24,7 +24,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
     return (
         <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-            {/* Header */}
             <div className="p-4 border-b border-gray-700">
                 <div
                     className="flex items-center gap-2 cursor-pointer group"
@@ -41,7 +40,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-sm text-gray-400 mt-1">Video Library</p>
             </div>
 
-            {/* Library Section */}
             <div className="flex-1 p-4">
                 <div className="mb-4">
                     <h2 className="text-sm font-semibold text-gray-300 mb-2">LIBRARY</h2>
@@ -59,7 +57,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                 </div>
 
-                {/* Directories List */}
                 <div className="space-y-1">
                     {libraryFolders.length === 0 ? (
                         <div className="text-sm text-gray-500">No folders added yet</div>
@@ -88,7 +85,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         {folder}
                                     </div>
                                 </div>
-                                {/* Trash icon (shows on hover) */}
                                 {!folderIndexingStatus[folder] && (
                                     <button
                                         onClick={(e) => {

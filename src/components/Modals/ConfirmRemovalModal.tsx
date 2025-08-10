@@ -17,16 +17,13 @@ const ConfirmRemovalModal: React.FC<ConfirmRemovalModalProps> = ({
 
     return (
         <div className="fixed inset-0 flex items-center justify-center z-50">
-            {/* Backdrop */}
             <div
                 className="fixed inset-0 bg-black bg-opacity-50"
                 onClick={onCancel}
             ></div>
 
-            {/* Modal Content */}
             <div className="relative bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4 p-6"
                  onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
@@ -51,7 +48,6 @@ const ConfirmRemovalModal: React.FC<ConfirmRemovalModalProps> = ({
                     </button>
                 </div>
 
-                {/* Content */}
                 <div className="mb-6">
                     <p className="text-gray-300 mb-2">
                         Are you sure you want to remove this folder from your library?
@@ -98,7 +94,6 @@ const ConfirmRemovalModal: React.FC<ConfirmRemovalModalProps> = ({
                     </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex justify-end space-x-3">
                     <button
                         onClick={onCancel}

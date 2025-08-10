@@ -72,7 +72,6 @@ export default function SearchResults({
                 </p>
             </div>
 
-            {/* Search Results Grid */}
             {searchResults.length > 0 && (
                 <div
                     className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -104,7 +103,6 @@ export default function SearchResults({
                                         </svg>
                                     </div>
                                 )}
-                                {/* Watched indicator */}
                                 {video.is_watched && (
                                     <div
                                         className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
@@ -115,7 +113,6 @@ export default function SearchResults({
                                         </svg>
                                     </div>
                                 )}
-                                {/* Progress bar for videos in progress */}
                                 {video.watch_progress_seconds != null && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
                                     <div
                                         className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">

@@ -27,7 +27,6 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
     onTitleChange,
     onDescriptionChange
 }) => {
-    // Prevent background scroll when modal is open
     useEffect(() => {
         if (show) {
             const original = document.body.style.overflow;
@@ -42,16 +41,13 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8">
-            {/* Backdrop with blur */}
             <div
                 className="absolute inset-0 backdrop-blur-md bg-black/30 transition-opacity animate-fade-in"
                 onClick={onClose}
             />
 
-            {/* Modal content (responsive) */}
             <div className="relative max-h-full overflow-y-auto w-full max-w-2xl bg-gray-900/90 border border-gray-700 shadow-2xl rounded-2xl p-6 backdrop-blur-xl animate-scale-in"
                  onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                     <h3 className="text-xl font-semibold text-gray-100 tracking-tight">
                         Video Details
@@ -67,7 +63,6 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                     </button>
                 </div>
 
-                {/* Video Thumbnail */}
                 <div className="mb-6 grid gap-4 sm:grid-cols-2">
                     {video.thumbnail_path ? (
                         <div className="relative group">
@@ -91,7 +86,6 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                             </svg>
                         </div>
                     )}
-                    {/* Quick metadata summary */}
                     <div className="flex flex-col gap-3 text-sm text-gray-300">
                         {video.duration_seconds && video.duration_seconds > 0 && (
                             <div className="flex items-center justify-between">
@@ -112,7 +106,6 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                     </div>
                 </div>
 
-                {/* Title and Description */}
         <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-300 mb-1">
                         Title
@@ -138,13 +131,11 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                     />
                 </div>
 
-                {/* Tags Section */}
                 <div className="mb-6">
                     <h4 className="text-sm font-semibold text-gray-200 mb-2">Tags</h4>
                     <VideoTagsManager video={video}/>
                 </div>
 
-                {/* Actions */}
                 <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
                     <button
                         onClick={onCancel}

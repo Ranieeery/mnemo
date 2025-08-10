@@ -19,7 +19,6 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         video: null
     });
 
-    // Open context menu
     const handleContextMenu = (event: React.MouseEvent, video: ProcessedVideo) => {
         event.preventDefault();
         setContextMenu({
@@ -30,7 +29,6 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         });
     };
 
-    // Close context menu
     const handleCloseContextMenu = () => {
         setContextMenu({
             show: false,
@@ -40,7 +38,6 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         });
     };
 
-    // Open file externally
     const handleOpenFile = async (filePath: string) => {
         try {
             await invoke('open_file_externally', { filePath });
@@ -51,7 +48,6 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         }
     };
 
-    // Open file with dialog
     const handleOpenWith = async (filePath: string) => {
         try {
             await invoke('open_file_with_dialog', { filePath });
@@ -62,13 +58,11 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
         }
     };
 
-    // Open properties (video details)
     const handleOpenProperties = (video: ProcessedVideo) => {
         handleCloseContextMenu();
         onOpenVideoDetails(video);
     };
 
-    // Close context menu when clicking outside
     useEffect(() => {
         const handleClickOutside = () => {
             if (contextMenu.show) {
@@ -83,10 +77,8 @@ export const useContextMenu = ({ onOpenVideoDetails }: UseContextMenuProps) => {
     }, [contextMenu.show]);
 
     return {
-        // State
         contextMenu,
 
-        // Functions
         handleContextMenu,
         handleCloseContextMenu,
         handleOpenFile,

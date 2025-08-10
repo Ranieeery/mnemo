@@ -31,10 +31,9 @@ export const useVideoPlayer = ({
     const [isIconChanging, setIsIconChanging] = useState<boolean>(false);
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
 
-    // Initialize playback for selected video (loads subtitles if found)
     const handlePlayVideo = async (video: ProcessedVideo) => {
     setPlayingVideo(video);
-    lastVideoRef.current = video; // memorize last opened
+    lastVideoRef.current = video;
         setShowVideoPlayer(true);
         setPlaybackSpeed(1);
         setIsPlaying(false);
@@ -44,12 +43,10 @@ export const useVideoPlayer = ({
         setShowControls(true);
         setCurrentSubtitle("");
 
-    // Reset subtitle state
         setSubtitles([]);
         setSubtitlesAvailable(false);
         setSubtitlesEnabled(false);
 
-    // Load & parse subtitles if available
         try {
             const subtitleData = await checkAndLoadSubtitles(video.file_path);
             if (subtitleData) {
@@ -58,7 +55,7 @@ export const useVideoPlayer = ({
                 if (parsedSubtitles.length > 0) {
                     setSubtitles(parsedSubtitles);
                     setSubtitlesAvailable(true);
-                    setSubtitlesEnabled(true); // Ativa legendas automaticamente quando detectadas
+                    setSubtitlesEnabled(true);
                 }
             }
         } catch (error) {
@@ -80,7 +77,6 @@ export const useVideoPlayer = ({
         }
     };
 
-    // Reopen last video if exists
     const reopenLastVideo = () => {
         if (lastVideoRef.current) {
             handlePlayVideo(lastVideoRef.current);
@@ -98,17 +94,14 @@ export const useVideoPlayer = ({
     const toggleFullscreen = async () => {
         try {
             if (!isFullscreen) {
-                // Entra em tela cheia real (F11)
-                await document.documentElement.requestFullscreen(); // enter real fullscreen
+                await document.documentElement.requestFullscreen();
                 setIsFullscreen(true);
             } else {
-                // Sai da tela cheia real
-                await document.exitFullscreen(); // exit real fullscreen
+                await document.exitFullscreen();
                 setIsFullscreen(false);
             }
         } catch (error) {
             console.error('Error toggling fullscreen:', error);
-            // Fallback toggle if Fullscreen API errors
             setIsFullscreen(!isFullscreen);
         }
     };
@@ -116,7 +109,6 @@ export const useVideoPlayer = ({
     const togglePlayPause = () => {
         const video = document.querySelector('video') as HTMLVideoElement;
         if (video) {
-            // Trigger transient play/pause icon animation
             setIsIconChanging(true);
 
             setTimeout(() => {
@@ -128,9 +120,8 @@ export const useVideoPlayer = ({
                     setIsPlaying(false);
                 }
 
-                // Remove animation after transition ends
                 setTimeout(() => setIsIconChanging(false), 150);
-            }, 75); // Half CSS transition duration
+            }, 75);
         }
     };
 
@@ -150,14 +141,12 @@ export const useVideoPlayer = ({
         }
     };
 
-    // Toggle subtitles on/off
     const toggleSubtitles = () => {
         if (subtitlesAvailable) {
             setSubtitlesEnabled(!subtitlesEnabled);
         }
     };
 
-    // Restart controls auto-hide timer
     const resetControlsTimeout = () => {
         if (controlsTimeout) {
             clearTimeout(controlsTimeout);
@@ -165,7 +154,6 @@ export const useVideoPlayer = ({
 
         setShowControls(true);
 
-    // Only hide in real fullscreen mode
         if (document.fullscreenElement) {
             const timeout = setTimeout(() => {
                 setShowControls(false);
@@ -174,7 +162,6 @@ export const useVideoPlayer = ({
         }
     };
 
-    // Update currently active subtitle line
     useEffect(() => {
         if (playingVideo && subtitlesEnabled && subtitles.length > 0) {
             const newSubtitle = getCurrentSubtitle(currentTime, subtitles, subtitlesEnabled);
@@ -188,7 +175,6 @@ export const useVideoPlayer = ({
         }
     }, [currentTime, subtitlesEnabled, playingVideo, subtitles, currentSubtitle]);
 
-    // Respond to fullscreen state changes
     useEffect(() => {
         if (document.fullscreenElement) {
             resetControlsTimeout();
@@ -201,7 +187,6 @@ export const useVideoPlayer = ({
         }
     }, [isFullscreen]);
 
-    // Listen for native fullscreen changes
     useEffect(() => {
         if (!playingVideo) return;
 
@@ -216,13 +201,11 @@ export const useVideoPlayer = ({
         };
     }, [playingVideo]);
 
-    // Persist watch progress and mark video watched when threshold hit
     const handleVideoProgress = async (video: ProcessedVideo, currentTime: number) => {
         if (video.id && video.duration_seconds && currentTime > 0) {
             try {
                 await updateWatchProgress(video.id, currentTime, video.duration_seconds);
 
-                // Se atingiu 75%, marcar como assistido
                 const watchedThreshold = video.duration_seconds * 0.75;
                 if (currentTime >= watchedThreshold && !video.is_watched) {
                     const updatedVideo = {...video, is_watched: true, watch_progress_seconds: currentTime};
@@ -240,7 +223,6 @@ export const useVideoPlayer = ({
     };
 
     return {
-        // Estados
         playingVideo,
         setPlayingVideo,
         playbackSpeed,
@@ -262,7 +244,6 @@ export const useVideoPlayer = ({
         subtitles,
         setSubtitles,
 
-        // Functions
         handlePlayVideo,
         handleCloseVideoPlayer,
         handleSpeedChange,

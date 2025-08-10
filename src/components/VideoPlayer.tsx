@@ -22,14 +22,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                                                         }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    // Update playback speed when it changes
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.playbackRate = playbackSpeed;
         }
     }, [playbackSpeed]);
 
-    // Keyboard controls
     useEffect(() => {
         const handleKeyPress = (e: KeyboardEvent) => {
             switch (e.code) {
@@ -80,7 +78,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     return (
         <div className={`fixed inset-0 bg-black z-50 flex flex-col ${isFullscreen ? 'z-[100]' : ''}`}>
-            {/* Player header */}
             <div className="bg-gray-900 bg-opacity-90 p-4 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                     <button
@@ -102,7 +99,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-4">
-                    {/* Playback speed selector */}
                     <div className="flex items-center space-x-2">
                         <span className="text-white text-sm">Speed:</span>
                         <select
@@ -119,7 +115,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                         </select>
                     </div>
 
-                    {/* Fullscreen toggle button */}
                     <button
                         onClick={onToggleFullscreen}
                         className="text-white hover:text-gray-300 transition-colors"
@@ -140,7 +135,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </div>
             </div>
 
-            {/* Video element container */}
             <div className="flex-1 flex items-center justify-center bg-black">
                 <video
                     ref={videoRef}
@@ -161,7 +155,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </video>
             </div>
 
-            {/* Metadata and help section */}
             <div className="bg-gray-900 bg-opacity-90 p-4">
                 <div className="max-w-4xl mx-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
@@ -180,7 +173,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                         </div>
                     </div>
 
-                    {/* Control shortcuts hints */}
                     <div className="mt-4 pt-4 border-t border-gray-700">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-400">
                             <div><kbd className="bg-gray-700 px-1 rounded">Space</kbd> Play/Pause</div>

@@ -35,7 +35,6 @@ interface YouTubeStyleVideoPlayerProps {
     formatTime: (seconds: number) => string;
     resetControlsTimeout: () => void;
 }
-// Provided rewind 10s SVG adapted to currentColor & React (we mirror with CSS for forward)
 const Rewind10Icon = () => (
     <svg className="w-8 h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" strokeWidth={3} stroke="currentColor">
         <polyline points="9.57 15.41 12.17 24.05 20.81 21.44" strokeLinecap="round" />
@@ -86,17 +85,14 @@ export default function YouTubeStyleVideoPlayer({
     formatTime,
     resetControlsTimeout
 }: YouTubeStyleVideoPlayerProps) {
-    // Determine up-next playlist slice
     const currentIndex = playlistVideos.findIndex(v => v.file_path === video.file_path);
     const nextVideos = currentIndex !== -1 
     ? playlistVideos.slice(currentIndex + 1, currentIndex + 7)
     : playlistVideos.slice(0, 6);
 
-    // Keep last non-zero volume to restore after mute
     const lastVolumeRef = useRef(volume || 1);
-    if (volume > 0) lastVolumeRef.current = volume; // update when not muted
+    if (volume > 0) lastVolumeRef.current = volume;
 
-    // Skip indicator state (forward/back)
     const [skipIndicator, setSkipIndicator] = useState<{ dir: 'back' | 'forward'; amount: number } | null>(null);
     const skipTimeoutRef = useRef<number | null>(null);
 
@@ -120,10 +116,8 @@ export default function YouTubeStyleVideoPlayer({
         resetControlsTimeout();
     };
 
-    // Keyboard shortcuts (YouTube style)
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            // Avoid typing conflicts
             const target = e.target as HTMLElement | null;
             if (target) {
                 const tag = target.tagName.toLowerCase();
@@ -141,16 +135,16 @@ export default function YouTubeStyleVideoPlayer({
             };
 
             switch (key) {
-                case 'j': // Back 10s
+                case 'j':
                     e.preventDefault();
                     seek(-10);
                     break;
-                case 'l': // Forward 10s
+                case 'l':
                     e.preventDefault();
                     seek(10);
                     break;
-                case 'k': // toggle play
-                case ' ': // space
+                case 'k':
+                case ' ':
                     e.preventDefault();
                     onTogglePlayPause();
                     break;
@@ -170,11 +164,11 @@ export default function YouTubeStyleVideoPlayer({
                     e.preventDefault();
                     onToggleFullscreen();
                     break;
-                case 'arrowleft': // Back 5s
+                case 'arrowleft':
                     e.preventDefault();
                     seek(-5);
                     break;
-                case 'arrowright': // Forward 5s
+                case 'arrowright':
                     e.preventDefault();
                     seek(5);
                     break;
@@ -189,7 +183,6 @@ export default function YouTubeStyleVideoPlayer({
                 default:
                     return;
             }
-            // Any interaction resets control hide timer
             resetControlsTimeout();
         };
         window.addEventListener('keydown', handler);
@@ -197,14 +190,12 @@ export default function YouTubeStyleVideoPlayer({
     }, [currentTime, duration, volume, subtitlesAvailable, onSeek, onTogglePlayPause, onToggleSubtitles, onToggleFullscreen, onVolumeChange, resetControlsTimeout]);
 
     if (isFullscreen) {
-    // Fullscreen mode (minimal chrome)
         return (
             <div
                 className="fixed inset-0 bg-black z-[100] flex flex-col"
                 onMouseMove={resetControlsTimeout}
                 onClick={resetControlsTimeout}
             >
-                {/* Video element */}
                 <div className="flex-1 relative bg-black">
                     <video
                         src={convertFileSrc(video.file_path)}
@@ -227,14 +218,12 @@ export default function YouTubeStyleVideoPlayer({
                         onClick={onTogglePlayPause}
                     />
 
-                    {/* Subtitles */}
                     {subtitlesEnabled && currentSubtitle && (
                         <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-4 py-2 rounded max-w-3xl text-center">
                             {currentSubtitle}
                         </div>
                     )}
 
-                    {/* Transitional play/pause icon */}
                     {isIconChanging && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="rounded-full p-4 animate-fade-in-out center-indicator-bg">
@@ -251,7 +240,6 @@ export default function YouTubeStyleVideoPlayer({
                         </div>
                     )}
 
-                    {/* Skip indicators */}
                     {skipIndicator && (
                         <div className="absolute inset-0 pointer-events-none select-none">
                             {skipIndicator.dir === 'back' && (
@@ -260,7 +248,6 @@ export default function YouTubeStyleVideoPlayer({
                                         <span className="text-xl">⏪</span>
                                         <span className="amount">{skipIndicator.amount}s</span>
                                     </div>
-                                    {/* removed key label */}
                                 </div>
                             )}
                             {skipIndicator.dir === 'forward' && (
@@ -269,23 +256,19 @@ export default function YouTubeStyleVideoPlayer({
                                         <span className="amount">{skipIndicator.amount}s</span>
                                         <span className="text-xl">⏩</span>
                                     </div>
-                                    {/* removed key label */}
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* Overlay controls */}
                     <div
                         className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                         onClick={(e) => {
-                            // Only toggle if background (not a control) is clicked
                             if (e.target === e.currentTarget) {
                                 onTogglePlayPause();
                             }
                         }}
                     >
-                        {/* Progress bar */}
                         <div className="absolute bottom-16 left-4 right-4">
                             <div className="flex items-center space-x-2 text-white text-sm mb-2">
                                 <span>{formatTime(currentTime)}</span>
@@ -303,11 +286,8 @@ export default function YouTubeStyleVideoPlayer({
                             </div>
                         </div>
 
-                        {/* Controls */}
                         <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                             <div className="flex items-center space-x-4">
-                                {/* Play/Pause */}
-                                {/* Rewind 10s */}
                                 <button
                                     onClick={() => handleSeekDelta(-10)}
                                     className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
@@ -331,7 +311,6 @@ export default function YouTubeStyleVideoPlayer({
                                         </svg>
                                     )}
                                 </button>
-                                {/* Forward 10s */}
                                 <button
                                     onClick={() => handleSeekDelta(10)}
                                     className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
@@ -341,7 +320,6 @@ export default function YouTubeStyleVideoPlayer({
                                     <Forward10Icon />
                                 </button>
 
-                                {/* Volume */}
                                 <div className="flex items-center space-x-2">
                                     <button
                                         onClick={() => onVolumeChange(volume > 0 ? 0 : 1)}
@@ -381,7 +359,6 @@ export default function YouTubeStyleVideoPlayer({
                             </div>
 
                             <div className="flex items-center space-x-4">
-                                {/* Subtitles */}
                                 <button
                                     onClick={onToggleSubtitles}
                                     className={`transition-all duration-200 hover:scale-110 ${
@@ -401,7 +378,6 @@ export default function YouTubeStyleVideoPlayer({
                                     </svg>
                                 </button>
 
-                                {/* Playback speed */}
                                 <select
                                     value={playbackSpeed}
                                     onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
@@ -418,7 +394,6 @@ export default function YouTubeStyleVideoPlayer({
                                     <option value={2}>2x</option>
                                 </select>
 
-                                {/* Exit Fullscreen */}
                                 <button
                                     onClick={onToggleFullscreen}
                                     className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
@@ -437,10 +412,8 @@ export default function YouTubeStyleVideoPlayer({
         );
     }
 
-    // Windowed (YouTube-style) layout
     return (
         <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col">
-            {/* Header */}
             <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
                 <h3 className="text-white font-medium truncate">{video.title}</h3>
                 <button
@@ -454,11 +427,8 @@ export default function YouTubeStyleVideoPlayer({
                 </button>
             </div>
 
-            {/* Main content area */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Left: player area */}
                 <div className="flex-1 flex flex-col min-w-0">
-                    {/* Video container */}
                     <div className="bg-black relative" style={{ aspectRatio: '16/9' }}>
                         <video
                             src={convertFileSrc(video.file_path)}
@@ -482,14 +452,12 @@ export default function YouTubeStyleVideoPlayer({
                             onMouseMove={resetControlsTimeout}
                         />
 
-                        {/* Subtitles */}
                         {subtitlesEnabled && currentSubtitle && (
                             <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-4 py-2 rounded max-w-3xl text-center">
                                 {currentSubtitle}
                             </div>
                         )}
 
-                        {/* Transitional play/pause icon */}
                         {isIconChanging && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <div className="rounded-full p-4 animate-fade-in-out center-indicator-bg">
@@ -506,7 +474,6 @@ export default function YouTubeStyleVideoPlayer({
                             </div>
                         )}
 
-                        {/* Skip indicators */}
                         {skipIndicator && (
                             <div className="absolute inset-0 pointer-events-none select-none">
                                 {skipIndicator.dir === 'back' && (
@@ -515,7 +482,6 @@ export default function YouTubeStyleVideoPlayer({
                                             <span className="text-xl">⏪</span>
                                             <span className="amount">{skipIndicator.amount}s</span>
                                         </div>
-                                        {/* removed key label */}
                                     </div>
                                 )}
                                 {skipIndicator.dir === 'forward' && (
@@ -524,13 +490,11 @@ export default function YouTubeStyleVideoPlayer({
                                             <span className="amount">{skipIndicator.amount}s</span>
                                             <span className="text-xl">⏩</span>
                                         </div>
-                                        {/* removed key label */}
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* Custom Controls Overlay */}
                         <div
                             className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                             onClick={(e) => {
@@ -539,7 +503,6 @@ export default function YouTubeStyleVideoPlayer({
                                 }
                             }}
                         >
-                            {/* Progress bar */}
                             <div className="absolute bottom-16 left-4 right-4">
                                 <div className="flex items-center space-x-2 text-white text-sm mb-2">
                                     <span>{formatTime(currentTime)}</span>
@@ -557,11 +520,8 @@ export default function YouTubeStyleVideoPlayer({
                                 </div>
                             </div>
 
-                            {/* Controls */}
                             <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
-                                    {/* Play/Pause */}
-                                    {/* Rewind 10s */}
                                     <button
                                         onClick={() => handleSeekDelta(-10)}
                                         className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
@@ -585,7 +545,6 @@ export default function YouTubeStyleVideoPlayer({
                                             </svg>
                                         )}
                                     </button>
-                                    {/* Forward 10s */}
                                     <button
                                         onClick={() => handleSeekDelta(10)}
                                         className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
@@ -595,7 +554,6 @@ export default function YouTubeStyleVideoPlayer({
                                         <Forward10Icon />
                                     </button>
 
-                                    {/* Volume */}
                                     <div className="flex items-center space-x-2">
                                         <button
                                             onClick={() => onVolumeChange(volume > 0 ? 0 : 1)}
@@ -635,7 +593,6 @@ export default function YouTubeStyleVideoPlayer({
                                 </div>
 
                                 <div className="flex items-center space-x-4">
-                                    {/* Subtitles */}
                                     <button
                                         onClick={onToggleSubtitles}
                                         className={`transition-all duration-200 hover:scale-110 ${
@@ -655,7 +612,6 @@ export default function YouTubeStyleVideoPlayer({
                                         </svg>
                                     </button>
 
-                                    {/* Velocidade */}
                                     <select
                                         value={playbackSpeed}
                                         onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
@@ -672,7 +628,6 @@ export default function YouTubeStyleVideoPlayer({
                                         <option value={2}>2x</option>
                                     </select>
 
-                                    {/* Fullscreen */}
                                     <button
                                         onClick={onToggleFullscreen}
                                         className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
@@ -688,7 +643,6 @@ export default function YouTubeStyleVideoPlayer({
                         </div>
                     </div>
 
-                    {/* Video information */}
                     <div className="p-4 bg-gray-800 border-b border-gray-700">
                         <h2 className="text-xl font-semibold text-white mb-2">{video.title}</h2>
                         <div className="flex items-center justify-between">
@@ -699,7 +653,6 @@ export default function YouTubeStyleVideoPlayer({
                                 )}
                             </div>
                             
-                            {/* Action buttons */}
                             <div className="flex items-center space-x-3">
                                 <button
                                     onClick={() => onToggleWatchedStatus(video)}
@@ -732,9 +685,7 @@ export default function YouTubeStyleVideoPlayer({
                         </div>
                     </div>
 
-                    {/* Video info and controls */}
                     <div className="flex-1 p-4 bg-gray-800 overflow-y-auto">
-                        {/* Description */}
                         {video.description && (
                             <div>
                                 <h3 className="text-lg font-medium text-white mb-2">Description</h3>
@@ -744,7 +695,6 @@ export default function YouTubeStyleVideoPlayer({
                     </div>
                 </div>
 
-                {/* Right sidebar - Next videos */}
                 <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
                     <div className="p-4 border-b border-gray-700">
                         <h3 className="text-lg font-semibold text-white">Up Next</h3>
@@ -759,7 +709,6 @@ export default function YouTubeStyleVideoPlayer({
                                 onClick={() => onPlayVideo(nextVideo)}
                             >
                                 <div className="flex space-x-3">
-                                    {/* Thumbnail */}
                                     <div className="flex-shrink-0 w-32 h-18 bg-gray-700 rounded relative">
                                         {nextVideo.thumbnail_path ? (
                                             <img
@@ -779,7 +728,6 @@ export default function YouTubeStyleVideoPlayer({
                                             />
                                         ) : null}
                                         
-                                        {/* Fallback icon */}
                                         <div
                                             className={`fallback-icon absolute inset-0 flex items-center justify-center ${
                                                 nextVideo.thumbnail_path ? 'hidden' : 'flex'
@@ -791,14 +739,12 @@ export default function YouTubeStyleVideoPlayer({
                                             </svg>
                                         </div>
 
-                                        {/* Duration */}
                                         {nextVideo.duration_seconds && nextVideo.duration_seconds > 0 && (
                                             <div className="absolute bottom-1 right-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
                                                 {formatDuration(nextVideo.duration_seconds)}
                                             </div>
                                         )}
 
-                                        {/* Progress bar */}
                                         {nextVideo.watch_progress_seconds != null && nextVideo.watch_progress_seconds > 0 && nextVideo.duration_seconds && !nextVideo.is_watched && (
                                             <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600 rounded-b">
                                                 <div
@@ -808,7 +754,6 @@ export default function YouTubeStyleVideoPlayer({
                                             </div>
                                         )}
 
-                                        {/* Watched indicator */}
                                         {nextVideo.is_watched && (
                                             <div className="absolute top-1 right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
                                                 <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -818,7 +763,6 @@ export default function YouTubeStyleVideoPlayer({
                                         )}
                                     </div>
 
-                                    {/* Video info */}
                                     <div className="flex-1 min-w-0">
                                         <h4 className="text-sm font-medium text-white mb-1 leading-tight overflow-hidden" 
                                             style={{

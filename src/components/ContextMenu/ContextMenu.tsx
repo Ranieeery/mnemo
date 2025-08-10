@@ -1,5 +1,4 @@
 import React from 'react';
-// Use centralized video domain types
 import { ProcessedVideo } from '../../types/video';
 
 interface ContextMenuProps {

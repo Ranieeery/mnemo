@@ -39,7 +39,6 @@ export default function DirectoryView({
 
     return (
         <div>
-            {/* Header with directory title and active processing indicator */}
             <div className="mb-4 flex items-center justify-between">
                 <div>
                     <h3 className="text-lg font-semibold text-gray-300 mb-2">
@@ -55,7 +54,6 @@ export default function DirectoryView({
                 )}
             </div>
 
-            {/* Video Thumbnails Section */}
             {processedVideos.length > 0 && (
                 <div className="mb-6">
                     <h4 className="text-md font-medium text-gray-300 mb-3">Videos</h4>
@@ -89,7 +87,6 @@ export default function DirectoryView({
                                             />
                                         ) : null}
                                         
-                                        {/* Fallback icon */}
                                         <div
                                             className={`fallback-icon absolute inset-0 flex items-center justify-center ${
                                                 video.thumbnail_path ? 'hidden' : 'flex'
@@ -103,7 +100,6 @@ export default function DirectoryView({
                                             </svg>
                                         </div>
                                         
-                                        {/* Watched indicator */}
                                         {video.is_watched && (
                                             <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                                                 <svg className="w-4 h-4 text-white" fill="none"
@@ -115,7 +111,6 @@ export default function DirectoryView({
                                             </div>
                                         )}
                                         
-                                        {/* Progress bar for videos in progress */}
                                         {video.watch_progress_seconds != null && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
                                             <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
                                                 <div
@@ -125,7 +120,6 @@ export default function DirectoryView({
                                             </div>
                                         )}
                                         
-                                        {/* Duration indicator */}
                                         {video.duration_seconds && video.duration_seconds > 0 && (
                                             <div className="absolute bottom-1 right-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
                                                 {formatDuration(video.duration_seconds)}
@@ -148,7 +142,6 @@ export default function DirectoryView({
                 </div>
             )}
 
-            {/* Directory Contents (folders and unprocessed files) */}
             <div>
                 {(directoryContents.some(item => item.is_dir) || directoryContents.some(item => !item.is_video)) && (
                     <h4 className="text-md font-medium text-gray-300 mb-3">
@@ -202,7 +195,6 @@ export default function DirectoryView({
                 </div>
             </div>
 
-            {/* Empty folder message */}
             {directoryContents.length === 0 && (
                 <div className="text-center py-8">
                     <div className="text-gray-400">This folder is empty</div>

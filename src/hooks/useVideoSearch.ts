@@ -30,7 +30,6 @@ export const useVideoSearch = ({
     selectedFolder,
     onShowHomePage
 }: UseVideoSearchProps): [VideoSearchState, VideoSearchActions] => {
-    // Estados para funcionalidade de busca
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [searchResults, setSearchResults] = useState<ProcessedVideo[]>([]);
     const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -41,7 +40,6 @@ export const useVideoSearch = ({
         currentFile: string;
     }>({ current: 0, total: 0, currentFile: "" });
 
-    // Perform search
     const handleSearch = async (term: string) => {
         setSearchTerm(term);
 
@@ -61,11 +59,9 @@ export const useVideoSearch = ({
         try {
             let results: ProcessedVideo[];
 
-            // Home (no folder selected): global search across all library folders (indexed DB)
             if (!selectedFolder) {
                 results = await searchVideos(term);
             } else {
-                // Folder selected: restrict recursive search to that folder (and its subfolders)
                 results = await searchVideosRecursive(
                     term,
                     (current, total, currentFile) => {
@@ -86,25 +82,21 @@ export const useVideoSearch = ({
         }
     };
 
-    // Clear search
     const clearSearch = () => {
         setSearchTerm("");
         setSearchResults([]);
         setShowSearchResults(false);
 
-        // If no folder is selected, go to home page
         if (!selectedFolder) {
             onShowHomePage();
         }
     };
 
-    // Debounce for automatic search
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             if (searchTerm.trim()) {
                 handleSearch(searchTerm);
             } else {
-                // If searchTerm is empty, clear search and go to home page if necessary
                 setSearchResults([]);
                 setShowSearchResults(false);
                 
@@ -112,12 +104,11 @@ export const useVideoSearch = ({
                     onShowHomePage();
                 }
             }
-        }, 300); // 300ms de delay
+        }, 300);
 
         return () => clearTimeout(timeoutId);
     }, [searchTerm, selectedFolder]);
 
-    // Update a specific video in search results
     const updateSearchResult = (updatedVideo: ProcessedVideo) => {
         setSearchResults(prev => prev.map(video => 
             video.file_path === updatedVideo.file_path ? updatedVideo : video

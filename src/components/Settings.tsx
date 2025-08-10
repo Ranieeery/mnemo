@@ -59,7 +59,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
     const handleExport = async () => {
         setIsExporting(true);
         try {
-            // Solicitar local para salvar
             const filePath = await save({
                 title: "Export Library",
                 defaultPath: `mnemo-library-${new Date().toISOString().split('T')[0]}.json`,
@@ -72,10 +71,8 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
             });
 
             if (filePath) {
-                // Exportar dados
                 const exportData = await exportLibraryData();
 
-                // Salvar arquivo
                 await writeTextFile(filePath, JSON.stringify(exportData, null, 2));
 
                 alert(`Library exported successfully to ${filePath}`);
@@ -90,7 +87,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
 
     const handleImportSelect = async () => {
         try {
-            // Solicitar arquivo para importar
             const selected = await open({
                 title: "Import Library",
                 multiple: false,
@@ -119,17 +115,13 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
         setShowImportConfirm(false);
 
         try {
-            // Ler arquivo
             const fileContent = await readTextFile(importFile);
             const importData: LibraryExport = JSON.parse(fileContent);
 
-            // Importar dados
             await importLibraryData(importData);
 
-            // Recarregar estatísticas
             await loadStats();
 
-            // Notificar componente pai sobre mudanças
             onLibraryChanged();
 
             alert("Library imported successfully! The application will refresh the data.");
@@ -156,10 +148,8 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
         try {
             await resetAllVideosAsUnwatched();
 
-            // Recarregar estatísticas
             await loadStats();
 
-            // Notificar componente pai sobre mudanças
             onLibraryChanged();
 
             alert("All videos have been marked as unwatched!");
@@ -171,17 +161,14 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
         }
     };
 
-    // Debug function to inspect the database
     const handleDebugDatabase = async () => {
         setIsDebugging(true);
         try {
             await debugDatabaseInfo();
             await getAllLibraryFoldersDebug();
 
-            // Debug de vídeos órfãos
             const orphanedVideos = await debugOrphanedVideos();
 
-            // Obter estatísticas corrigidas
             const correctedStats = await getCorrectedLibraryStats();
             console.log(`=== CORRECTED LIBRARY STATS ===`);
             console.log(`Total Videos (valid): ${correctedStats.totalVideos}`);
@@ -201,10 +188,8 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                     const cleanedCount = await cleanOrphanedVideos();
                     alert(`Cleaned ${cleanedCount} orphaned videos. Statistics will be refreshed.`);
 
-                    // Recarregar estatísticas
                     await loadStats();
 
-                    // Notificar componente pai sobre mudanças
                     onLibraryChanged();
                 }
             } else {
@@ -220,16 +205,13 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
 
     return (
         <div className="fixed inset-0 flex items-center justify-center z-50">
-            {/* Backdrop */}
             <div
                 className="fixed inset-0 bg-black bg-opacity-50"
                 onClick={onClose}
             ></div>
 
-            {/* Modal Content */}
             <div className="relative bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full mx-4 p-6"
                  onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-gray-200">Settings</h2>
                     <button
@@ -243,7 +225,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                     </button>
                 </div>
 
-                {/* Library Statistics */}
                 <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-300 mb-4">Library Statistics</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -272,11 +253,9 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                     </div>
                 </div>
 
-                {/* Import/Export Section */}
                 <div className="mb-6">
                     <h3 className="text-lg font-semibold text-gray-300 mb-4">Library Management</h3>
                     <div className="space-y-4">
-                        {/* Export */}
                         <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
                             <div>
                                 <h4 className="font-medium text-gray-200">Export Library</h4>
@@ -311,7 +290,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             </button>
                         </div>
 
-                        {/* Import */}
                         <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
                             <div>
                                 <h4 className="font-medium text-gray-200">Import Library</h4>
@@ -346,7 +324,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             </button>
                         </div>
 
-                        {/* Reset Watched Status */}
                         <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
                             <div>
                                 <h4 className="font-medium text-gray-200">Reset Watch Status</h4>
@@ -381,7 +358,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             </button>
                         </div>
 
-                        {/* Debug Database */}
                         <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
                             <div>
                                 <h4 className="font-medium text-gray-200">Debug Database</h4>
@@ -418,7 +394,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                     </div>
                 </div>
 
-                {/* About Section */}
                 <div className="border-t border-gray-600 pt-4">
                     <h3 className="text-lg font-semibold text-gray-300 mb-2">About Mnemo</h3>
                     <p className="text-sm text-gray-400">
@@ -430,7 +405,6 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                 </div>
             </div>
 
-            {/* Import Confirmation Modal */}
             {showImportConfirm && (
                 <div className="fixed inset-0 flex items-center justify-center z-60">
                     <div className="fixed inset-0 bg-black bg-opacity-75"></div>

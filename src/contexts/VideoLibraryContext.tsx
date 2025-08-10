@@ -9,7 +9,6 @@ import {
     initDatabase 
 } from '../database';
 
-// Tipos
 export interface VideoLibraryState {
     libraryFolders: string[];
     recentVideos: ProcessedVideo[];
@@ -37,7 +36,6 @@ export type VideoLibraryAction =
     | { type: 'UPDATE_PROCESSED_VIDEO'; payload: ProcessedVideo }
     | { type: 'CLEAR_ERROR' };
 
-// Estado inicial
 const initialState: VideoLibraryState = {
     libraryFolders: [],
     recentVideos: [],
@@ -50,7 +48,6 @@ const initialState: VideoLibraryState = {
     error: null,
 };
 
-// Reducer
 function videoLibraryReducer(state: VideoLibraryState, action: VideoLibraryAction): VideoLibraryState {
     switch (action.type) {
         case 'SET_LIBRARY_FOLDERS':
@@ -104,7 +101,6 @@ function videoLibraryReducer(state: VideoLibraryState, action: VideoLibraryActio
     }
 }
 
-// Context
 interface VideoLibraryContextType {
     state: VideoLibraryState;
     dispatch: React.Dispatch<VideoLibraryAction>;
@@ -124,7 +120,6 @@ interface VideoLibraryContextType {
         setLibraryFoldersWithPreviews: (folders: { folder: string; videos: ProcessedVideo[] }[]) => void;
         setLoading: (loading: boolean) => void;
         setError: (error: string | null) => void;
-        // Wrappers compatíveis com React.Dispatch
         setProcessedVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
         setRecentVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
         setVideosInProgressReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
@@ -134,7 +129,6 @@ interface VideoLibraryContextType {
 
 const VideoLibraryContext = createContext<VideoLibraryContextType | undefined>(undefined);
 
-// Provider
 interface VideoLibraryProviderProps {
     children: ReactNode;
 }
@@ -142,7 +136,6 @@ interface VideoLibraryProviderProps {
 export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
     const [state, dispatch] = useReducer(videoLibraryReducer, initialState);
 
-    // Actions
     const loadHomePageData = async () => {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
@@ -225,7 +218,6 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
         selectFolder,
         updateVideo,
         clearError,
-        // Setters diretos
         setRecentVideos: (videos: ProcessedVideo[]) => {
             dispatch({ type: 'SET_RECENT_VIDEOS', payload: videos });
         },
@@ -247,7 +239,6 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
         setError: (error: string | null) => {
             dispatch({ type: 'SET_ERROR', payload: error });
         },
-        // Wrappers compatíveis com React.Dispatch para hooks existentes
         setProcessedVideosReact: ((value: React.SetStateAction<ProcessedVideo[]>) => {
             if (typeof value === 'function') {
                 dispatch({ type: 'SET_PROCESSED_VIDEOS', payload: value(state.processedVideos) });
@@ -285,7 +276,6 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
     );
 }
 
-// Hook
 export function useVideoLibrary() {
     const context = useContext(VideoLibraryContext);
     if (context === undefined) {

@@ -59,7 +59,6 @@ export default function HomePage({
                 </div>
             ) : (
                 <div className="space-y-8">
-                    {/* Continue Watching */}
                     {videosInProgress.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold text-gray-300 mb-4">Continue
@@ -94,7 +93,6 @@ export default function HomePage({
                                                     </svg>
                                                 </div>
                                             )}
-                                            {/* Progress bar for videos in progress */}
                                             {video.watch_progress_seconds != null && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
                                                 <div
                                                     className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
@@ -130,7 +128,6 @@ export default function HomePage({
                         </div>
                     )}
 
-                    {/* Recently Watched */}
                     {recentVideos.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold text-gray-300 mb-4">Recently
@@ -165,7 +162,6 @@ export default function HomePage({
                                                     </svg>
                                                 </div>
                                             )}
-                                            {/* Watched indicator */}
                                             {video.is_watched && (
                                                 <div
                                                     className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
@@ -202,7 +198,6 @@ export default function HomePage({
                         </div>
                     )}
 
-                    {/* Suggested Videos */}
                     {suggestedVideos.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold text-gray-300 mb-4">Suggestions for
@@ -237,7 +232,6 @@ export default function HomePage({
                                                     </svg>
                                                 </div>
                                             )}
-                                            {/* Watched indicator */}
                                             {video.is_watched && (
                                                 <div
                                                     className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
@@ -274,7 +268,6 @@ export default function HomePage({
                         </div>
                     )}
 
-                    {/* Library Folders Preview */}
                     {libraryFoldersWithPreviews.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold text-gray-300 mb-4">Your Libraries</h3>
@@ -324,7 +317,6 @@ export default function HomePage({
                                                                     </svg>
                                                                 </div>
                                                             )}
-                                                            {/* Watched indicator */}
                                                             {video.is_watched && (
                                                                 <div className="absolute top-1 right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
                                                                     <svg className="w-3 h-3 text-white" fill="none"
@@ -334,7 +326,6 @@ export default function HomePage({
                                                                     </svg>
                                                                 </div>
                                                             )}
-                                                            {/* Progress bar for videos in progress */}
                                                             {video.watch_progress_seconds != null && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
                                                                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
                                                                     <div
