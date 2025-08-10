@@ -61,14 +61,18 @@ export const useVideoSearch = ({
         try {
             let results: ProcessedVideo[];
 
-            // If no folder is selected (home page), search only in indexed videos
+            // Home (no folder selected): global search across all library folders (indexed DB)
             if (!selectedFolder) {
                 results = await searchVideos(term);
             } else {
-                // If there's a selected folder, use full recursive search
-                results = await searchVideosRecursive(term, (current, total, currentFile) => {
-                    setSearchProgress({ current, total, currentFile });
-                });
+                // Folder selected: restrict recursive search to that folder (and its subfolders)
+                results = await searchVideosRecursive(
+                    term,
+                    (current, total, currentFile) => {
+                        setSearchProgress({ current, total, currentFile });
+                    },
+                    selectedFolder
+                );
             }
 
             setSearchResults(results);
