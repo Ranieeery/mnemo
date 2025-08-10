@@ -34,6 +34,24 @@ interface YouTubeStyleVideoPlayerProps {
     formatTime: (seconds: number) => string;
     resetControlsTimeout: () => void;
 }
+// Provided rewind 10s SVG adapted to currentColor & React (we mirror with CSS for forward)
+const Rewind10Icon = () => (
+    <svg className="w-8 h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" strokeWidth={3} stroke="currentColor">
+        <polyline points="9.57 15.41 12.17 24.05 20.81 21.44" strokeLinecap="round" />
+        <path d="M26.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" strokeLinecap="round" />
+        <rect x="32.19" y="22.52" width="11.41" height="18.89" rx="5.7" />
+        <path d="M12.14,23.94a21.91,21.91,0,1,1-.91,13.25" strokeLinecap="round" />
+    </svg>
+);
+
+const Forward10Icon = () => (
+    <svg className="w-8 h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" strokeWidth={3} stroke="currentColor">
+        <path d="M23.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" strokeLinecap="round" />
+        <rect x="29.19" y="22.52" width="11.41" height="18.89" rx="5.7" />
+        <polyline points="54.43 15.41 51.83 24.05 43.19 21.44" strokeLinecap="round" />
+        <path d="M51.86,23.94a21.91,21.91,0,1,0,.91,13.25" strokeLinecap="round" />
+    </svg>
+);
 
 export default function YouTubeStyleVideoPlayer({
     video,
@@ -152,9 +170,18 @@ export default function YouTubeStyleVideoPlayer({
                         <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                             <div className="flex items-center space-x-4">
                                 {/* Play/Pause */}
+                                {/* Rewind 10s */}
+                                <button
+                                    onClick={() => onSeek(Math.max(0, currentTime - 10))}
+                                    className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
+                                    title="Back 10s (J)"
+                                    aria-label="Back 10 seconds"
+                                >
+                                    <Rewind10Icon />
+                                </button>
                                 <button
                                     onClick={onTogglePlayPause}
-                                    className="text-white hover:text-red-400 transition-all duration-200 hover:scale-110"
+                                    className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                     title={isPlaying ? "Pause (Space)" : "Play (Space)"}
                                 >
                                     {isPlaying ? (
@@ -167,12 +194,21 @@ export default function YouTubeStyleVideoPlayer({
                                         </svg>
                                     )}
                                 </button>
+                                {/* Forward 10s */}
+                                <button
+                                    onClick={() => onSeek(Math.min(duration, currentTime + 10))}
+                                    className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
+                                    title="Forward 10s (L)"
+                                    aria-label="Forward 10 seconds"
+                                >
+                                    <Forward10Icon />
+                                </button>
 
                                 {/* Volume */}
                                 <div className="flex items-center space-x-2">
                                     <button
                                         onClick={() => onVolumeChange(volume > 0 ? 0 : 1)}
-                                        className="text-white hover:text-red-400 transition-all duration-200 hover:scale-110"
+                                        className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                         title="Toggle Mute (M)"
                                     >
                                         {volume === 0 ? (
@@ -248,7 +284,7 @@ export default function YouTubeStyleVideoPlayer({
                                 {/* Exit Fullscreen */}
                                 <button
                                     onClick={onToggleFullscreen}
-                                    className="text-white hover:text-red-400 transition-all duration-200 hover:scale-110"
+                                    className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                     title="Exit Fullscreen (F)"
                                 >
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -357,9 +393,18 @@ export default function YouTubeStyleVideoPlayer({
                             <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
                                     {/* Play/Pause */}
+                                    {/* Rewind 10s */}
+                                    <button
+                                        onClick={() => onSeek(Math.max(0, currentTime - 10))}
+                                        className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
+                                        title="Back 10s (J)"
+                                        aria-label="Back 10 seconds"
+                                    >
+                                        <Rewind10Icon />
+                                    </button>
                                     <button
                                         onClick={onTogglePlayPause}
-                                        className="text-white hover:text-red-400 transition-all duration-200 hover:scale-110"
+                                        className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                         title={isPlaying ? "Pause (Space)" : "Play (Space)"}
                                     >
                                         {isPlaying ? (
@@ -372,12 +417,21 @@ export default function YouTubeStyleVideoPlayer({
                                             </svg>
                                         )}
                                     </button>
+                                    {/* Forward 10s */}
+                                    <button
+                                        onClick={() => onSeek(Math.min(duration, currentTime + 10))}
+                                        className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
+                                        title="Forward 10s (L)"
+                                        aria-label="Forward 10 seconds"
+                                    >
+                                        <Forward10Icon />
+                                    </button>
 
                                     {/* Volume */}
                                     <div className="flex items-center space-x-2">
                                         <button
                                             onClick={() => onVolumeChange(volume > 0 ? 0 : 1)}
-                                            className="text-white hover:text-red-400 transition-all duration-200 hover:scale-110"
+                                            className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                             title="Toggle Mute (M)"
                                         >
                                             {volume === 0 ? (
@@ -453,7 +507,7 @@ export default function YouTubeStyleVideoPlayer({
                                     {/* Fullscreen */}
                                     <button
                                         onClick={onToggleFullscreen}
-                                        className="text-white hover:text-red-400 transition-all duration-200 hover:scale-110"
+                                        className="text-white hover:text-blue-400 transition-all duration-200 hover:scale-110"
                                         title="Toggle Fullscreen (F)"
                                     >
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
