@@ -11,10 +11,8 @@ export async function initDatabase(): Promise<Database> {
     }
 
     try {
-        // Connect to SQLite database in application data directory
         db = await Database.load("sqlite:mnemo.db");
 
-        // Create tables if they don't exist
         await createTables();
 
         console.log("Database initialized successfully");
@@ -30,7 +28,6 @@ async function createTables() {
         throw new Error("Database not initialized");
     }
 
-    // Videos table
     await db.execute(`
     CREATE TABLE IF NOT EXISTS videos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,7 +44,6 @@ async function createTables() {
     )
   `);
 
-    // Tags table
     await db.execute(`
     CREATE TABLE IF NOT EXISTS tags (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +52,6 @@ async function createTables() {
     )
   `);
 
-    // Video-tags relationship table
     await db.execute(`
     CREATE TABLE IF NOT EXISTS video_tags (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +64,6 @@ async function createTables() {
     )
   `);
 
-    // Table to store library directories (migrate from localStorage)
     await db.execute(`
     CREATE TABLE IF NOT EXISTS library_folders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,7 +72,6 @@ async function createTables() {
     )
   `);
 
-    // Watch history table
     await db.execute(`
     CREATE TABLE IF NOT EXISTS watch_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,23 +82,19 @@ async function createTables() {
     )
   `);
 
-    // Add new columns if they don't exist (migration)
     try {
         await db.execute(`ALTER TABLE videos ADD COLUMN is_watched BOOLEAN DEFAULT FALSE`);
     } catch (e) {
-        // Column already exists, ignore
     }
 
     try {
         await db.execute(`ALTER TABLE videos ADD COLUMN watch_progress_seconds INTEGER DEFAULT 0`);
     } catch (e) {
-        // Column already exists, ignore
     }
 
     try {
         await db.execute(`ALTER TABLE videos ADD COLUMN last_watched_at DATETIME`);
     } catch (e) {
-        // Column already exists, ignore
     }
 
     console.log("Database tables created successfully");
@@ -118,7 +107,6 @@ export async function getDatabase(): Promise<Database> {
     return db;
 }
 
-// Video utility functions
 export async function saveVideo(videoData: {
     file_path: string;
     title: string;
@@ -137,7 +125,7 @@ export async function saveVideo(videoData: {
             videoData.description || null,
             videoData.duration_seconds || null,
             videoData.thumbnail_path || null,
-            0, // Always start as unwatched
+            0,
         ]
     );
 }
@@ -215,7 +203,6 @@ export async function getVideosInDirectory(directoryPath: string) {
     }));
 }
 
-// Get videos from a directory ordered by watch progress
 export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: string, limit?: number): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -252,9 +239,7 @@ export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: st
     }));
 }
 
-// ====== SEARCH FUNCTIONS ======
 
-// Search videos by title
 export async function searchVideosByTitle(searchTerm: string): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -286,7 +271,6 @@ export async function searchVideosByTitle(searchTerm: string): Promise<Processed
     }));
 }
 
-// Search videos by title and tags (combined function)
 export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -296,7 +280,6 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
 
     const term = `%${searchTerm.trim()}%`;
 
-    // Combined search: titles, descriptions and tags
     const result = await database.select(
         `SELECT DISTINCT v.* FROM videos v
      LEFT JOIN video_tags vt ON v.id = vt.video_id
@@ -327,7 +310,6 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
     }));
 }
 
-// New function for real-time recursive search (search in file system files)
 export async function searchVideosRecursive(searchTerm: string, progressCallback?: (current: number, total: number, currentFile: string) => void, specificFolder?: string): Promise<ProcessedVideo[]> {
     if (!searchTerm.trim()) {
         return [];
@@ -343,7 +325,6 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
     let totalFiles = 0;
     let processedFiles = 0;
 
-    // First, count all files for progress
     for (const folder of folders) {
         try {
             const allFiles: any[] = await invoke('scan_directory_recursive', {path: folder});
@@ -354,7 +335,6 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
         }
     }
 
-    // Now process each folder recursively
     for (const folder of folders) {
         try {
             const allFiles: any[] = await invoke('scan_directory_recursive', {path: folder});
@@ -367,17 +347,14 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
                     progressCallback(processedFiles, totalFiles, videoFile.name);
                 }
 
-                // Check if filename contains the search term
                 const fileName = videoFile.name.toLowerCase();
 
                 if (fileName.includes(searchTermLower)) {
-                    // Check if it already exists in database
                     let existingVideo = await getVideoByPath(videoFile.path);
 
                     if (existingVideo) {
                         results.push(existingVideo);
                     } else {
-                        // If it doesn't exist in database, create a basic record
                         const basicVideo: ProcessedVideo = {
                             file_path: videoFile.path,
                             title: getVideoTitleFromFilename(videoFile.name),
@@ -402,21 +379,17 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
     return results;
 }
 
-// Helper function to get video title from filename
 function getVideoTitleFromFilename(filename: string): string {
-    // Remove extension
     const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
 
-    // Remove common patterns like [1080p], (2023), etc.
     let title = nameWithoutExt
-        .replace(/\[.*?\]/g, '') // Remove [texto]
-        .replace(/\(.*?\)/g, '') // Remove (texto)
-        .replace(/_/g, ' ') // Replace _ with space
-        .replace(/\./g, ' ') // Replace . with space
-        .replace(/\s+/g, ' ') // Remove extra spaces
+        .replace(/\[.*?\]/g, '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/_/g, ' ')
+        .replace(/\./g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
 
-    // Capitaliza primeira letra de cada palavra
     title = title.replace(/\w\S*/g, (txt) =>
         txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
     );
@@ -424,7 +397,6 @@ function getVideoTitleFromFilename(filename: string): string {
     return title || filename;
 }
 
-// Search all videos (for when search is empty or global search)
 export async function getAllVideos(): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -449,9 +421,7 @@ export async function getAllVideos(): Promise<ProcessedVideo[]> {
     }));
 }
 
-// ====== VIDEO STATUS FUNCTIONS ======
 
-// Mark video as watched
 export async function markVideoAsWatched(videoId: number, watchProgressSeconds?: number): Promise<void> {
     const database = await getDatabase();
 
@@ -465,7 +435,6 @@ export async function markVideoAsWatched(videoId: number, watchProgressSeconds?:
         [videoId, watchProgressSeconds || 0]
     );
 
-    // Add to history
     await database.execute(
         `INSERT INTO watch_history (video_id, watch_duration_seconds) 
      VALUES ($1, $2)`,
@@ -473,7 +442,6 @@ export async function markVideoAsWatched(videoId: number, watchProgressSeconds?:
     );
 }
 
-// Unmark video as watched
 export async function markVideoAsUnwatched(videoId: number): Promise<void> {
     const database = await getDatabase();
 
@@ -487,11 +455,9 @@ export async function markVideoAsUnwatched(videoId: number): Promise<void> {
     );
 }
 
-// Update watch progress
 export async function updateWatchProgress(videoId: number, progressSeconds: number, durationSeconds: number): Promise<void> {
     const database = await getDatabase();
 
-    // If progress >= 75% of duration, mark as watched
     const watchedThreshold = durationSeconds * 0.75;
     const isWatched = progressSeconds >= watchedThreshold;
 
@@ -505,7 +471,6 @@ export async function updateWatchProgress(videoId: number, progressSeconds: numb
         [videoId, progressSeconds, isWatched]
     );
 
-    // If marked as watched, add to history
     if (isWatched) {
         await database.execute(
             `INSERT OR IGNORE INTO watch_history (video_id, watch_duration_seconds) 
@@ -515,9 +480,7 @@ export async function updateWatchProgress(videoId: number, progressSeconds: numb
     }
 }
 
-// ====== HOME PAGE FUNCTIONS ======
 
-// Get recently watched videos
 export async function getRecentlyWatchedVideos(limit: number = 10): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -546,7 +509,6 @@ export async function getRecentlyWatchedVideos(limit: number = 10): Promise<Proc
     }));
 }
 
-// Get videos in progress (started but not finished)
 export async function getVideosInProgress(limit: number = 10): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -576,7 +538,6 @@ export async function getVideosInProgress(limit: number = 10): Promise<Processed
     }));
 }
 
-// Get unwatched videos (suggestions)
 export async function getUnwatchedVideos(limit: number = 5): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -606,7 +567,6 @@ export async function getUnwatchedVideos(limit: number = 5): Promise<ProcessedVi
     }));
 }
 
-// Get video preview (4-5 videos) from a specific folder
 export async function getVideoPreviewFromFolder(folderPath: string, limit: number = 5): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -641,7 +601,6 @@ export async function getVideoPreviewFromFolder(folderPath: string, limit: numbe
     }));
 }
 
-// Get video preview from all library folders
 export async function getLibraryFoldersWithPreviews(): Promise<{ folder: string, videos: ProcessedVideo[] }[]> {
     const folders = await getLibraryFolders();
     const foldersWithPreviews = [];
@@ -659,7 +618,6 @@ export async function getLibraryFoldersWithPreviews(): Promise<{ folder: string,
     return foldersWithPreviews;
 }
 
-// Library folder utility functions
 export async function saveLibraryFolder(folderPath: string) {
     const database = await getDatabase();
 
@@ -682,24 +640,19 @@ export async function getLibraryFolders(): Promise<string[]> {
 export async function removeLibraryFolder(folderPath: string) {
     const database = await getDatabase();
 
-    // First, remove all videos that are inside this folder
     await removeVideosFromFolder(folderPath);
 
-    // Then, remove the folder from the library
     await database.execute(
         "DELETE FROM library_folders WHERE path = $1",
         [folderPath]
     );
 }
 
-// Remove all videos from a specific folder
 export async function removeVideosFromFolder(folderPath: string) {
     const database = await getDatabase();
 
-    // Normalize folder path to ensure consistency
     const normalizedFolderPath = folderPath.replace(/\\/g, '/');
 
-    // First, get all IDs of videos that will be removed
     const videosToRemove = await database.select(
         "SELECT id FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1",
         [`${normalizedFolderPath}/%`]
@@ -714,24 +667,19 @@ export async function removeVideosFromFolder(folderPath: string) {
 
     console.log(`Removing ${videoIds.length} videos from folder: ${folderPath}`);
 
-    // Criar placeholders para a query IN
     const placeholders = videoIds.map(() => '?').join(',');
 
-    // Remove video-related data from all tables
 
-    // 1. Remove tags from videos
     await database.execute(
         `DELETE FROM video_tags WHERE video_id IN (${placeholders})`,
         videoIds
     );
 
-    // 2. Remove watch history
     await database.execute(
         `DELETE FROM watch_history WHERE video_id IN (${placeholders})`,
         videoIds
     );
 
-    // 3. Remove videos from main table
     await database.execute(
         `DELETE FROM videos WHERE id IN (${placeholders})`,
         videoIds
@@ -740,20 +688,17 @@ export async function removeVideosFromFolder(folderPath: string) {
     console.log(`Successfully removed ${videoIds.length} videos and their related data from folder: ${folderPath}`);
 }
 
-// Debug functions to inspect the database
 export async function debugDatabaseInfo() {
     const database = await getDatabase();
 
     console.log("=== DATABASE DEBUG INFO ===");
 
-    // Listar todas as tabelas
     const tables = await database.select(
         "SELECT name FROM sqlite_master WHERE type='table'"
     ) as any[];
 
     console.log("Tables:", tables.map(t => t.name));
 
-    // Contar registros em cada tabela
     for (const table of tables) {
         if (table.name.startsWith('sqlite_')) continue;
 
@@ -763,7 +708,6 @@ export async function debugDatabaseInfo() {
 
         console.log(`${table.name}: ${count[0].count} records`);
 
-        // Mostrar alguns registros de exemplo
         const samples = await database.select(
             `SELECT * FROM ${table.name} LIMIT 5`
         ) as any[];
@@ -789,29 +733,24 @@ export async function getAllLibraryFoldersDebug() {
     return result;
 }
 
-// ====== TAG FUNCTIONS ======
 
-// Interface para Tag
 export interface Tag {
     id: number;
     name: string;
     created_at: string;
 }
 
-// Interface para VideoTag (relacionamento)
 export interface VideoTag {
     id: number;
     video_id: number;
     tag_id: number;
     created_at: string;
-    tag_name?: string; // Para joins
+    tag_name?: string;
 }
 
-// Create or get a tag (if it already exists, return the existing one)
 export async function createOrGetTag(tagName: string): Promise<Tag> {
     const database = await getDatabase();
 
-    // Check if tag already exists
     const existingTag = await database.select(
         "SELECT * FROM tags WHERE name = $1",
         [tagName.trim().toLowerCase()]
@@ -821,13 +760,11 @@ export async function createOrGetTag(tagName: string): Promise<Tag> {
         return existingTag[0];
     }
 
-    // Cria a nova tag
     await database.execute(
         "INSERT INTO tags (name) VALUES ($1)",
         [tagName.trim().toLowerCase()]
     );
 
-    // Retorna a tag criada
     const newTag = await database.select(
         "SELECT * FROM tags WHERE name = $1",
         [tagName.trim().toLowerCase()]
@@ -836,7 +773,6 @@ export async function createOrGetTag(tagName: string): Promise<Tag> {
     return newTag[0];
 }
 
-// Obter todas as tags
 export async function getAllTags(): Promise<Tag[]> {
     const database = await getDatabase();
 
@@ -847,21 +783,17 @@ export async function getAllTags(): Promise<Tag[]> {
     return result;
 }
 
-// Add tag to a video
 export async function addTagToVideo(videoId: number, tagName: string): Promise<void> {
     const database = await getDatabase();
 
-    // Criar ou obter a tag
     const tag = await createOrGetTag(tagName);
 
-    // Check if association already exists
     const existing = await database.select(
         "SELECT * FROM video_tags WHERE video_id = $1 AND tag_id = $2",
         [videoId, tag.id]
     ) as VideoTag[];
 
     if (existing.length === 0) {
-        // Add the association
         await database.execute(
             "INSERT INTO video_tags (video_id, tag_id) VALUES ($1, $2)",
             [videoId, tag.id]
@@ -869,7 +801,6 @@ export async function addTagToVideo(videoId: number, tagName: string): Promise<v
     }
 }
 
-// Remove tag from a video
 export async function removeTagFromVideo(videoId: number, tagId: number): Promise<void> {
     const database = await getDatabase();
 
@@ -879,7 +810,6 @@ export async function removeTagFromVideo(videoId: number, tagId: number): Promis
     );
 }
 
-// Get all tags from a video
 export async function getVideoTags(videoId: number): Promise<Tag[]> {
     const database = await getDatabase();
 
@@ -894,7 +824,6 @@ export async function getVideoTags(videoId: number): Promise<Tag[]> {
     return result;
 }
 
-// Search videos by tags
 export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -902,7 +831,6 @@ export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedV
         return [];
     }
 
-    // Criar placeholders para a query
     const placeholders = tagNames.map((_, index) => `$${index + 1}`).join(', ');
     const normalizedTags = tagNames.map(tag => tag.trim().toLowerCase());
 
@@ -915,7 +843,6 @@ export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedV
         normalizedTags
     ) as any[];
 
-    // Converter para ProcessedVideo
     return result.map(video => ({
         id: video.id,
         file_path: video.file_path,
@@ -926,11 +853,10 @@ export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedV
         created_at: video.created_at,
         updated_at: video.updated_at,
         duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0 // Required field but not used here
+        size: 0
     }));
 }
 
-// Helper function to format duration
 function formatDuration(seconds: number): string {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -942,7 +868,6 @@ function formatDuration(seconds: number): string {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-// Remove unused tags (cleanup)
 export async function cleanupUnusedTags(): Promise<void> {
     const database = await getDatabase();
 
@@ -954,9 +879,7 @@ export async function cleanupUnusedTags(): Promise<void> {
     );
 }
 
-// ====== IMPORT AND EXPORT FUNCTIONS ======
 
-// Interface for data export
 export interface LibraryExport {
     version: string;
     exportDate: string;
@@ -966,12 +889,10 @@ export interface LibraryExport {
     libraryFolders: any[];
 }
 
-// Exportar toda a biblioteca para JSON
 export async function exportLibraryData(): Promise<LibraryExport> {
     const database = await getDatabase();
 
     try {
-        // Buscar todos os dados das tabelas
         const videos = await database.select("SELECT * FROM videos ORDER BY id") as any[];
         const tags = await database.select("SELECT * FROM tags ORDER BY id") as any[];
         const videoTags = await database.select("SELECT * FROM video_tags ORDER BY id") as any[];
@@ -994,31 +915,26 @@ export async function exportLibraryData(): Promise<LibraryExport> {
     }
 }
 
-// Importar dados da biblioteca a partir de JSON
 export async function importLibraryData(importData: LibraryExport): Promise<void> {
     const database = await getDatabase();
 
     try {
         console.log("Starting library import...");
 
-        // Verificar formato dos dados
         if (!importData.version || !importData.videos || !importData.tags || !importData.videoTags || !importData.libraryFolders) {
             throw new Error("Invalid import data format");
         }
 
-        // Limpar dados existentes (em ordem para respeitar foreign keys)
         await database.execute("DELETE FROM video_tags");
         await database.execute("DELETE FROM watch_history");
         await database.execute("DELETE FROM videos");
         await database.execute("DELETE FROM tags");
         await database.execute("DELETE FROM library_folders");
 
-        // Reset auto-increment counters
         await database.execute("DELETE FROM sqlite_sequence WHERE name IN ('videos', 'tags', 'video_tags', 'library_folders', 'watch_history')");
 
         console.log("Existing data cleared");
 
-        // Importar library_folders
         for (const folder of importData.libraryFolders) {
             await database.execute(
                 "INSERT INTO library_folders (id, path, created_at) VALUES (?, ?, ?)",
@@ -1027,7 +943,6 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
         }
         console.log(`Imported ${importData.libraryFolders.length} library folders`);
 
-        // Importar tags
         for (const tag of importData.tags) {
             await database.execute(
                 "INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)",
@@ -1036,7 +951,6 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
         }
         console.log(`Imported ${importData.tags.length} tags`);
 
-        // Importar videos
         for (const video of importData.videos) {
             await database.execute(
                 `INSERT INTO videos (id, file_path, title, description, duration_seconds, thumbnail_path, 
@@ -1049,7 +963,7 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
                     video.description,
                     video.duration_seconds,
                     video.thumbnail_path,
-                    video.is_watched === true ? 1 : 0, // Converter explicitamente para 1/0
+                    video.is_watched === true ? 1 : 0,
                     video.watch_progress_seconds || 0,
                     video.last_watched_at,
                     video.created_at,
@@ -1059,7 +973,6 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
         }
         console.log(`Imported ${importData.videos.length} videos`);
 
-        // Importar video_tags
         for (const videoTag of importData.videoTags) {
             await database.execute(
                 "INSERT INTO video_tags (id, video_id, tag_id, created_at) VALUES (?, ?, ?, ?)",
@@ -1075,7 +988,6 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
     }
 }
 
-// Get library statistics for display
 export async function getLibraryStats(): Promise<{
     totalVideos: number;
     totalTags: number;
@@ -1086,7 +998,6 @@ export async function getLibraryStats(): Promise<{
     const database = await getDatabase();
 
     try {
-        // Get all videos and filter only those belonging to valid folders
         const videoStats = await database.select(
             `SELECT 
         COUNT(v.id) as total,
@@ -1121,7 +1032,6 @@ export async function getLibraryStats(): Promise<{
     }
 }
 
-// Reset all videos as unwatched
 export async function resetAllVideosAsUnwatched(): Promise<void> {
     const database = await getDatabase();
 
@@ -1140,7 +1050,6 @@ export async function resetAllVideosAsUnwatched(): Promise<void> {
     }
 }
 
-// Debug videos in a specific folder
 export async function debugVideosInFolder(folderPath: string) {
     const database = await getDatabase();
 
@@ -1160,7 +1069,6 @@ export async function debugVideosInFolder(folderPath: string) {
     return videos;
 }
 
-// Debug orphaned videos (videos whose folders were removed)
 export async function debugOrphanedVideos() {
     const database = await getDatabase();
 
@@ -1182,11 +1090,9 @@ export async function debugOrphanedVideos() {
     return orphanedVideos;
 }
 
-// Clean orphaned videos
 export async function cleanOrphanedVideos() {
     const database = await getDatabase();
 
-    // First, get all orphaned videos
     const orphanedVideos = await database.select(
         `SELECT v.id
      FROM videos v
@@ -1205,24 +1111,19 @@ export async function cleanOrphanedVideos() {
 
     console.log(`Cleaning ${videoIds.length} orphaned videos...`);
 
-    // Criar placeholders para a query IN
     const placeholders = videoIds.map(() => '?').join(',');
 
-    // Remove data related to orphaned videos
 
-    // 1. Remove video tags
     await database.execute(
         `DELETE FROM video_tags WHERE video_id IN (${placeholders})`,
         videoIds
     );
 
-    // 2. Remove watch progress
     await database.execute(
         `DELETE FROM video_progress WHERE video_id IN (${placeholders})`,
         videoIds
     );
 
-    // 3. Remove videos from main table
     await database.execute(
         `DELETE FROM videos WHERE id IN (${placeholders})`,
         videoIds
@@ -1232,7 +1133,6 @@ export async function cleanOrphanedVideos() {
     return videoIds.length;
 }
 
-// Get corrected statistics (only videos from valid folders)
 export async function getCorrectedLibraryStats(): Promise<{
     totalVideos: number;
     totalTags: number;
@@ -1244,7 +1144,6 @@ export async function getCorrectedLibraryStats(): Promise<{
     const database = await getDatabase();
 
     try {
-        // Statistics only from videos whose folders are still in the library
         const videoStats = await database.select(
             `SELECT 
         COUNT(*) as total,
@@ -1256,7 +1155,6 @@ export async function getCorrectedLibraryStats(): Promise<{
        )`
         ) as any[];
 
-        // Contar vídeos órfãos
         const orphanedStats = await database.select(
             `SELECT COUNT(*) as total
        FROM videos v

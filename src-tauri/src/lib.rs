@@ -36,7 +36,6 @@ fn read_directory(path: String) -> Result<Vec<DirEntry>, String> {
                         let full_path = entry_path.to_string_lossy().to_string();
                         let is_dir = entry_path.is_dir();
                         
-                        // Check if it's a video file
                         let is_video = if !is_dir {
                             let extension = entry_path.extension()
                                 .unwrap_or_default()
@@ -61,7 +60,6 @@ fn read_directory(path: String) -> Result<Vec<DirEntry>, String> {
         Err(e) => return Err(format!("Failed to read directory: {}", e)),
     }
 
-    // Sort entries: directories first, then files
     entries.sort_by(|a, b| {
         match (a.is_dir, b.is_dir) {
             (true, false) => std::cmp::Ordering::Less,
@@ -94,12 +92,10 @@ fn scan_directory_recursive(path: String) -> Result<Vec<DirEntry>, String> {
                             let is_dir = entry_path.is_dir();
                             
                             if is_dir {
-                                // Recursively scan subdirectories
                                 if let Err(e) = scan_directory_recursive_helper(&entry_path, entries) {
                                     eprintln!("Warning: Failed to scan directory {}: {}", full_path, e);
                                 }
                             } else {
-                                // Check if it's a video file
                                 let extension = entry_path.extension()
                                     .unwrap_or_default()
                                     .to_string_lossy()
@@ -128,7 +124,6 @@ fn scan_directory_recursive(path: String) -> Result<Vec<DirEntry>, String> {
 
     scan_directory_recursive_helper(dir_path, &mut entries)?;
 
-    // Sort entries by path
     entries.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
 
     Ok(entries)
@@ -146,13 +141,11 @@ struct VideoMetadata {
 
 #[tauri::command]
 async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, String> {
-    // Check if file exists
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err("File does not exist".to_string());
     }
 
-    // Executa ffprobe para extrair metadados
     let output = Command::new("ffprobe")
         .args(&[
             "-v", "quiet",
@@ -173,7 +166,6 @@ async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, Stri
             let parsed: serde_json::Value = serde_json::from_str(&json_str)
                 .map_err(|e| format!("Failed to parse FFprobe output: {}", e))?;
 
-            // Extract information from the first video stream
             let streams = parsed["streams"].as_array()
                 .ok_or("No streams found")?;
 
@@ -191,7 +183,6 @@ async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, Stri
                 .and_then(|b| b.parse::<i64>().ok());
             let codec = video_stream["codec_name"].as_str().map(|s| s.to_string());
 
-            // Get file size
             let file_size = path.metadata()
                 .map_err(|e| format!("Failed to get file size: {}", e))?
                 .len();
@@ -217,7 +208,6 @@ async fn generate_thumbnail(
 ) -> Result<String, String> {
     let timestamp_str = timestamp.unwrap_or(10.0).to_string();
     
-    // Create output directory if it doesn't exist
     if let Some(parent) = Path::new(&output_path).parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create thumbnail directory: {}", e))?;
@@ -228,7 +218,7 @@ async fn generate_thumbnail(
             "-i", &video_path,
             "-ss", &timestamp_str,
             "-vframes", "1",
-            "-y", // Overwrite existing file
+            "-y",
             "-vf", "scale=320:240:force_original_aspect_ratio=decrease,pad=320:240:(ow-iw)/2:(oh-ih)/2",
             &output_path
         ])
@@ -296,7 +286,6 @@ fn open_file_with_dialog(file_path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // Simple approach: use explorer to select the file, then user can right-click for "Open with"
         match Command::new("explorer")
             .args(["/select,", &file_path])
             .spawn()
@@ -308,7 +297,6 @@ fn open_file_with_dialog(file_path: String) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        // On macOS, show the file in Finder
         match Command::new("open")
             .args(["-R", &file_path])
             .spawn()
@@ -320,7 +308,6 @@ fn open_file_with_dialog(file_path: String) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
-        // On Linux, try to show file in file manager
         if Command::new("nautilus")
             .args(["-s", &file_path])
             .spawn()
@@ -334,7 +321,6 @@ fn open_file_with_dialog(file_path: String) -> Result<(), String> {
         {
             Ok(())
         } else {
-            // Fallback to opening the directory
             match Command::new("xdg-open")
                 .arg(path.parent().unwrap_or(path))
                 .spawn()
@@ -355,8 +341,6 @@ fn file_exists(path: String) -> bool {
 fn read_subtitle_file(path: String) -> Result<String, String> {
     match fs::read_to_string(&path) {
         Ok(content) => {
-            // Try to detect encoding and convert if needed
-            // For now, assume UTF-8 and return as is
             Ok(content)
         }
         Err(e) => Err(format!("Failed to read subtitle file: {}", e))
