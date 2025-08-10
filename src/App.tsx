@@ -21,7 +21,6 @@ import { useLibraryManagement } from "./hooks/useLibraryManagement";
 import { useVideoProcessing } from "./hooks/useVideoProcessing";
 import { useVideoSearch } from "./hooks/useVideoSearch";
 import { useVideoWatchedStatus } from "./hooks/useVideoWatchedStatus";
-import { useNavigation } from "./hooks/useNavigation";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { useModals } from "./hooks/useModals";
 import { useContextMenu } from "./hooks/useContextMenu";
@@ -40,7 +39,7 @@ const naturalSort = (a: string, b: string): number => {
 function App() {
     // Context hooks – single source of truth for shared state
     const { state: videoLibraryState, actions: videoLibraryActions } = useVideoLibrary();
-    const { state: navigationState, actions: navigationActions } = useNavigationContext();
+    const { state: navigationState, actions: navigationActions, computed: navigationComputed } = useNavigationContext();
     
     // Local state only for technical capabilities (not domain data)
     const [videoToolsAvailable, setVideoToolsAvailable] = useState<{
@@ -163,16 +162,15 @@ function App() {
         }
     };
 
-    // Navigation hook
-    const navigation = useNavigation({
-        setSelectedFolder: videoLibraryActions.selectFolder,
-        setCurrentPath: navigationActions.setCurrentPath,
-        setShowHomePage: (_show: boolean) => {
-            navigationActions.goToHome();
-        },
-        loadDirectoryContents,
-        loadHomePageData: videoLibraryActions.loadHomePageData
-    });
+    // Sync folder selection & contents when navigating via history (back/forward)
+    useEffect(() => {
+        if (!navigationState.showHomePage && navigationState.currentPath) {
+            if (videoLibraryState.selectedFolder !== navigationState.currentPath) {
+                videoLibraryActions.selectFolder(navigationState.currentPath);
+                loadDirectoryContents(navigationState.currentPath);
+            }
+        }
+    }, [navigationState.currentPath, navigationState.showHomePage]);
 
     // Video player hook
     const videoPlayer = useVideoPlayer({
@@ -234,13 +232,13 @@ function App() {
         const handleMouseButtons = (event: MouseEvent) => {
             if (event.button === 3) { // Back button
                 event.preventDefault();
-                if (navigation.canGoBack) {
-                    navigation.goBack();
+                if (navigationComputed.canGoBack) {
+                    navigationActions.goBack();
                 }
             } else if (event.button === 4) { // Forward button
                 event.preventDefault();
-                if (navigation.canGoForward) {
-                    navigation.goForward();
+                if (navigationComputed.canGoForward) {
+                    navigationActions.goForward();
                 }
             }
         };
@@ -249,7 +247,7 @@ function App() {
         return () => {
             document.removeEventListener('mousedown', handleMouseButtons);
         };
-    }, [navigation.canGoBack, navigation.canGoForward]);
+    }, [navigationComputed.canGoBack, navigationComputed.canGoForward]);
 
     // Keyboard shortcuts (navigation + player)
     useEffect(() => {
@@ -266,15 +264,15 @@ function App() {
             // Alt+Left: back
             if (event.altKey && event.key === 'ArrowLeft') {
                 event.preventDefault();
-                if (navigation.canGoBack) {
-                    navigation.goBack();
+                if (navigationComputed.canGoBack) {
+                    navigationActions.goBack();
                 }
             }
             // Alt+Right: forward
             else if (event.altKey && event.key === 'ArrowRight') {
                 event.preventDefault();
-                if (navigation.canGoForward) {
-                    navigation.goForward();
+                if (navigationComputed.canGoForward) {
+                    navigationActions.goForward();
                 }
             }
         };
@@ -283,7 +281,7 @@ function App() {
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [navigation.canGoBack, navigation.canGoForward, videoPlayer.playingVideo, videoPlayer.handleCloseVideoPlayer]);
+    }, [navigationComputed.canGoBack, navigationComputed.canGoForward, videoPlayer.playingVideo, videoPlayer.handleCloseVideoPlayer]);
 
     // Open settings
     const handleOpenSettings = () => {
@@ -321,7 +319,7 @@ function App() {
     const modals = useModals({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         libraryActions,
-        navigation,
+        navigation: { goToHomePage: navigationActions.goToHome },
         videoPlayer,
         selectedFolder: videoLibraryState.selectedFolder,
         handleLibraryChanged
@@ -358,7 +356,7 @@ function App() {
                 onAddFolder={libraryActions.handleAddFolder}
                 onSelectFolder={handleSelectFolder}
                 onRemoveFolderRequest={handleRemoveFolderRequest}
-                onGoToHomePage={navigation.goToHomePage}
+                onGoToHomePage={navigationActions.goToHome}
                 onOpenSettings={handleOpenSettings}
             />
 
@@ -367,10 +365,10 @@ function App() {
                 {/* Top Bar */}
                 <TopBar
                     selectedFolder={videoLibraryState.selectedFolder}
-                    canGoBack={navigation.canGoBack}
-                    canGoForward={navigation.canGoForward}
-                    onGoBack={navigation.goBack}
-                    onGoForward={navigation.goForward}
+                    canGoBack={navigationComputed.canGoBack}
+                    canGoForward={navigationComputed.canGoForward}
+                    onGoBack={navigationActions.goBack}
+                    onGoForward={navigationActions.goForward}
                     searchTerm={searchState.searchTerm}
                     setSearchTerm={searchActions.setSearchTerm}
                     isSearching={searchState.isSearching}

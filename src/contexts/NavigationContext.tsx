@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode, useReducer } from 'react';
 
-// Interface para entrada de diretório
+// Directory entry representation
 export interface DirEntry {
     name: string;
     path: string;
@@ -8,7 +8,7 @@ export interface DirEntry {
     is_video: boolean;
 }
 
-// Tipos
+// Navigation state types
 export interface NavigationState {
     history: string[];
     currentIndex: number;
@@ -25,7 +25,7 @@ export type NavigationAction =
     | { type: 'SET_CURRENT_PATH'; payload: string }
     | { type: 'SET_DIRECTORY_CONTENTS'; payload: DirEntry[] };
 
-// Estado inicial
+// Initial state
 const initialState: NavigationState = {
     history: [],
     currentIndex: -1,
@@ -34,7 +34,7 @@ const initialState: NavigationState = {
     directoryContents: [],
 };
 
-// Reducer
+// Reducer managing navigation history stack and current path
 function navigationReducer(state: NavigationState, action: NavigationAction): NavigationState {
     switch (action.type) {
         case 'NAVIGATE_TO': {
@@ -123,7 +123,7 @@ interface NavigationProviderProps {
 export function NavigationProvider({ children }: NavigationProviderProps) {
     const [state, dispatch] = useReducer(navigationReducer, initialState);
 
-    // Ações
+    // Action helpers
     const navigateTo = (path: string) => {
         dispatch({ type: 'NAVIGATE_TO', payload: path });
     };
@@ -148,7 +148,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         dispatch({ type: 'SET_DIRECTORY_CONTENTS', payload: contents });
     };
 
-    // Valores computados
+    // Computed flags
     const canGoBack = state.currentIndex > 0;
     const canGoForward = state.currentIndex < state.history.length - 1;
 
@@ -177,7 +177,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
 export function useNavigation() {
     const context = useContext(NavigationContext);
     if (context === undefined) {
-        throw new Error('useNavigation deve ser usado dentro de um NavigationProvider');
+    throw new Error('useNavigation must be used within a NavigationProvider');
     }
     return context;
 }
