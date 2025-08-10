@@ -283,7 +283,7 @@ function App() {
 
     // Keyboard shortcuts (navigation + player)
     useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
             // ESC: close player
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -309,9 +309,26 @@ function App() {
             }
         };
 
+        const handlePointerDown = (event: MouseEvent) => {
+            // Mouse button codes: 3 = X1 (back), 4 = X2 (forward) in some browsers; in standard event.button: 3 & 4 rarely used
+            // Many browsers map X1 -> button 3 (event.button === 3) or 'BrowserBack', X2 -> button 4
+            // We'll use event.button checks.
+            if (event.button === 3) { // Back button: close video if open
+                if (videoPlayer.playingVideo) {
+                    videoPlayer.handleCloseVideoPlayer();
+                }
+            } else if (event.button === 4) { // Forward button: reopen last video if none playing
+                if (!videoPlayer.playingVideo) {
+                    videoPlayer.reopenLastVideo?.();
+                }
+            }
+        };
+
         document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('mousedown', handlePointerDown);
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('mousedown', handlePointerDown);
         };
     }, [navigationComputed.canGoBack, navigationComputed.canGoForward, videoPlayer.playingVideo, videoPlayer.handleCloseVideoPlayer]);
 

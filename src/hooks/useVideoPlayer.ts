@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ProcessedVideo } from '../types/video';
 import { checkAndLoadSubtitles, parseSubtitles, getCurrentSubtitle, Subtitle } from '../utils/subtitleUtils';
 
@@ -16,6 +16,7 @@ export const useVideoPlayer = ({
     loadHomePageData
 }: UseVideoPlayerProps) => {
     const [playingVideo, setPlayingVideo] = useState<ProcessedVideo | null>(null);
+    const lastVideoRef = useRef<ProcessedVideo | null>(null);
     const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
     const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -32,7 +33,8 @@ export const useVideoPlayer = ({
 
     // Initialize playback for selected video (loads subtitles if found)
     const handlePlayVideo = async (video: ProcessedVideo) => {
-        setPlayingVideo(video);
+    setPlayingVideo(video);
+    lastVideoRef.current = video; // memorize last opened
         setShowVideoPlayer(true);
         setPlaybackSpeed(1);
         setIsPlaying(false);
@@ -75,6 +77,13 @@ export const useVideoPlayer = ({
         if (controlsTimeout) {
             clearTimeout(controlsTimeout);
             setControlsTimeout(null);
+        }
+    };
+
+    // Reopen last video if exists
+    const reopenLastVideo = () => {
+        if (lastVideoRef.current) {
+            handlePlayVideo(lastVideoRef.current);
         }
     };
 
@@ -264,5 +273,7 @@ export const useVideoPlayer = ({
         toggleSubtitles,
         resetControlsTimeout,
         handleVideoProgress
+    ,
+    reopenLastVideo
     };
 };
