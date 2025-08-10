@@ -11,7 +11,7 @@ export interface UseVideoWatchedStatusProps {
     selectedFolder: string | null;
     searchState: VideoSearchState;
     searchActions: VideoSearchActions;
-    // Para atualização imediata do vídeo sendo reproduzido
+    // For immediate update of currently playing video instance
     currentlyPlayingVideo: ProcessedVideo | null;
     setPlayingVideo: React.Dispatch<React.SetStateAction<ProcessedVideo | null>>;
 }

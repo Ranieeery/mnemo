@@ -67,21 +67,21 @@ export default function YouTubeStyleVideoPlayer({
     formatTime,
     resetControlsTimeout
 }: YouTubeStyleVideoPlayerProps) {
-    // Encontra o índice do vídeo atual e pega os próximos 6 vídeos na sequência
+    // Determine up-next playlist slice
     const currentIndex = playlistVideos.findIndex(v => v.file_path === video.file_path);
     const nextVideos = currentIndex !== -1 
-        ? playlistVideos.slice(currentIndex + 1, currentIndex + 7) // Próximos 6 vídeos após o atual
-        : playlistVideos.slice(0, 6); // Se não encontrar o atual, pega os primeiros 6
+    ? playlistVideos.slice(currentIndex + 1, currentIndex + 7)
+    : playlistVideos.slice(0, 6);
 
     if (isFullscreen) {
-        // Fullscreen mode - layout simples como antes
+    // Fullscreen mode (minimal chrome)
         return (
             <div
                 className="fixed inset-0 bg-black z-[100] flex flex-col"
                 onMouseMove={resetControlsTimeout}
                 onClick={resetControlsTimeout}
             >
-                {/* Video container fullscreen */}
+                {/* Video element */}
                 <div className="flex-1 relative bg-black">
                     <video
                         src={convertFileSrc(video.file_path)}
@@ -104,14 +104,14 @@ export default function YouTubeStyleVideoPlayer({
                         onClick={onTogglePlayPause}
                     />
 
-                    {/* Subtitles overlay */}
+                    {/* Subtitles */}
                     {subtitlesEnabled && currentSubtitle && (
                         <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-4 py-2 rounded max-w-3xl text-center">
                             {currentSubtitle}
                         </div>
                     )}
 
-                    {/* Play/Pause icon overlay */}
+                    {/* Transitional play/pause icon */}
                     {isIconChanging && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="bg-black bg-opacity-50 rounded-full p-4 animate-fade-in-out">
@@ -128,7 +128,7 @@ export default function YouTubeStyleVideoPlayer({
                         </div>
                     )}
 
-                    {/* Custom Controls Overlay */}
+                    {/* Overlay controls */}
                     <div className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                         {/* Progress bar */}
                         <div className="absolute bottom-16 left-4 right-4">
@@ -228,7 +228,7 @@ export default function YouTubeStyleVideoPlayer({
                                     </svg>
                                 </button>
 
-                                {/* Velocidade */}
+                                {/* Playback speed */}
                                 <select
                                     value={playbackSpeed}
                                     onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
@@ -264,10 +264,10 @@ export default function YouTubeStyleVideoPlayer({
         );
     }
 
-    // YouTube-style layout para modo não-fullscreen
+    // Windowed (YouTube-style) layout
     return (
         <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col">
-            {/* Header com close button */}
+            {/* Header */}
             <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
                 <h3 className="text-white font-medium truncate">{video.title}</h3>
                 <button
@@ -283,7 +283,7 @@ export default function YouTubeStyleVideoPlayer({
 
             {/* Main content area */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Left side - Video and info */}
+                {/* Left: player area */}
                 <div className="flex-1 flex flex-col min-w-0">
                     {/* Video container */}
                     <div className="bg-black relative" style={{ aspectRatio: '16/9' }}>
@@ -309,14 +309,14 @@ export default function YouTubeStyleVideoPlayer({
                             onMouseMove={resetControlsTimeout}
                         />
 
-                        {/* Subtitles overlay */}
+                        {/* Subtitles */}
                         {subtitlesEnabled && currentSubtitle && (
                             <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-4 py-2 rounded max-w-3xl text-center">
                                 {currentSubtitle}
                             </div>
                         )}
 
-                        {/* Play/Pause icon overlay */}
+                        {/* Transitional play/pause icon */}
                         {isIconChanging && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <div className="bg-black bg-opacity-50 rounded-full p-4 animate-fade-in-out">

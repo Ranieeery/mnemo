@@ -82,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         {folder}
                                     </div>
                                 </div>
-                                {/* Ícone de lixeira que aparece no hover */}
+                                {/* Trash icon (shows on hover) */}
                                 {!folderIndexingStatus[folder] && (
                                     <button
                                         onClick={(e) => {

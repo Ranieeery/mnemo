@@ -6,10 +6,10 @@ export interface Subtitle {
     text: string;
 }
 
-// Função para verificar e carregar legendas
+// Try to locate and load a subtitle file alongside a video
 export const checkAndLoadSubtitles = async (videoPath: string): Promise<{ content: string; format: string } | null> => {
     try {
-        // Remove extensão do vídeo e tenta diferentes extensões de legenda
+    // Remove video extension and try multiple subtitle extensions
         const videoWithoutExt = videoPath.replace(/\.[^/.]+$/, '');
         const subtitleExtensions = ['.srt', '.vtt', '.sub', '.ass'];
         
@@ -17,13 +17,13 @@ export const checkAndLoadSubtitles = async (videoPath: string): Promise<{ conten
             const subtitlePath = videoWithoutExt + ext;
             
             try {
-                // Verifica se o arquivo existe
+                // Check if subtitle file exists
                 const exists = await invoke('file_exists', { path: subtitlePath }) as boolean;
                 
                 if (exists) {
-                    // Lê o conteúdo do arquivo
+                    // Load file content
                     const content = await invoke('read_subtitle_file', { path: subtitlePath }) as string;
-                    const format = ext.substring(1); // Remove o ponto da extensão
+                    const format = ext.substring(1); // Strip leading dot
                     
                     return { content, format };
                 }
@@ -39,19 +39,19 @@ export const checkAndLoadSubtitles = async (videoPath: string): Promise<{ conten
     }
 };
 
-// Função para processar legendas SRT, VTT, SUB e ASS
+// Parse subtitles (SRT, VTT, SUB MicroDVD, ASS basic)
 export const parseSubtitles = (subtitleData: { content: string; format: string }): Subtitle[] => {
     const subtitles: Subtitle[] = [];
     const { content, format } = subtitleData;
 
     if (format === 'srt') {
-        // Parser para formato SRT
+    // SRT blocks separated by blank lines
         const blocks = content.trim().split(/\n\s*\n/);
 
         blocks.forEach((block) => {
             const lines = block.trim().split('\n');
             if (lines.length >= 3) {
-                // Busca por linha de tempo (pode ser a linha 1 ou 2)
+                // Find timing line (may be line 1 or 2 depending on numbering)
                 let timeMatch;
                 let timeLineIndex = -1;
                 
@@ -79,11 +79,11 @@ export const parseSubtitles = (subtitleData: { content: string; format: string }
             }
         });
     } else if (format === 'vtt') {
-        // Parser para formato VTT
+    // VTT format
         const lines = content.split('\n');
         let i = 0;
 
-        // Pula o cabeçalho WEBVTT e outras linhas de metadata
+    // Skip WEBVTT header and metadata
         while (i < lines.length && !lines[i].includes('-->')) {
             i++;
         }
@@ -91,7 +91,7 @@ export const parseSubtitles = (subtitleData: { content: string; format: string }
         while (i < lines.length) {
             const line = lines[i].trim();
 
-            // Procura por linhas de tempo (mais flexível)
+            // Attempt to match a timing line
             const timeMatch = line.match(/(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})/);
             if (timeMatch) {
                 const startTime = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseInt(timeMatch[3]) + parseInt(timeMatch[4]) / 1000;
@@ -119,20 +119,20 @@ export const parseSubtitles = (subtitleData: { content: string; format: string }
             i++;
         }
     } else if (format === 'sub') {
-        // Parser básico para formato SUB (MicroDVD)
+    // Basic MicroDVD SUB parser
         const lines = content.split('\n');
         
         lines.forEach((line) => {
             const trimmedLine = line.trim();
             if (trimmedLine) {
-                // Formato SUB: {start}{end}texto
+                // Pattern SUB: {start}{end}text
                 const match = trimmedLine.match(/\{(\d+)\}\{(\d+)\}(.+)/);
                 if (match) {
                     const startFrame = parseInt(match[1]);
                     const endFrame = parseInt(match[2]);
                     const text = match[3];
                     
-                    // Assume 25 FPS para conversão (pode ser ajustado)
+                    // Assume 25 FPS (could be improved by detecting FPS)
                     const startTime = startFrame / 25;
                     const endTime = endFrame / 25;
                     
@@ -147,7 +147,7 @@ export const parseSubtitles = (subtitleData: { content: string; format: string }
             }
         });
     } else if (format === 'ass') {
-        // Parser básico para formato ASS/SSA
+    // Basic ASS/SSA parser
         const lines = content.split('\n');
         let inEventsSection = false;
         

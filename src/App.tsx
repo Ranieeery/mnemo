@@ -29,7 +29,7 @@ import { useVideoLibrary } from "./contexts/VideoLibraryContext";
 import { useNavigation as useNavigationContext } from "./contexts/NavigationContext";
 import "./styles/player.css";
 
-// Função para ordenação natural (numérica) de strings
+// Natural (numeric-aware) string comparator for folder/file names
 const naturalSort = (a: string, b: string): number => {
     return a.localeCompare(b, undefined, {
         numeric: true,
@@ -38,17 +38,17 @@ const naturalSort = (a: string, b: string): number => {
 };
 
 function App() {
-    // Context hooks - única fonte da verdade para estado
+    // Context hooks – single source of truth for shared state
     const { state: videoLibraryState, actions: videoLibraryActions } = useVideoLibrary();
     const { state: navigationState, actions: navigationActions } = useNavigationContext();
     
-    // Estado local apenas para configurações não relacionadas ao negócio
+    // Local state only for technical capabilities (not domain data)
     const [videoToolsAvailable, setVideoToolsAvailable] = useState<{
         ffmpeg: boolean;
         ffprobe: boolean
     }>({ ffmpeg: false, ffprobe: false });
 
-    // Hook para gerenciamento da biblioteca - usando contexts
+    // Library management hook wired to context actions
     const [libraryState, libraryActions] = useLibraryManagement({
         videoToolsAvailable,
         libraryFolders: videoLibraryState.libraryFolders,
@@ -63,12 +63,12 @@ function App() {
         loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
-    // Hook para processamento de vídeos - usando contexts
+    // Video processing hook
     const [videoProcessingState, videoProcessingActions] = useVideoProcessing({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact
     });
 
-    // Hook para busca de vídeos - usando contexts
+    // Video search hook
     const [searchState, searchActions] = useVideoSearch({
         selectedFolder: videoLibraryState.selectedFolder,
         onShowHomePage: () => {
@@ -77,26 +77,23 @@ function App() {
         }
     });
 
-    // Hook para gerenciar status de vídeos assistidos - usando contexts (declarado depois que videoPlayer existir)
-    // Será inicializado mais abaixo após videoPlayer
+    // Will be assigned after videoPlayer is created (cyclic dependency)
     let toggleVideoWatchedStatus: (video: ProcessedVideo) => Promise<void>;
 
-    // Inicialização da aplicação
+    // App initialization
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                // Inicializar biblioteca via context
+                // Initialize library via context
                 await videoLibraryActions.initializeLibrary();
 
-                // Verificar ferramentas de vídeo disponíveis
+                // Detect external video tools availability
                 const tools = await checkVideoToolsAvailable();
                 setVideoToolsAvailable(tools);
 
-                if (!tools.ffmpeg || !tools.ffprobe) {
-                    console.warn('Video tools not available. Video processing will be limited.');
-                }
+                if (!tools.ffmpeg || !tools.ffprobe) console.warn('Video tools not available. Video processing will be limited.');
 
-                // Migrar dados do localStorage se existirem (apenas uma vez)
+                // One‑time migration from localStorage if legacy data exists
                 const savedFoldersLegacy = localStorage.getItem('libraryFolders');
                 if (savedFoldersLegacy) {
                     const legacyFolders = JSON.parse(savedFoldersLegacy);
@@ -105,68 +102,68 @@ function App() {
                         videoLibraryActions.addLibraryFolder(folder);
                     }
                     localStorage.removeItem('libraryFolders');
-                    // Recarregar após migração
+                    // Reload after migration
                     await videoLibraryActions.loadLibraryFolders();
                     await videoLibraryActions.loadHomePageData();
                 }
             } catch (error) {
-                console.error('Falha ao inicializar aplicação:', error);
-                videoLibraryActions.setError('Falha ao inicializar aplicação');
+                console.error('Failed to initialize application:', error);
+                videoLibraryActions.setError('Failed to initialize application');
             }
         };
 
         initializeApp();
     }, []); // Executar apenas uma vez
 
-    // Função para selecionar uma pasta na sidebar
+    // Select a folder from sidebar
     const handleSelectFolder = (folder: string) => {
         navigationActions.navigateTo(folder);
         videoLibraryActions.selectFolder(folder);
         loadDirectoryContents(folder);
     };
 
-    // Função para abrir modal de confirmação de remoção
+    // Open remove-folder confirmation modal
     const handleRemoveFolderRequest = (folderPath: string) => {
         modals.handleRemoveFolderRequest(folderPath);
     };
 
-    // Função para confirmar remoção da pasta
+    // Confirm folder removal
     const confirmRemoveFolder = async () => {
         await modals.confirmRemoveFolder();
     };
 
-    // Função para cancelar remoção
+    // Cancel folder removal
     const cancelRemoveFolder = () => {
         modals.cancelRemoveFolder();
     };
 
-    // Função para carregar o conteúdo de um diretório
+    // Load directory contents (folders + processed videos)
     const loadDirectoryContents = async (path: string) => {
         try {
-            // Usar VideoLibraryService para carregar conteúdo
+            // Use service layer to load processed videos
             videoLibraryActions.setLoading(true);
             
-            // Carregar vídeos processados do diretório
+        // Load processed videos for directory
             const processedVideos = await VideoLibraryService.getVideosInDirectory(path);
             videoLibraryActions.setProcessedVideos(processedVideos);
             
-            // Carregar conteúdo do diretório (pastas e arquivos não processados)
+        // Raw directory listing (subfolders + files) for navigation
             const directoryContents: any[] = await invoke('read_directory', { path });
             navigationActions.setDirectoryContents(directoryContents);
             
-            // Processa vídeos em segundo plano se as ferramentas estão disponíveis
+        // Background (re)processing if tools available
             if (videoToolsAvailable.ffmpeg && videoToolsAvailable.ffprobe) {
                 videoProcessingActions.processVideosInBackground(path);
             }
         } catch (error) {
-            console.error('Erro ao carregar conteúdo do diretório:', error);
-            videoLibraryActions.setError('Erro ao carregar conteúdo do diretório');
+        console.error('Error loading directory contents:', error);
+        videoLibraryActions.setError('Error loading directory contents');
         } finally {
             videoLibraryActions.setLoading(false);
         }
     };
 
-    // Hook para navegação
+    // Navigation hook
     const navigation = useNavigation({
         setSelectedFolder: videoLibraryActions.selectFolder,
         setCurrentPath: navigationActions.setCurrentPath,
@@ -177,7 +174,7 @@ function App() {
         loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
-    // Hook para o player de vídeo
+    // Video player hook
     const videoPlayer = useVideoPlayer({
         setShowVideoPlayer: (_show: boolean) => {
             // Controlar exibição do player via state local ou navigation
@@ -188,7 +185,7 @@ function App() {
         loadHomePageData: videoLibraryActions.loadHomePageData
     });
 
-    // Agora que videoPlayer foi criado, inicializamos o hook de watched status
+    // Initialize watched-status hook now that player exists
     ({ toggleVideoWatchedStatus } = useVideoWatchedStatus({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         setRecentVideos: videoLibraryActions.setRecentVideosReact,
@@ -202,28 +199,28 @@ function App() {
         setPlayingVideo: videoPlayer.setPlayingVideo
     }));
 
-    // Função para navegar para um diretório
+    // Navigate to a directory
     const navigateToDirectory = (path: string) => {
         navigationActions.navigateTo(path);
         loadDirectoryContents(path);
     };
 
-    // Função para abrir o modal de detalhes do vídeo
+    // Open video details modal
     const handleOpenVideoDetails = (video: ProcessedVideo) => {
         modals.handleOpenVideoDetails(video);
     };
 
-    // Função para fechar o modal de detalhes do vídeo
+    // Close video details modal
     const handleCloseVideoDetails = () => {
         modals.handleCloseVideoDetails();
     };
 
-    // Função para salvar as alterações do vídeo
+    // Persist video detail edits
     const handleSaveVideoDetails = async () => {
         await modals.handleSaveVideoDetails();
     };
 
-    // Função para cancelar a edição
+    // Cancel video detail editing session
     const handleCancelEdit = () => {
         modals.handleCancelEdit();
     };
@@ -232,15 +229,15 @@ function App() {
 
 
 
-    // Suporte para botões do mouse (voltar/avançar)
+    // Mouse back/forward button support
     useEffect(() => {
         const handleMouseButtons = (event: MouseEvent) => {
-            if (event.button === 3) { // Botão "voltar" do mouse
+            if (event.button === 3) { // Back button
                 event.preventDefault();
                 if (navigation.canGoBack) {
                     navigation.goBack();
                 }
-            } else if (event.button === 4) { // Botão "avançar" do mouse
+            } else if (event.button === 4) { // Forward button
                 event.preventDefault();
                 if (navigation.canGoForward) {
                     navigation.goForward();
@@ -254,10 +251,10 @@ function App() {
         };
     }, [navigation.canGoBack, navigation.canGoForward]);
 
-    // Suporte para teclas de atalho de navegação
+    // Keyboard shortcuts (navigation + player)
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            // ESC - Sair do vídeo se estiver tocando
+            // ESC: close player
             if (event.key === 'Escape') {
                 event.preventDefault();
                 if (videoPlayer.playingVideo) {
@@ -266,14 +263,14 @@ function App() {
                 return;
             }
 
-            // Alt + seta esquerda = voltar
+            // Alt+Left: back
             if (event.altKey && event.key === 'ArrowLeft') {
                 event.preventDefault();
                 if (navigation.canGoBack) {
                     navigation.goBack();
                 }
             }
-            // Alt + seta direita = avançar
+            // Alt+Right: forward
             else if (event.altKey && event.key === 'ArrowRight') {
                 event.preventDefault();
                 if (navigation.canGoForward) {
@@ -288,39 +285,39 @@ function App() {
         };
     }, [navigation.canGoBack, navigation.canGoForward, videoPlayer.playingVideo, videoPlayer.handleCloseVideoPlayer]);
 
-    // Função para abrir configurações
+    // Open settings
     const handleOpenSettings = () => {
         modals.handleOpenSettings();
     };
 
-    // Função para fechar configurações
+    // Close settings
     const handleCloseSettings = () => {
         modals.handleCloseSettings();
     };
 
-    // Função chamada após importação de biblioteca (para recarregar dados)
+    // Library import side-effects (refresh data)
     const handleLibraryChanged = async () => {
-        // Recarregar pastas da biblioteca via context
+    // Reload library folders
         await videoLibraryActions.loadLibraryFolders();
 
-        // Recarregar dados da página inicial se necessário
+    // Refresh home page data if visible
         if (navigationState.showHomePage) {
             await videoLibraryActions.loadHomePageData();
         }
 
-        // Se estiver em uma pasta, recarregar seus vídeos
+    // If in a folder, clear and let context reload
         if (videoLibraryState.selectedFolder) {
             videoLibraryActions.setProcessedVideos([]);
             // Recarregar será feito automaticamente pelo context
         }
 
-        // Limpar busca se estiver ativa
+    // Reset search if active
         if (searchState.searchTerm) {
             searchActions.clearSearch();
         }
     };
 
-    // Hook para modais
+    // Modals management hook
     const modals = useModals({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         libraryActions,
@@ -330,7 +327,7 @@ function App() {
         handleLibraryChanged
     });
 
-    // Hook para menu de contexto
+    // Context menu hook
     const contextMenuHook = useContextMenu({
         onOpenVideoDetails: handleOpenVideoDetails
     });
@@ -341,12 +338,12 @@ function App() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Função para reproduzir o próximo vídeo
+    // Play next video (after countdown modal)
     const playNextVideo = async () => {
         await modals.playNextVideo();
     };
 
-    // Função para cancelar próximo vídeo
+    // Cancel next video autoplay
     const cancelNextVideo = () => {
         modals.cancelNextVideo();
     };
@@ -457,7 +454,7 @@ function App() {
                 </div>
             </div>
 
-            {/* Modal para detalhes do vídeo */}
+            {/* Video Details Modal */}
             <VideoDetailsModal
                 show={modals.showVideoDetails}
                 video={modals.selectedVideo}
@@ -470,7 +467,7 @@ function App() {
                 onDescriptionChange={modals.setEditingDescription}
             />
 
-            {/* Menu de contexto */}
+            {/* Context Menu */}
             <ContextMenu
                 show={contextMenuHook.contextMenu.show}
                 x={contextMenuHook.contextMenu.x}
@@ -484,7 +481,7 @@ function App() {
                 onClose={contextMenuHook.handleCloseContextMenu}
             />
 
-            {/* Player de Vídeo Interno Customizado */}
+            {/* Internal Custom Video Player */}
             {videoPlayer.playingVideo && (
                 <YouTubeStyleVideoPlayer
                     key={`${videoPlayer.playingVideo.file_path}-${videoPlayer.playingVideo.is_watched}-${videoPlayer.playingVideo.watch_progress_seconds}`}
@@ -515,7 +512,7 @@ function App() {
                     }}
                     onVideoEnded={() => {
                         videoPlayer.setIsPlaying(false);
-                        // Procura o próximo vídeo e inicia o countdown
+                        // Find next playlist item and start countdown
                         if (videoPlayer.playingVideo) {
                             const currentIndex = videoLibraryState.processedVideos.findIndex((v: ProcessedVideo) => v.file_path === videoPlayer.playingVideo!.file_path);
                             if (currentIndex !== -1 && currentIndex < videoLibraryState.processedVideos.length - 1) {
@@ -531,7 +528,7 @@ function App() {
                     }}
                     onLoadedMetadata={(videoDuration: number) => {
                         videoPlayer.setDuration(videoDuration);
-                        // O playbackRate e volume já são setados no componente
+                        // Playback rate & volume already applied by component
                     }}
                     onPlay={() => videoPlayer.setIsPlaying(true)}
                     onPause={() => videoPlayer.setIsPlaying(false)}
@@ -542,7 +539,7 @@ function App() {
                 />
             )}
 
-            {/* Modal de Próximo Vídeo */}
+            {/* Next Video Modal */}
             <NextVideoModal
                 show={modals.showNextVideoPrompt}
                 nextVideo={modals.nextVideo}
@@ -552,7 +549,7 @@ function App() {
                 onCancel={cancelNextVideo}
             />
 
-            {/* Modal de Confirmação de Remoção */}
+            {/* Remove Folder Confirmation Modal */}
             <ConfirmRemovalModal
                 show={modals.showRemoveConfirmation}
                 folderToRemove={modals.folderToRemove}

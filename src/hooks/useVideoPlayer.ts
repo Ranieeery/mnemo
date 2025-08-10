@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ProcessedVideo } from '../services/videoProcessor';
+import { ProcessedVideo } from '../types/video';
 import { checkAndLoadSubtitles, parseSubtitles, getCurrentSubtitle, Subtitle } from '../utils/subtitleUtils';
 
 interface UseVideoPlayerProps {
@@ -30,7 +30,7 @@ export const useVideoPlayer = ({
     const [isIconChanging, setIsIconChanging] = useState<boolean>(false);
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
 
-    // Funções do player de vídeo interno
+    // Initialize playback for selected video (loads subtitles if found)
     const handlePlayVideo = async (video: ProcessedVideo) => {
         setPlayingVideo(video);
         setShowVideoPlayer(true);
@@ -42,12 +42,12 @@ export const useVideoPlayer = ({
         setShowControls(true);
         setCurrentSubtitle("");
 
-        // Reset subtitle states
+    // Reset subtitle state
         setSubtitles([]);
         setSubtitlesAvailable(false);
         setSubtitlesEnabled(false);
 
-        // Verifica e carrega legendas
+    // Load & parse subtitles if available
         try {
             const subtitleData = await checkAndLoadSubtitles(video.file_path);
             if (subtitleData) {
@@ -90,16 +90,16 @@ export const useVideoPlayer = ({
         try {
             if (!isFullscreen) {
                 // Entra em tela cheia real (F11)
-                await document.documentElement.requestFullscreen();
+                await document.documentElement.requestFullscreen(); // enter real fullscreen
                 setIsFullscreen(true);
             } else {
                 // Sai da tela cheia real
-                await document.exitFullscreen();
+                await document.exitFullscreen(); // exit real fullscreen
                 setIsFullscreen(false);
             }
         } catch (error) {
             console.error('Error toggling fullscreen:', error);
-            // Fallback para método simples se API não funcionar
+            // Fallback toggle if Fullscreen API errors
             setIsFullscreen(!isFullscreen);
         }
     };
@@ -107,7 +107,7 @@ export const useVideoPlayer = ({
     const togglePlayPause = () => {
         const video = document.querySelector('video') as HTMLVideoElement;
         if (video) {
-            // Ativa a animação de transição
+            // Trigger transient play/pause icon animation
             setIsIconChanging(true);
 
             setTimeout(() => {
@@ -119,9 +119,9 @@ export const useVideoPlayer = ({
                     setIsPlaying(false);
                 }
 
-                // Remove a animação após a mudança
+                // Remove animation after transition ends
                 setTimeout(() => setIsIconChanging(false), 150);
-            }, 75); // Metade da duração da transição CSS
+            }, 75); // Half CSS transition duration
         }
     };
 
@@ -141,14 +141,14 @@ export const useVideoPlayer = ({
         }
     };
 
-    // Função para alternar legendas
+    // Toggle subtitles on/off
     const toggleSubtitles = () => {
         if (subtitlesAvailable) {
             setSubtitlesEnabled(!subtitlesEnabled);
         }
     };
 
-    // Auto-hide controls em fullscreen
+    // Restart controls auto-hide timer
     const resetControlsTimeout = () => {
         if (controlsTimeout) {
             clearTimeout(controlsTimeout);
@@ -156,7 +156,7 @@ export const useVideoPlayer = ({
 
         setShowControls(true);
 
-        // Só esconde controles se estiver em fullscreen REAL
+    // Only hide in real fullscreen mode
         if (document.fullscreenElement) {
             const timeout = setTimeout(() => {
                 setShowControls(false);
@@ -165,7 +165,7 @@ export const useVideoPlayer = ({
         }
     };
 
-    // Atualizar legenda atual baseada no tempo do vídeo
+    // Update currently active subtitle line
     useEffect(() => {
         if (playingVideo && subtitlesEnabled && subtitles.length > 0) {
             const newSubtitle = getCurrentSubtitle(currentTime, subtitles, subtitlesEnabled);
@@ -179,7 +179,7 @@ export const useVideoPlayer = ({
         }
     }, [currentTime, subtitlesEnabled, playingVideo, subtitles, currentSubtitle]);
 
-    // Auto-hide controls em fullscreen
+    // Respond to fullscreen state changes
     useEffect(() => {
         if (document.fullscreenElement) {
             resetControlsTimeout();
@@ -192,7 +192,7 @@ export const useVideoPlayer = ({
         }
     }, [isFullscreen]);
 
-    // Listener para detectar mudanças na tela cheia
+    // Listen for native fullscreen changes
     useEffect(() => {
         if (!playingVideo) return;
 
@@ -207,7 +207,7 @@ export const useVideoPlayer = ({
         };
     }, [playingVideo]);
 
-    // Atualizar progresso do vídeo durante reprodução
+    // Persist watch progress and mark video watched when threshold hit
     const handleVideoProgress = async (video: ProcessedVideo, currentTime: number) => {
         if (video.id && video.duration_seconds && currentTime > 0) {
             try {

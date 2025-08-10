@@ -1,6 +1,6 @@
 import React from 'react';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ProcessedVideo } from "../../services/videoProcessor";
+import { ProcessedVideo } from "../../types/video";
 import { formatDuration } from "../../utils/videoUtils";
 import { DirEntry } from "../../contexts/NavigationContext";
 
@@ -39,7 +39,7 @@ export default function DirectoryView({
 
     return (
         <div>
-            {/* Header com título e indicador de processamento */}
+            {/* Header with directory title and active processing indicator */}
             <div className="mb-4 flex items-center justify-between">
                 <div>
                     <h3 className="text-lg font-semibold text-gray-300 mb-2">

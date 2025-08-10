@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { ProcessedVideo } from '../../services/videoProcessor';
+import { ProcessedVideo } from '../../types/video';
 import { formatDuration } from '../../utils/videoUtils';
 import { VideoTagsManager } from '../VideoTagsManager';
 
@@ -27,7 +27,7 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
     onTitleChange,
     onDescriptionChange
 }) => {
-    // Bloqueia scroll de fundo quando modal aberto
+    // Prevent background scroll when modal is open
     useEffect(() => {
         if (show) {
             const original = document.body.style.overflow;
@@ -42,13 +42,13 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8">
-            {/* Backdrop com blur */}
+            {/* Backdrop with blur */}
             <div
                 className="absolute inset-0 backdrop-blur-md bg-black/30 transition-opacity animate-fade-in"
                 onClick={onClose}
             />
 
-            {/* Modal Content (responsivo) */}
+            {/* Modal content (responsive) */}
             <div className="relative max-h-full overflow-y-auto w-full max-w-2xl bg-gray-900/90 border border-gray-700 shadow-2xl rounded-2xl p-6 backdrop-blur-xl animate-scale-in"
                  onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
@@ -91,7 +91,7 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
                             </svg>
                         </div>
                     )}
-                    {/* Meta rápida */}
+                    {/* Quick metadata summary */}
                     <div className="flex flex-col gap-3 text-sm text-gray-300">
                         {video.duration_seconds && video.duration_seconds > 0 && (
                             <div className="flex items-center justify-between">
