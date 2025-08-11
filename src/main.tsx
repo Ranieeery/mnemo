@@ -22,12 +22,8 @@ ReactDOM.createRoot(rootEl).render(
 );
 
 const win = getCurrentWindow();
-function tryShow(attempt: number) {
-    win.show().catch(() => {
-        if (attempt < 3) setTimeout(() => tryShow(attempt + 1), 80 * (attempt + 1));
-    });
-}
+win.show().catch(() => {});
 requestAnimationFrame(() => {
-    setTimeout(() => tryShow(0), 25);
-    setTimeout(() => { win.isVisible().then(v => { if (!v) tryShow(0); }); }, 1000);
+    const root = document.getElementById('root');
+    if (root) root.style.opacity = '1';
 });
