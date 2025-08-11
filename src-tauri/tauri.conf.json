@@ -14,7 +14,8 @@
       {
         "title": "Mnemo",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "visible": false
       }
     ],
     "security": {
@@ -30,12 +31,12 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis",      
-      "msi",       
-      "app",       
-      "dmg",       
-      "appimage",  
-      "deb"        
+      "nsis",
+      "msi",
+      "app",
+      "dmg",
+      "appimage",
+      "deb"
     ],
     "icon": [
       "icons/32x32.png",
