@@ -21,8 +21,13 @@ ReactDOM.createRoot(rootEl).render(
     </React.StrictMode>
 );
 
+const win = getCurrentWindow();
+function tryShow(attempt: number) {
+    win.show().catch(() => {
+        if (attempt < 3) setTimeout(() => tryShow(attempt + 1), 80 * (attempt + 1));
+    });
+}
 requestAnimationFrame(() => {
-    setTimeout(() => {
-        getCurrentWindow().show().catch(() => {});
-    }, 30);
+    setTimeout(() => tryShow(0), 25);
+    setTimeout(() => { win.isVisible().then(v => { if (!v) tryShow(0); }); }, 1000);
 });

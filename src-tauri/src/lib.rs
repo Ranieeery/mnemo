@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use serde_json;
+use tauri::Manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -354,6 +355,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
+            .on_page_load(|window, _payload| {
+                let _ = window.show();
+            })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                window.app_handle().exit(0);
+            }
+        })
         .invoke_handler(tauri::generate_handler![greet, read_directory, scan_directory_recursive, extract_video_metadata, generate_thumbnail, open_file_externally, open_file_with_dialog, file_exists, read_subtitle_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

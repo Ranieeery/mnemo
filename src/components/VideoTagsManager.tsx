@@ -113,7 +113,6 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
                 <div className="text-sm text-gray-500">Loading tags...</div>
             ) : (
                 <>
-                    {/* Existing Tags */}
                     <div className="flex flex-wrap gap-2 mb-3">
                         {videoTags.map(tag => (
                             <span
@@ -135,7 +134,6 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
                         )}
                     </div>
 
-                    {/* Add New Tag */}
                     <div className="flex gap-2">
                         <input
                             type="text"
@@ -154,7 +152,6 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
                         </button>
                     </div>
 
-                    {/* Suggested Tags */}
                     {allTags.length > 0 && (
                         <div className="mt-3">
                             <h5 className="text-xs text-gray-400 mb-2">Suggested tags:</h5>

@@ -204,19 +204,21 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
     };
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8">
             <div
-                className="fixed inset-0 bg-black bg-opacity-50"
+                className="absolute inset-0 backdrop-blur-md bg-black/30 transition-opacity animate-fade-in"
                 onClick={onClose}
-            ></div>
+            />
 
-            <div className="relative bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full mx-4 p-6"
-                 onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-200">Settings</h2>
+            <div
+                className="relative max-h-full overflow-y-auto w-full max-w-3xl bg-gray-900/90 border border-gray-700 shadow-2xl rounded-2xl p-6 backdrop-blur-xl animate-scale-in"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                    <h2 className="text-2xl font-bold text-gray-100 tracking-tight">Settings</h2>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-200 transition-colors"
+                        className="self-start sm:self-auto text-gray-400 hover:text-gray-200 transition-colors"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -228,27 +230,27 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                 <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-300 mb-4">Library Statistics</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="bg-gray-800/70 border border-gray-700/60 rounded-xl p-4 backdrop-blur">
                             <div className="text-2xl font-bold text-blue-400">{stats.totalVideos}</div>
-                            <div className="text-sm text-gray-400">Total Videos</div>
+                            <div className="text-xs uppercase tracking-wide text-gray-400 mt-1">Total Videos</div>
                         </div>
-                        <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="bg-gray-800/70 border border-gray-700/60 rounded-xl p-4 backdrop-blur">
                             <div className="text-2xl font-bold text-green-400">{stats.watchedVideos}</div>
-                            <div className="text-sm text-gray-400">Watched</div>
+                            <div className="text-xs uppercase tracking-wide text-gray-400 mt-1">Watched</div>
                         </div>
-                        <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="bg-gray-800/70 border border-gray-700/60 rounded-xl p-4 backdrop-blur">
                             <div className="text-2xl font-bold text-purple-400">{stats.totalTags}</div>
-                            <div className="text-sm text-gray-400">Tags</div>
+                            <div className="text-xs uppercase tracking-wide text-gray-400 mt-1">Tags</div>
                         </div>
-                        <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="bg-gray-800/70 border border-gray-700/60 rounded-xl p-4 backdrop-blur">
                             <div className="text-2xl font-bold text-yellow-400">{stats.totalFolders}</div>
-                            <div className="text-sm text-gray-400">Folders</div>
+                            <div className="text-xs uppercase tracking-wide text-gray-400 mt-1">Folders</div>
                         </div>
-                        <div className="bg-gray-700 rounded-lg p-4 md:col-span-2">
+                        <div className="bg-gray-800/70 border border-gray-700/60 rounded-xl p-4 md:col-span-2 backdrop-blur">
                             <div className="text-2xl font-bold text-red-400">
                                 {stats.totalDuration > 0 ? formatDuration(stats.totalDuration) : "0:00"}
                             </div>
-                            <div className="text-sm text-gray-400">Total Duration</div>
+                            <div className="text-xs uppercase tracking-wide text-gray-400 mt-1">Total Duration</div>
                         </div>
                     </div>
                 </div>
@@ -256,7 +258,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                 <div className="mb-6">
                     <h3 className="text-lg font-semibold text-gray-300 mb-4">Library Management</h3>
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
                             <div>
                                 <h4 className="font-medium text-gray-200">Export Library</h4>
                                 <p className="text-sm text-gray-400">
@@ -290,7 +292,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             </button>
                         </div>
 
-                        <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
                             <div>
                                 <h4 className="font-medium text-gray-200">Import Library</h4>
                                 <p className="text-sm text-gray-400">
@@ -324,7 +326,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             </button>
                         </div>
 
-                        <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
                             <div>
                                 <h4 className="font-medium text-gray-200">Reset Watch Status</h4>
                                 <p className="text-sm text-gray-400">
@@ -358,7 +360,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             </button>
                         </div>
 
-                        <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
                             <div>
                                 <h4 className="font-medium text-gray-200">Debug Database</h4>
                                 <p className="text-sm text-gray-400">
@@ -394,21 +396,17 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                     </div>
                 </div>
 
-                <div className="border-t border-gray-600 pt-4">
+                <div className="border-t border-gray-700/60 pt-5 mt-2">
                     <h3 className="text-lg font-semibold text-gray-300 mb-2">About Mnemo</h3>
-                    <p className="text-sm text-gray-400">
-                        Version 1.0.0 - Local Video Library Manager
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                        Built with Tauri, React, TypeScript, and Tailwind CSS
-                    </p>
+                    <p className="text-sm text-gray-400">Version 0.1.1 - Local Video Library Manager</p>
+                    <p className="text-xs text-gray-500 mt-1">Built with Tauri, React, TypeScript, and Tailwind CSS</p>
                 </div>
             </div>
 
             {showImportConfirm && (
-                <div className="fixed inset-0 flex items-center justify-center z-60">
-                    <div className="fixed inset-0 bg-black bg-opacity-75"></div>
-                    <div className="relative bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4 p-6">
+                <div className="fixed inset-0 z-[140] flex items-center justify-center px-4 py-8">
+                    <div className="absolute inset-0 backdrop-blur-sm bg-black/50" />
+                    <div className="relative w-full max-w-md bg-gray-900/90 border border-gray-700 shadow-xl rounded-2xl p-6 backdrop-blur-xl animate-scale-in">
                         <h3 className="text-lg font-semibold text-gray-200 mb-4">Confirm Import</h3>
                         <div className="mb-4">
                             <p className="text-sm text-gray-300 mb-2">
@@ -417,20 +415,20 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             <p className="text-sm text-yellow-400">
                                 ⚠️ This action cannot be undone!
                             </p>
-                            <div className="mt-3 p-3 bg-gray-700 rounded text-xs text-gray-400 break-all">
+                            <div className="mt-3 p-3 bg-gray-800/70 border border-gray-700/60 rounded text-xs text-gray-400 break-all">
                                 File: {importFile?.split(/[/\\]/).pop()}
                             </div>
                         </div>
-                        <div className="flex justify-end space-x-3">
+                        <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
                             <button
                                 onClick={handleImportCancel}
-                                className="px-4 py-2 text-gray-400 hover:text-gray-200 transition-colors"
+                                className="px-4 py-2 text-gray-400 hover:text-gray-200 transition-colors text-sm"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleImportConfirm}
-                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors text-sm shadow"
                             >
                                 Import & Replace
                             </button>
