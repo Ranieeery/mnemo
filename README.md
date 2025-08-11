@@ -33,23 +33,51 @@ Mnemo is a desktop application for managing and exploring your local video colle
 
 ## Getting Started
 
-1. **Install dependencies:**
+### 1. Download (Recommended)
 
-   ```sh
-   bun install
-   ```
+Grab the latest prebuilt installers/binaries from the **Releases** page:
 
-2. **Run in development mode:**
+<https://github.com/Ranieeery/mnemo/releases>
 
-   ```sh
-   bun tauri dev
-   ```
+> NOTE: For now, published binaries are Windows-only. macOS and Linux packages will be added in future releases. You can still build from source on those platforms (see below).
 
-3. **Build for production:**
+Available targets (as published):
 
-   ```sh
-   bun tauri build
-   ```
+- Windows: `.exe` (NSIS) and/or `.msi`
+
+After download:
+
+- Windows: run the installer
+
+### 2. Run From Source (Development)
+
+Prerequisites: Bun, Rust toolchain, Node build deps, and (for Linux) GTK/WebKit deps.
+
+Install deps:
+
+```sh
+bun install
+```
+
+Start dev:
+
+```sh
+bun tauri dev
+```
+
+### 3. Build Locally
+
+```sh
+bun tauri build
+```
+
+Artifacts will appear under:
+`src-tauri/target/release/bundle/`
+
+Platform notes:
+
+- macOS: build on macOS for signed/notarized DMG (optional signing not yet enabled).
+- Linux: build on a Linux host (or CI) to produce `.deb` & `.AppImage`.
 
 ## Development Process
 
