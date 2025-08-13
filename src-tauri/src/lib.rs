@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use serde_json;
 use tauri::Manager;
 
@@ -140,6 +140,23 @@ struct VideoMetadata {
     file_size: u64,
 }
 
+#[inline]
+fn new_command_hidden(program: &str) -> Command {
+    let mut cmd = Command::new(program);
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd
+}
+
 #[tauri::command]
 async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, String> {
     let path = Path::new(&file_path);
@@ -147,7 +164,7 @@ async fn extract_video_metadata(file_path: String) -> Result<VideoMetadata, Stri
         return Err("File does not exist".to_string());
     }
 
-    let output = Command::new("ffprobe")
+    let output = new_command_hidden("ffprobe")
         .args(&[
             "-v", "quiet",
             "-print_format", "json",
@@ -214,7 +231,7 @@ async fn generate_thumbnail(
             .map_err(|e| format!("Failed to create thumbnail directory: {}", e))?;
     }
 
-    let output = Command::new("ffmpeg")
+    let output = new_command_hidden("ffmpeg")
         .args(&[
             "-i", &video_path,
             "-ss", &timestamp_str,
