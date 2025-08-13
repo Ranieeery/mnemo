@@ -398,7 +398,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
 
                 <div className="border-t border-gray-700/60 pt-5 mt-2">
                     <h3 className="text-lg font-semibold text-gray-300 mb-2">About Mnemo</h3>
-                    <p className="text-sm text-gray-400">Version 0.1.1 - Local Video Library Manager</p>
+                    <p className="text-sm text-gray-400">Version 0.1.2 - Local Video Library Manager</p>
                     <p className="text-xs text-gray-500 mt-1">Built with Tauri, React, TypeScript, and Tailwind CSS</p>
                 </div>
             </div>
