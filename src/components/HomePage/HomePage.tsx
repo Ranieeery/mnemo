@@ -204,7 +204,7 @@ export default function HomePage({
                                 You</h3>
                             <div
                                 className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                                {suggestedVideos.map((video, index) => (
+                                {suggestedVideos.slice(0, 5).map((video, index) => (
                                     <div
                                         key={`suggested-${video.file_path}-${index}`}
                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
@@ -289,8 +289,8 @@ export default function HomePage({
                                             </button>
                                         </div>
                                         {folderData.videos.length > 0 ? (
-                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-                                                {folderData.videos.slice(0, 8).map((video, videoIndex) => (
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                                                {folderData.videos.slice(0, 5).map((video, videoIndex) => (
                                                     <div
                                                         key={`folder-video-${video.file_path}-${videoIndex}`}
                                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"

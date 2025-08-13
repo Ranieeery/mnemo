@@ -431,6 +431,7 @@ function App() {
                             currentPath={navigationState.currentPath}
                             processedVideos={videoLibraryState.processedVideos}
                             directoryContents={navigationState.directoryContents}
+                            libraryFolders={videoLibraryState.libraryFolders}
                             videoProcessingState={videoProcessingState}
                             onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={contextMenuHook.handleContextMenu}

@@ -144,7 +144,7 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
             const [recent, inProgress, suggestions, foldersWithPreviews] = await Promise.all([
                 getRecentlyWatchedVideos(8),
                 getVideosInProgress(8),
-                getUnwatchedVideos(16),
+                getUnwatchedVideos(5),
                 getLibraryFoldersWithPreviews()
             ]);
 
