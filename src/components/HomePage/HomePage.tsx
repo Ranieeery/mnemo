@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { ProcessedVideo } from "../../types/video";
 import { formatDuration } from "../../utils/videoUtils";
@@ -28,6 +28,18 @@ export default function HomePage({
     onOpenVideoDetails,
     onSelectFolder
 }: HomePageProps) {
+    const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1280);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsLargeScreen(window.innerWidth >= 1280);
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const videoLimit = isLargeScreen ? 5 : 4;
     return (
         <div>
             <div className="mb-8">
@@ -59,152 +71,13 @@ export default function HomePage({
                 </div>
             ) : (
                 <div className="space-y-8">
-                    {videosInProgress.length > 0 && (
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-300 mb-4">Continue
-                                Watching</h3>
-                            <div
-                                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                                {videosInProgress.map((video, index) => (
-                                    <div
-                                        key={`progress-${video.file_path}-${index}`}
-                                        className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
-                                        onClick={() => onPlayVideo(video, videosInProgress)}
-                                        onContextMenu={(e) => onContextMenu(e, video)}
-                                    >
-                                        <div className="aspect-video bg-gray-700 relative">
-                                            {video.thumbnail_path ? (
-                                                <img
-                                                    src={convertFileSrc(video.thumbnail_path)}
-                                                    alt={video.title}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div
-                                                    className="w-full h-full flex items-center justify-center">
-                                                    <svg className="w-12 h-12 text-gray-500" fill="none"
-                                                         stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round"
-                                                              strokeWidth={2}
-                                                              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                                    </svg>
-                                                </div>
-                                            )}
-                                            {video.watch_progress_seconds != null && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
-                                                <div
-                                                    className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
-                                                    <div
-                                                        className="h-full bg-blue-500"
-                                                        style={{width: `${(video.watch_progress_seconds / video.duration_seconds) * 100}%`}}
-                                                    ></div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="p-3">
-                                            <h4 className="font-medium text-gray-200 text-sm mb-1 line-clamp-2">
-                                                {video.title}
-                                            </h4>
-                                            <div
-                                                className="flex items-center justify-between text-xs text-gray-400">
-                                                <span>{video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00'}</span>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onOpenVideoDetails(video);
-                                                    }}
-                                                    className="hover:text-gray-200 transition-colors"
-                                                    title="Video details"
-                                                >
-                                                    ⓘ
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {recentVideos.length > 0 && (
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-300 mb-4">Recently
-                                Watched</h3>
-                            <div
-                                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                                {recentVideos.map((video, index) => (
-                                    <div
-                                        key={`recent-${video.file_path}-${index}`}
-                                        className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
-                                        onClick={() => onPlayVideo(video, recentVideos)}
-                                        onContextMenu={(e) => onContextMenu(e, video)}
-                                    >
-                                        <div className="aspect-video bg-gray-700 relative">
-                                            {video.thumbnail_path ? (
-                                                <img
-                                                    src={convertFileSrc(video.thumbnail_path)}
-                                                    alt={video.title}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div
-                                                    className="w-full h-full flex items-center justify-center">
-                                                    <svg className="w-12 h-12 text-gray-500" fill="none"
-                                                         stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round"
-                                                              strokeWidth={2}
-                                                              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                                    </svg>
-                                                </div>
-                                            )}
-                                            {video.is_watched && (
-                                                <div
-                                                    className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                                                    <svg className="w-4 h-4 text-white" fill="none"
-                                                         stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round"
-                                                              strokeWidth={2} d="M5 13l4 4L19 7"/>
-                                                    </svg>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="p-3">
-                                            <h4 className="font-medium text-gray-200 text-sm mb-1 line-clamp-2">
-                                                {video.title}
-                                            </h4>
-                                            <div
-                                                className="flex items-center justify-between text-xs text-gray-400">
-                                                <span>{video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00'}</span>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onOpenVideoDetails(video);
-                                                    }}
-                                                    className="hover:text-gray-200 transition-colors"
-                                                    title="Video details"
-                                                >
-                                                    ⓘ
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                     {suggestedVideos.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold text-gray-300 mb-4">Suggestions for
                                 You</h3>
                             <div
-                                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                                {suggestedVideos.slice(0, 5).map((video, index) => (
+                                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                                {suggestedVideos.slice(0, videoLimit).map((video, index) => (
                                     <div
                                         key={`suggested-${video.file_path}-${index}`}
                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
@@ -268,6 +141,87 @@ export default function HomePage({
                         </div>
                     )}
 
+                    {(recentVideos.length > 0 || videosInProgress.length > 0) && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-300 mb-4">Recently Watched</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                                {[...videosInProgress, ...recentVideos]
+                                    .slice(0, videoLimit)
+                                    .map((video, index) => {
+                                        const isInProgress = videosInProgress.some(v => v.file_path === video.file_path);
+                                        const videoList = isInProgress ? videosInProgress : recentVideos;
+                                        return (
+                                            <div
+                                                key={`recent-${video.file_path}-${index}`}
+                                                className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
+                                                onClick={() => onPlayVideo(video, videoList)}
+                                                onContextMenu={(e) => onContextMenu(e, video)}
+                                            >
+                                                <div className="aspect-video bg-gray-700 relative">
+                                                    {video.thumbnail_path ? (
+                                                        <img
+                                                            src={convertFileSrc(video.thumbnail_path)}
+                                                            alt={video.title}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                e.currentTarget.style.display = 'none';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <svg className="w-12 h-12 text-gray-500" fill="none"
+                                                                 stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round"
+                                                                      strokeWidth={2}
+                                                                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                    {/* Progress bar for videos in progress */}
+                                                    {isInProgress && video.watch_progress_seconds != null && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
+                                                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
+                                                            <div
+                                                                className="h-full bg-blue-500"
+                                                                style={{width: `${(video.watch_progress_seconds / video.duration_seconds) * 100}%`}}
+                                                            ></div>
+                                                        </div>
+                                                    )}
+                                                    {/* Watched indicator for completed videos */}
+                                                    {!isInProgress && video.is_watched && (
+                                                        <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                                            <svg className="w-4 h-4 text-white" fill="none"
+                                                                 stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round"
+                                                                      strokeWidth={2} d="M5 13l4 4L19 7"/>
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="p-3">
+                                                    <h4 className="font-medium text-gray-200 text-sm mb-1 line-clamp-2">
+                                                        {video.title}
+                                                    </h4>
+                                                    <div className="flex items-center justify-between text-xs text-gray-400">
+                                                        <span>{video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00'}</span>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onOpenVideoDetails(video);
+                                                            }}
+                                                            className="hover:text-gray-200 transition-colors"
+                                                            title="Video details"
+                                                        >
+                                                            ⓘ
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        </div>
+                    )}
+
                     {libraryFoldersWithPreviews.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold text-gray-300 mb-4">Your Libraries</h3>
@@ -290,7 +244,7 @@ export default function HomePage({
                                         </div>
                                         {folderData.videos.length > 0 ? (
                                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                                                {folderData.videos.slice(0, 5).map((video, videoIndex) => (
+                                                {folderData.videos.slice(0, videoLimit).map((video, videoIndex) => (
                                                     <div
                                                         key={`folder-video-${video.file_path}-${videoIndex}`}
                                                         className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors cursor-pointer relative"
