@@ -164,6 +164,16 @@ export default function YouTubeStyleVideoPlayer({
                     e.preventDefault();
                     onToggleFullscreen();
                     break;
+                case '[':
+                    e.preventDefault();
+                    const newSlowSpeed = Math.max(0.25, playbackSpeed - 0.25);
+                    onSpeedChange(newSlowSpeed);
+                    break;
+                case ']':
+                    e.preventDefault();
+                    const newFastSpeed = Math.min(2, playbackSpeed + 0.25);
+                    onSpeedChange(newFastSpeed);
+                    break;
                 case 'arrowleft':
                     e.preventDefault();
                     seek(-5);
