@@ -11,11 +11,11 @@ const ConfirmRemovalModal: React.FC<ConfirmRemovalModalProps> = ({ show, folderT
     if (!show || !folderToRemove) return null;
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
-            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onCancel}></div>
+        <div className="fixed inset-0 flex items-center justify-center z-50 px-4 py-8">
+            <div className="absolute inset-0 backdrop-blur-md bg-black/30 transition-opacity" onClick={onCancel}></div>
 
             <div
-                className="relative bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4 p-6"
+                className="relative bg-gray-900/90 rounded-lg shadow-lg max-w-md w-full mx-4 p-6 backdrop-blur-xl border border-gray-700"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between mb-4">

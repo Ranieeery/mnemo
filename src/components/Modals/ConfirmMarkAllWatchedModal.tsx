@@ -33,8 +33,12 @@ const ConfirmMarkAllWatchedModal: React.FC<ConfirmMarkAllWatchedModalProps> = ({
     const confirmButtonColor = isWatchMode ? "bg-blue-600 hover:bg-blue-700" : "bg-orange-600 hover:bg-orange-700";
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+            <div
+                className="absolute inset-0 backdrop-blur-md bg-black/30 transition-opacity"
+                onClick={onCancel}
+            />
+            <div className="relative bg-gray-900/90 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700 shadow-2xl backdrop-blur-xl">
                 <div className="flex items-start gap-4 mb-4">
                     <div className="flex-shrink-0">
                         <svg className={`w-10 h-10 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

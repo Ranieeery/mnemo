@@ -28,8 +28,9 @@ const NextVideoModal: React.FC<NextVideoModalProps> = ({
     }
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+            <div className="absolute inset-0 backdrop-blur-md bg-black/30 transition-opacity" />
+            <div className="relative bg-gray-900/90 rounded-lg p-6 w-96 border border-gray-700 backdrop-blur-xl">
                 <h3 className="text-lg font-semibold text-gray-200 mb-4 flex items-center justify-between">
                     <div className="flex items-center">
                         <svg
