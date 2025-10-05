@@ -14,6 +14,7 @@ import {
     resetAllVideosAsUnwatched,
 } from "../database";
 import { formatDuration } from "../utils/videoUtils";
+import ConfirmResetAllModal from "./Modals/ConfirmResetAllModal";
 
 interface LibraryStats {
     totalVideos: number;
@@ -41,6 +42,7 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
     const [showImportConfirm, setShowImportConfirm] = useState(false);
     const [importFile, setImportFile] = useState<string | null>(null);
     const [isResettingWatched, setIsResettingWatched] = useState(false);
+    const [showResetAllConfirm, setShowResetAllConfirm] = useState(false);
     const [isDebugging, setIsDebugging] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -53,6 +55,8 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
             if (e.key === "Escape") {
                 if (showImportConfirm) {
                     setShowImportConfirm(false);
+                } else if (showResetAllConfirm) {
+                    setShowResetAllConfirm(false);
                 } else {
                     onClose();
                 }
@@ -61,7 +65,7 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
 
         document.addEventListener("keydown", handleEscape);
         return () => document.removeEventListener("keydown", handleEscape);
-    }, [onClose, showImportConfirm]);
+    }, [onClose, showImportConfirm, showResetAllConfirm]);
 
     const loadStats = async () => {
         try {
@@ -156,10 +160,11 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
     };
 
     const handleResetAllWatched = async () => {
-        if (!confirm("Are you sure you want to mark ALL videos as unwatched? This action cannot be undone.")) {
-            return;
-        }
+        setShowResetAllConfirm(true);
+    };
 
+    const handleConfirmResetAll = async () => {
+        setShowResetAllConfirm(false);
         setIsResettingWatched(true);
         try {
             await resetAllVideosAsUnwatched();
@@ -175,6 +180,10 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
         } finally {
             setIsResettingWatched(false);
         }
+    };
+
+    const handleCancelResetAll = () => {
+        setShowResetAllConfirm(false);
     };
 
     const handleDebugDatabase = async () => {
@@ -563,6 +572,12 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
                     </div>
                 </div>
             )}
+
+            <ConfirmResetAllModal
+                show={showResetAllConfirm}
+                onConfirm={handleConfirmResetAll}
+                onCancel={handleCancelResetAll}
+            />
         </div>
     );
 }
