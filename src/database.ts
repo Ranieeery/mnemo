@@ -1247,3 +1247,27 @@ export async function markAllVideosInFolderAsWatched(folderPath: string): Promis
         throw error;
     }
 }
+
+export async function markAllVideosInFolderAsUnwatched(folderPath: string): Promise<number> {
+    const database = await getDatabase();
+
+    try {
+        const normalizedPath = folderPath.replace(/\\/g, '/');
+        
+        const result = await database.execute(
+            `UPDATE videos 
+             SET is_watched = 0, 
+                 watch_progress_seconds = 0,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE REPLACE(file_path, '\\', '/') LIKE ? || '%'
+             AND is_watched = 1`,
+            [normalizedPath]
+        );
+
+        console.log(`Marked all videos in ${folderPath} as unwatched`);
+        return result.rowsAffected || 0;
+    } catch (error) {
+        console.error('Error marking all videos as unwatched:', error);
+        throw error;
+    }
+}

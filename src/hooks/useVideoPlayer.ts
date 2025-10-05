@@ -7,16 +7,19 @@ interface UseVideoPlayerProps {
     updateWatchProgress: (videoId: number, currentTime: number, duration: number) => Promise<void>;
     setProcessedVideos: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
     loadHomePageData: () => Promise<void>;
+    currentPath?: string;
 }
 
 export const useVideoPlayer = ({
     setShowVideoPlayer,
     updateWatchProgress,
     setProcessedVideos,
-    loadHomePageData
+    loadHomePageData,
+    currentPath
 }: UseVideoPlayerProps) => {
     const [playingVideo, setPlayingVideo] = useState<ProcessedVideo | null>(null);
     const lastVideoRef = useRef<ProcessedVideo | null>(null);
+    const [videoFolderPath, setVideoFolderPath] = useState<string | null>(null);
     const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
     const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -32,8 +35,11 @@ export const useVideoPlayer = ({
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
 
     const handlePlayVideo = async (video: ProcessedVideo) => {
-    setPlayingVideo(video);
-    lastVideoRef.current = video;
+        setPlayingVideo(video);
+        lastVideoRef.current = video;
+        if (currentPath) {
+            setVideoFolderPath(currentPath);
+        }
         setShowVideoPlayer(true);
         setPlaybackSpeed(1);
         setIsPlaying(false);
@@ -77,6 +83,7 @@ export const useVideoPlayer = ({
     const handleCloseVideoPlayer = () => {
         setShowVideoPlayer(false);
         setPlayingVideo(null);
+        setVideoFolderPath(null);
         setIsFullscreen(false);
         setIsPlaying(false);
         if (controlsTimeout) {
@@ -237,6 +244,7 @@ export const useVideoPlayer = ({
         isIconChanging,
         subtitles,
         setSubtitles,
+        videoFolderPath,
 
         handlePlayVideo,
         handleCloseVideoPlayer,

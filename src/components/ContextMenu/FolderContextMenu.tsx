@@ -5,7 +5,10 @@ interface FolderContextMenuProps {
     x: number;
     y: number;
     folderName: string;
+    hasWatchedVideos?: boolean;
+    hasUnwatchedVideos?: boolean;
     onMarkAllAsWatched: () => void;
+    onMarkAllAsUnwatched?: () => void;
     onClose: () => void;
 }
 
@@ -14,7 +17,10 @@ const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
     x,
     y,
     folderName,
+    hasWatchedVideos = false,
+    hasUnwatchedVideos = true,
     onMarkAllAsWatched,
+    onMarkAllAsUnwatched,
     onClose
 }) => {
     if (!show) {
@@ -62,28 +68,55 @@ const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
                 </p>
             </div>
 
-            <button
-                onClick={() => { 
-                    onMarkAllAsWatched(); 
-                    onClose(); 
-                }}
-                className={`${buttonClass} rounded-b-xl`}
-            >
-                <svg 
-                    className={`${iconClass} text-blue-400 group-hover:text-blue-300 group-active:text-blue-200`} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
+            {hasUnwatchedVideos && (
+                <button
+                    onClick={() => { 
+                        onMarkAllAsWatched(); 
+                        onClose(); 
+                    }}
+                    className={`${buttonClass} ${!hasWatchedVideos ? 'rounded-b-xl' : ''}`}
                 >
-                    <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                </svg>
-                <span className="font-medium">Mark All as Watched</span>
-            </button>
+                    <svg 
+                        className={`${iconClass} text-blue-400 group-hover:text-blue-300 group-active:text-blue-200`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                    >
+                        <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                    </svg>
+                    <span className="font-medium">Mark All as Watched</span>
+                </button>
+            )}
+
+            {hasWatchedVideos && onMarkAllAsUnwatched && (
+                <button
+                    onClick={() => { 
+                        onMarkAllAsUnwatched(); 
+                        onClose(); 
+                    }}
+                    className={`${buttonClass} rounded-b-xl`}
+                >
+                    <svg 
+                        className={`${iconClass} text-orange-400 group-hover:text-orange-300 group-active:text-orange-200`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                    >
+                        <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                        />
+                    </svg>
+                    <span className="font-medium">Mark All as Unwatched</span>
+                </button>
+            )}
         </div>
     );
 };

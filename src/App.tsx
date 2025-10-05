@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
-import { saveLibraryFolder, updateWatchProgress, markAllVideosInFolderAsWatched, getFolderStats } from "./database";
+import { saveLibraryFolder, updateWatchProgress, markAllVideosInFolderAsWatched, markAllVideosInFolderAsUnwatched, getFolderStats } from "./database";
 import { checkVideoToolsAvailable } from "./services/videoProcessor";
 import { ProcessedVideo } from "./types/video";
 import { VideoLibraryService } from "./services/VideoLibraryService";
@@ -49,6 +49,7 @@ function App() {
     }>({ ffmpeg: false, ffprobe: false });
 
     const [showMarkAllWatchedModal, setShowMarkAllWatchedModal] = useState(false);
+    const [markAllModalMode, setMarkAllModalMode] = useState<'watch' | 'unwatch'>('watch');
     const [selectedFolderForMarkAll, setSelectedFolderForMarkAll] = useState<{
         path: string;
         name: string;
@@ -62,12 +63,16 @@ function App() {
         y: number;
         folderPath: string;
         folderName: string;
+        hasWatchedVideos: boolean;
+        hasUnwatchedVideos: boolean;
     }>({
         show: false,
         x: 0,
         y: 0,
         folderPath: '',
-        folderName: ''
+        folderName: '',
+        hasWatchedVideos: false,
+        hasUnwatchedVideos: false
     });
 
     const [libraryFolderContextMenu, setLibraryFolderContextMenu] = useState<{
@@ -222,7 +227,8 @@ function App() {
         },
         updateWatchProgress,
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
-        loadHomePageData: videoLibraryActions.loadHomePageData
+        loadHomePageData: videoLibraryActions.loadHomePageData,
+        currentPath: navigationState.currentPath
     });
 
     ({ toggleVideoWatchedStatus } = useVideoWatchedStatus({
@@ -267,12 +273,19 @@ function App() {
         const handleMouseButtons = (event: MouseEvent) => {
             if (event.button === 3) {
                 event.preventDefault();
-                if (navigationComputed.canGoBack) {
+                if (videoPlayer.playingVideo && videoPlayer.videoFolderPath) {
+                    videoPlayer.handleCloseVideoPlayer();
+                    if (navigationState.currentPath !== videoPlayer.videoFolderPath) {
+                        navigationActions.navigateTo(videoPlayer.videoFolderPath);
+                    }
+                } else if (navigationComputed.canGoBack) {
                     navigationActions.goBack();
                 }
             } else if (event.button === 4) {
                 event.preventDefault();
-                if (navigationComputed.canGoForward) {
+                if (!videoPlayer.playingVideo && videoPlayer.videoFolderPath && navigationState.currentPath === videoPlayer.videoFolderPath) {
+                    videoPlayer.reopenLastVideo();
+                } else if (navigationComputed.canGoForward) {
                     navigationActions.goForward();
                 }
             }
@@ -282,7 +295,7 @@ function App() {
         return () => {
             document.removeEventListener('mousedown', handleMouseButtons);
         };
-    }, [navigationComputed.canGoBack, navigationComputed.canGoForward]);
+    }, [navigationComputed.canGoBack, navigationComputed.canGoForward, videoPlayer.playingVideo, videoPlayer.videoFolderPath, navigationState.currentPath]);
 
     useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -382,13 +395,20 @@ function App() {
     const handleFolderContextMenu = async (event: React.MouseEvent, folderPath: string, folderName: string) => {
         event.preventDefault();
         
-        setFolderContextMenu({
-            show: true,
-            x: event.clientX,
-            y: event.clientY,
-            folderPath: folderPath,
-            folderName: folderName
-        });
+        try {
+            const stats = await getFolderStats(folderPath);
+            setFolderContextMenu({
+                show: true,
+                x: event.clientX,
+                y: event.clientY,
+                folderPath: folderPath,
+                folderName: folderName,
+                hasWatchedVideos: stats.watchedVideos > 0,
+                hasUnwatchedVideos: stats.totalVideos - stats.watchedVideos > 0
+            });
+        } catch (error) {
+            console.error('Error getting folder stats for context menu:', error);
+        }
     };
 
     const handleCloseFolderContextMenu = () => {
@@ -397,7 +417,9 @@ function App() {
             x: 0,
             y: 0,
             folderPath: '',
-            folderName: ''
+            folderName: '',
+            hasWatchedVideos: false,
+            hasUnwatchedVideos: false
         });
     };
 
@@ -412,6 +434,7 @@ function App() {
                 totalVideos: stats.totalVideos,
                 unwatchedVideos: stats.totalVideos - stats.watchedVideos
             });
+            setMarkAllModalMode('watch');
             setShowMarkAllWatchedModal(true);
         } catch (error) {
             console.error('Error getting folder stats:', error);
@@ -432,6 +455,41 @@ function App() {
         } catch (error) {
             console.error('Error marking all as watched:', error);
             alert('Erro ao marcar vídeos como assistidos');
+        }
+    };
+
+    const handleMarkAllAsUnwatchedRequest = async () => {
+        if (!folderContextMenu.folderPath) return;
+        
+        try {
+            const stats = await getFolderStats(folderContextMenu.folderPath);
+            setSelectedFolderForMarkAll({
+                path: folderContextMenu.folderPath,
+                name: folderContextMenu.folderName,
+                totalVideos: stats.totalVideos,
+                unwatchedVideos: stats.totalVideos - stats.watchedVideos
+            });
+            setMarkAllModalMode('unwatch');
+            setShowMarkAllWatchedModal(true);
+        } catch (error) {
+            console.error('Error getting folder stats:', error);
+        }
+    };
+
+    const handleConfirmMarkAllUnwatched = async () => {
+        if (!selectedFolderForMarkAll) return;
+
+        try {
+            await markAllVideosInFolderAsUnwatched(selectedFolderForMarkAll.path);
+            setShowMarkAllWatchedModal(false);
+            setSelectedFolderForMarkAll(null);
+            
+            if (navigationState.currentPath) {
+                loadDirectoryContents(navigationState.currentPath);
+            }
+        } catch (error) {
+            console.error('Error marking all as unwatched:', error);
+            alert('Erro ao desmarcar vídeos como assistidos');
         }
     };
 
@@ -601,7 +659,10 @@ function App() {
                 x={folderContextMenu.x}
                 y={folderContextMenu.y}
                 folderName={folderContextMenu.folderName}
+                hasWatchedVideos={folderContextMenu.hasWatchedVideos}
+                hasUnwatchedVideos={folderContextMenu.hasUnwatchedVideos}
                 onMarkAllAsWatched={handleMarkAllAsWatchedRequest}
+                onMarkAllAsUnwatched={handleMarkAllAsUnwatchedRequest}
                 onClose={handleCloseFolderContextMenu}
             />
 
@@ -619,7 +680,8 @@ function App() {
                 folderName={selectedFolderForMarkAll?.name || ''}
                 totalVideos={selectedFolderForMarkAll?.totalVideos || 0}
                 unwatchedVideos={selectedFolderForMarkAll?.unwatchedVideos || 0}
-                onConfirm={handleConfirmMarkAllWatched}
+                mode={markAllModalMode}
+                onConfirm={markAllModalMode === 'watch' ? handleConfirmMarkAllWatched : handleConfirmMarkAllUnwatched}
                 onCancel={handleCancelMarkAllWatched}
             />
 
