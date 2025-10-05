@@ -43,6 +43,14 @@ export const useVideoPlayer = ({
         setShowControls(true);
         setCurrentSubtitle("");
 
+        if (controlsTimeout) {
+            clearTimeout(controlsTimeout);
+        }
+        const timeout = setTimeout(() => {
+            setShowControls(false);
+        }, 10000);
+        setControlsTimeout(timeout);
+
         setSubtitles([]);
         setSubtitlesAvailable(false);
         setSubtitlesEnabled(false);
@@ -154,12 +162,10 @@ export const useVideoPlayer = ({
 
         setShowControls(true);
 
-        if (document.fullscreenElement) {
-            const timeout = setTimeout(() => {
-                setShowControls(false);
-            }, 3000);
-            setControlsTimeout(timeout);
-        }
+        const timeout = setTimeout(() => {
+            setShowControls(false);
+        }, 5000);
+        setControlsTimeout(timeout);
     };
 
     useEffect(() => {
@@ -174,18 +180,6 @@ export const useVideoPlayer = ({
             }
         }
     }, [currentTime, subtitlesEnabled, playingVideo, subtitles, currentSubtitle]);
-
-    useEffect(() => {
-        if (document.fullscreenElement) {
-            resetControlsTimeout();
-        } else {
-            setShowControls(true);
-            if (controlsTimeout) {
-                clearTimeout(controlsTimeout);
-                setControlsTimeout(null);
-            }
-        }
-    }, [isFullscreen]);
 
     useEffect(() => {
         if (!playingVideo) return;
