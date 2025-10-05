@@ -37,7 +37,14 @@ interface YouTubeStyleVideoPlayerProps {
 }
 
 const Rewind10Icon = () => (
-    <svg className="w-8 h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" strokeWidth={3} stroke="currentColor">
+    <svg
+        className="w-8 h-8"
+        viewBox="0 0 64 64"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        strokeWidth={3}
+        stroke="currentColor"
+    >
         <polyline points="9.57 15.41 12.17 24.05 20.81 21.44" strokeLinecap="round" />
         <path d="M26.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" strokeLinecap="round" />
         <rect x="32.19" y="22.52" width="11.41" height="18.89" rx="5.7" />
@@ -46,7 +53,14 @@ const Rewind10Icon = () => (
 );
 
 const Forward10Icon = () => (
-    <svg className="w-8 h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" strokeWidth={3} stroke="currentColor">
+    <svg
+        className="w-8 h-8"
+        viewBox="0 0 64 64"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        strokeWidth={3}
+        stroke="currentColor"
+    >
         <path d="M23.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" strokeLinecap="round" />
         <rect x="29.19" y="22.52" width="11.41" height="18.89" rx="5.7" />
         <polyline points="54.43 15.41 51.83 24.05 43.19 21.44" strokeLinecap="round" />
@@ -84,23 +98,22 @@ export default function YouTubeStyleVideoPlayer({
     onToggleWatchedStatus,
     onOpenProperties,
     formatTime,
-    resetControlsTimeout
+    resetControlsTimeout,
 }: YouTubeStyleVideoPlayerProps) {
-    const currentIndex = playlistVideos.findIndex(v => v.file_path === video.file_path);
-    const nextVideos = currentIndex !== -1
-        ? playlistVideos.slice(currentIndex + 1, currentIndex + 7)
-        : playlistVideos.slice(0, 6);
+    const currentIndex = playlistVideos.findIndex((v) => v.file_path === video.file_path);
+    const nextVideos =
+        currentIndex !== -1 ? playlistVideos.slice(currentIndex + 1, currentIndex + 7) : playlistVideos.slice(0, 6);
 
     const lastVolumeRef = useRef(volume || 1);
     if (volume > 0) lastVolumeRef.current = volume;
 
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    const [skipIndicator, setSkipIndicator] = useState<{ dir: 'back' | 'forward'; amount: number } | null>(null);
+    const [skipIndicator, setSkipIndicator] = useState<{ dir: "back" | "forward"; amount: number } | null>(null);
     const skipTimeoutRef = useRef<number | null>(null);
 
     const showSkipIndicator = (delta: number) => {
-        const dir = delta < 0 ? 'back' : 'forward';
+        const dir = delta < 0 ? "back" : "forward";
         const amount = Math.abs(delta);
         setSkipIndicator({ dir, amount });
         if (skipTimeoutRef.current) {
@@ -124,8 +137,8 @@ export default function YouTubeStyleVideoPlayer({
             const target = e.target as HTMLElement | null;
             if (target) {
                 const tag = target.tagName.toLowerCase();
-                if (tag === 'input' || tag === 'textarea' || target.isContentEditable) return;
-                if (tag === 'select') return;
+                if (tag === "input" || tag === "textarea" || target.isContentEditable) return;
+                if (tag === "select") return;
             }
             const key = e.key.toLowerCase();
 
@@ -138,24 +151,24 @@ export default function YouTubeStyleVideoPlayer({
             };
 
             switch (key) {
-                case 'j':
+                case "j":
                     e.preventDefault();
                     seek(-10);
                     break;
-                case 'l':
+                case "l":
                     e.preventDefault();
                     seek(10);
                     break;
-                case 'k':
-                case ' ':
+                case "k":
+                case " ":
                     e.preventDefault();
                     onTogglePlayPause();
                     break;
-                case 'c':
+                case "c":
                     e.preventDefault();
                     if (subtitlesAvailable) onToggleSubtitles();
                     break;
-                case 'm':
+                case "m":
                     e.preventDefault();
                     if (volume > 0) {
                         onVolumeChange(0);
@@ -163,33 +176,33 @@ export default function YouTubeStyleVideoPlayer({
                         onVolumeChange(lastVolumeRef.current || 1);
                     }
                     break;
-                case 'f':
+                case "f":
                     e.preventDefault();
                     onToggleFullscreen();
                     break;
-                case '[':
+                case "[":
                     e.preventDefault();
                     const newSlowSpeed = Math.max(0.25, playbackSpeed - 0.25);
                     onSpeedChange(newSlowSpeed);
                     break;
-                case ']':
+                case "]":
                     e.preventDefault();
                     const newFastSpeed = Math.min(2, playbackSpeed + 0.25);
                     onSpeedChange(newFastSpeed);
                     break;
-                case 'arrowleft':
+                case "arrowleft":
                     e.preventDefault();
                     seek(-5);
                     break;
-                case 'arrowright':
+                case "arrowright":
                     e.preventDefault();
                     seek(5);
                     break;
-                case 'arrowup':
+                case "arrowup":
                     e.preventDefault();
                     changeVolume(0.05);
                     break;
-                case 'arrowdown':
+                case "arrowdown":
                     e.preventDefault();
                     changeVolume(-0.05);
                     break;
@@ -198,9 +211,22 @@ export default function YouTubeStyleVideoPlayer({
             }
             resetControlsTimeout();
         };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [currentTime, duration, volume, subtitlesAvailable, onSeek, onTogglePlayPause, onToggleSubtitles, onToggleFullscreen, onVolumeChange, playbackSpeed, onSpeedChange, resetControlsTimeout]);
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [
+        currentTime,
+        duration,
+        volume,
+        subtitlesAvailable,
+        onSeek,
+        onTogglePlayPause,
+        onToggleSubtitles,
+        onToggleFullscreen,
+        onVolumeChange,
+        playbackSpeed,
+        onSpeedChange,
+        resetControlsTimeout,
+    ]);
 
     const videoElement = (
         <video
@@ -257,7 +283,7 @@ export default function YouTubeStyleVideoPlayer({
 
             {skipIndicator && (
                 <div className="absolute inset-0 pointer-events-none select-none">
-                    {skipIndicator.dir === 'back' && (
+                    {skipIndicator.dir === "back" && (
                         <div className="absolute top-1/2 -translate-y-1/2 skip-indicator skip-indicator-left text-white flex flex-col items-center gap-1 center-indicator-bg rounded-xl px-4 py-3 shadow-lg">
                             <div className="flex items-center gap-2 text-lg font-semibold">
                                 <span className="text-xl">⏪</span>
@@ -265,7 +291,7 @@ export default function YouTubeStyleVideoPlayer({
                             </div>
                         </div>
                     )}
-                    {skipIndicator.dir === 'forward' && (
+                    {skipIndicator.dir === "forward" && (
                         <div className="absolute top-1/2 -translate-y-1/2 skip-indicator skip-indicator-right text-white flex flex-col items-center gap-1 center-indicator-bg rounded-xl px-4 py-3 shadow-lg">
                             <div className="flex items-center gap-2 text-lg font-semibold">
                                 <span className="amount">{skipIndicator.amount}s</span>
@@ -280,7 +306,7 @@ export default function YouTubeStyleVideoPlayer({
 
     const controls = (
         <div
-            className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"}`}
             onClick={(e) => {
                 if (e.target === e.currentTarget) {
                     onTogglePlayPause();
@@ -290,11 +316,14 @@ export default function YouTubeStyleVideoPlayer({
             <div className="absolute bottom-16 left-4 right-4">
                 <div className="flex items-center space-x-2 text-white text-sm mb-2">
                     <span>{formatTime(currentTime)}</span>
-                    <div className="flex-1 bg-gray-600 rounded-full h-1 cursor-pointer" onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const percent = (e.clientX - rect.left) / rect.width;
-                        onSeek(percent * duration);
-                    }}>
+                    <div
+                        className="flex-1 bg-gray-600 rounded-full h-1 cursor-pointer"
+                        onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const percent = (e.clientX - rect.left) / rect.width;
+                            onSeek(percent * duration);
+                        }}
+                    >
                         <div
                             className="bg-blue-500 h-1 rounded-full transition-all duration-100"
                             style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
@@ -346,20 +375,37 @@ export default function YouTubeStyleVideoPlayer({
                         >
                             {volume === 0 ? (
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
                                         d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-                                        clipRule="evenodd" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                                        clipRule="evenodd"
+                                    />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                                    />
                                 </svg>
                             ) : volume < 0.5 ? (
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                                    />
                                 </svg>
                             ) : (
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                                    />
                                 </svg>
                             )}
                         </button>
@@ -379,16 +425,23 @@ export default function YouTubeStyleVideoPlayer({
                 <div className="flex items-center space-x-4">
                     <button
                         onClick={onToggleSubtitles}
-                        className={`transition-all duration-200 hover:scale-110 ${subtitlesAvailable
-                            ? (subtitlesEnabled ? 'text-blue-400' : 'text-white hover:text-blue-400')
-                            : 'text-gray-500 cursor-not-allowed'
-                            }`}
+                        className={`transition-all duration-200 hover:scale-110 ${
+                            subtitlesAvailable
+                                ? subtitlesEnabled
+                                    ? "text-blue-400"
+                                    : "text-white hover:text-blue-400"
+                                : "text-gray-500 cursor-not-allowed"
+                        }`}
                         title={subtitlesAvailable ? "Toggle Subtitles (C)" : "No subtitles available"}
                         disabled={!subtitlesAvailable}
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
                             {subtitlesEnabled && (
                                 <circle cx="18" cy="6" r="3" fill="currentColor" className="text-blue-400" />
                             )}
@@ -418,13 +471,21 @@ export default function YouTubeStyleVideoPlayer({
                     >
                         {isFullscreen ? (
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                    d="M9 9V4.5M9 9H4.5M9 9L3.5 3.5M15 9h4.5M15 9V4.5M15 9l5.5-5.5M9 15v4.5M9 15H4.5M9 15l-5.5 5.5M15 15h4.5M15 15v4.5m0-4.5l5.5 5.5" />
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 9V4.5M9 9H4.5M9 9L3.5 3.5M15 9h4.5M15 9V4.5M15 9l5.5-5.5M9 15v4.5M9 15H4.5M9 15l-5.5 5.5M15 15h4.5M15 15v4.5m0-4.5l5.5 5.5"
+                                />
                             </svg>
                         ) : (
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5" />
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5"
+                                />
                             </svg>
                         )}
                     </button>
@@ -466,7 +527,7 @@ export default function YouTubeStyleVideoPlayer({
 
             <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 flex flex-col min-w-0">
-                    <div className="bg-black relative" style={{ aspectRatio: '16/9' }}>
+                    <div className="bg-black relative" style={{ aspectRatio: "16/9" }}>
                         {videoElement}
                         {overlayElements}
                         {controls}
@@ -477,24 +538,32 @@ export default function YouTubeStyleVideoPlayer({
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4 text-gray-300 text-sm">
                                 <span>Duration: {formatDuration(video.duration_seconds || 0)}</span>
-                                {video.watch_progress_seconds && video.watch_progress_seconds > 0 && !video.is_watched && (
-                                    <span>Progress: {formatDuration(video.watch_progress_seconds)}</span>
-                                )}
+                                {video.watch_progress_seconds &&
+                                    video.watch_progress_seconds > 0 &&
+                                    !video.is_watched && (
+                                        <span>Progress: {formatDuration(video.watch_progress_seconds)}</span>
+                                    )}
                             </div>
 
                             <div className="flex items-center space-x-3">
                                 <button
                                     onClick={() => onToggleWatchedStatus(video)}
-                                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-colors text-sm ${video.is_watched
-                                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                                        : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                                        }`}
+                                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                                        video.is_watched
+                                            ? "bg-green-600 hover:bg-green-700 text-white"
+                                            : "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                                    }`}
                                     title={video.is_watched ? "Mark as unwatched" : "Mark as watched"}
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M5 13l4 4L19 7"
+                                        />
                                     </svg>
-                                    <span>{video.is_watched ? 'Watched' : 'Mark as Watched'}</span>
+                                    <span>{video.is_watched ? "Watched" : "Mark as Watched"}</span>
                                 </button>
 
                                 <button
@@ -503,9 +572,18 @@ export default function YouTubeStyleVideoPlayer({
                                     title="Video Properties"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                                        />
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                        />
                                     </svg>
                                     <span>Properties</span>
                                 </button>
@@ -546,10 +624,10 @@ export default function YouTubeStyleVideoPlayer({
                                                 onError={(e) => {
                                                     const parent = e.currentTarget.parentElement;
                                                     if (parent) {
-                                                        e.currentTarget.style.display = 'none';
-                                                        const fallbackIcon = parent.querySelector('.fallback-icon');
+                                                        e.currentTarget.style.display = "none";
+                                                        const fallbackIcon = parent.querySelector(".fallback-icon");
                                                         if (fallbackIcon) {
-                                                            (fallbackIcon as HTMLElement).style.display = 'flex';
+                                                            (fallbackIcon as HTMLElement).style.display = "flex";
                                                         }
                                                     }
                                                 }}
@@ -557,12 +635,22 @@ export default function YouTubeStyleVideoPlayer({
                                         ) : null}
 
                                         <div
-                                            className={`fallback-icon absolute inset-0 flex items-center justify-center ${nextVideo.thumbnail_path ? 'hidden' : 'flex'
-                                                }`}
+                                            className={`fallback-icon absolute inset-0 flex items-center justify-center ${
+                                                nextVideo.thumbnail_path ? "hidden" : "flex"
+                                            }`}
                                         >
-                                            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            <svg
+                                                className="w-6 h-6 text-gray-400"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                                />
                                             </svg>
                                         </div>
 
@@ -572,44 +660,68 @@ export default function YouTubeStyleVideoPlayer({
                                             </div>
                                         )}
 
-                                        {nextVideo.watch_progress_seconds != null && nextVideo.watch_progress_seconds > 0 && nextVideo.duration_seconds && !nextVideo.is_watched && (
-                                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600 rounded-b">
-                                                <div
-                                                    className="h-full bg-blue-500 rounded-bl"
-                                                    style={{ width: `${(nextVideo.watch_progress_seconds / nextVideo.duration_seconds) * 100}%` }}
-                                                ></div>
-                                            </div>
-                                        )}
+                                        {nextVideo.watch_progress_seconds != null &&
+                                            nextVideo.watch_progress_seconds > 0 &&
+                                            nextVideo.duration_seconds &&
+                                            !nextVideo.is_watched && (
+                                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600 rounded-b">
+                                                    <div
+                                                        className="h-full bg-blue-500 rounded-bl"
+                                                        style={{
+                                                            width: `${(nextVideo.watch_progress_seconds / nextVideo.duration_seconds) * 100}%`,
+                                                        }}
+                                                    ></div>
+                                                </div>
+                                            )}
 
                                         {nextVideo.is_watched && (
                                             <div className="absolute top-1 right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                <svg
+                                                    className="w-3 h-3 text-white"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M5 13l4 4L19 7"
+                                                    />
                                                 </svg>
                                             </div>
                                         )}
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="text-sm font-medium text-white mb-1 leading-tight overflow-hidden"
+                                        <h4
+                                            className="text-sm font-medium text-white mb-1 leading-tight overflow-hidden"
                                             style={{
-                                                display: '-webkit-box',
+                                                display: "-webkit-box",
                                                 WebkitLineClamp: 2,
-                                                WebkitBoxOrient: 'vertical',
-                                                textOverflow: 'ellipsis'
+                                                WebkitBoxOrient: "vertical",
+                                                textOverflow: "ellipsis",
                                             }}
-                                            title={nextVideo.title}>
+                                            title={nextVideo.title}
+                                        >
                                             {nextVideo.title}
                                         </h4>
                                         <div className="text-xs text-gray-400 space-y-1">
                                             {nextVideo.duration_seconds && (
                                                 <div>{formatDuration(nextVideo.duration_seconds)}</div>
                                             )}
-                                            {nextVideo.watch_progress_seconds && nextVideo.watch_progress_seconds > 0 && !nextVideo.is_watched && (
-                                                <div className="text-blue-400">
-                                                    {Math.round((nextVideo.watch_progress_seconds / (nextVideo.duration_seconds || 1)) * 100)}% watched
-                                                </div>
-                                            )}
+                                            {nextVideo.watch_progress_seconds &&
+                                                nextVideo.watch_progress_seconds > 0 &&
+                                                !nextVideo.is_watched && (
+                                                    <div className="text-blue-400">
+                                                        {Math.round(
+                                                            (nextVideo.watch_progress_seconds /
+                                                                (nextVideo.duration_seconds || 1)) *
+                                                                100
+                                                        )}
+                                                        % watched
+                                                    </div>
+                                                )}
                                         </div>
                                     </div>
                                 </div>
@@ -618,9 +730,18 @@ export default function YouTubeStyleVideoPlayer({
 
                         {nextVideos.length === 0 && (
                             <div className="p-6 text-center text-gray-400">
-                                <svg className="w-12 h-12 mx-auto mb-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                <svg
+                                    className="w-12 h-12 mx-auto mb-3 text-gray-500"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    />
                                 </svg>
                                 <p>No more videos in this folder</p>
                             </div>

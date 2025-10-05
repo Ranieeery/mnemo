@@ -1,6 +1,6 @@
-import React from 'react';
-import NavigationButtons from '../Navigation/NavigationButtons';
-import SearchBar from '../Search/SearchBar';
+import React from "react";
+import NavigationButtons from "../Navigation/NavigationButtons";
+import SearchBar from "../Search/SearchBar";
 
 interface TopBarProps {
     selectedFolder: string | null;
@@ -23,7 +23,7 @@ const TopBar: React.FC<TopBarProps> = ({
     searchTerm,
     setSearchTerm,
     isSearching,
-    onClearSearch
+    onClearSearch,
 }) => {
     return (
         <div className="bg-gray-800 border-b border-gray-700 p-4">
@@ -36,9 +36,7 @@ const TopBar: React.FC<TopBarProps> = ({
                         onGoForward={onGoForward}
                     />
 
-                    <h2 className="text-lg font-semibold">
-                        {selectedFolder || "Welcome to Mnemo"}
-                    </h2>
+                    <h2 className="text-lg font-semibold">{selectedFolder || "Welcome to Mnemo"}</h2>
                 </div>
 
                 <SearchBar

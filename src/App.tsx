@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
-import { invoke } from '@tauri-apps/api/core';
-import { saveLibraryFolder, updateWatchProgress, markAllVideosInFolderAsWatched, markAllVideosInFolderAsUnwatched, getFolderStats } from "./database";
+import { invoke } from "@tauri-apps/api/core";
+import {
+    saveLibraryFolder,
+    updateWatchProgress,
+    markAllVideosInFolderAsWatched,
+    markAllVideosInFolderAsUnwatched,
+    getFolderStats,
+} from "./database";
 import { checkVideoToolsAvailable } from "./services/videoProcessor";
 import { ProcessedVideo } from "./types/video";
 import { VideoLibraryService } from "./services/VideoLibraryService";
@@ -35,21 +41,21 @@ import "./styles/player.css";
 const naturalSort = (a: string, b: string): number => {
     return a.localeCompare(b, undefined, {
         numeric: true,
-        sensitivity: 'base'
+        sensitivity: "base",
     });
 };
 
 function App() {
     const { state: videoLibraryState, actions: videoLibraryActions } = useVideoLibrary();
     const { state: navigationState, actions: navigationActions, computed: navigationComputed } = useNavigationContext();
-    
+
     const [videoToolsAvailable, setVideoToolsAvailable] = useState<{
         ffmpeg: boolean;
-        ffprobe: boolean
+        ffprobe: boolean;
     }>({ ffmpeg: false, ffprobe: false });
 
     const [showMarkAllWatchedModal, setShowMarkAllWatchedModal] = useState(false);
-    const [markAllModalMode, setMarkAllModalMode] = useState<'watch' | 'unwatch'>('watch');
+    const [markAllModalMode, setMarkAllModalMode] = useState<"watch" | "unwatch">("watch");
     const [selectedFolderForMarkAll, setSelectedFolderForMarkAll] = useState<{
         path: string;
         name: string;
@@ -69,10 +75,10 @@ function App() {
         show: false,
         x: 0,
         y: 0,
-        folderPath: '',
-        folderName: '',
+        folderPath: "",
+        folderName: "",
         hasWatchedVideos: false,
-        hasUnwatchedVideos: false
+        hasUnwatchedVideos: false,
     });
 
     const [libraryFolderContextMenu, setLibraryFolderContextMenu] = useState<{
@@ -85,8 +91,8 @@ function App() {
         show: false,
         x: 0,
         y: 0,
-        folderPath: '',
-        folderName: ''
+        folderPath: "",
+        folderName: "",
     });
 
     const [libraryState, libraryActions] = useLibraryManagement({
@@ -99,11 +105,11 @@ function App() {
                 }
             }
         },
-        loadHomePageData: videoLibraryActions.loadHomePageData
+        loadHomePageData: videoLibraryActions.loadHomePageData,
     });
 
     const [videoProcessingState, videoProcessingActions] = useVideoProcessing({
-        setProcessedVideos: videoLibraryActions.setProcessedVideosReact
+        setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
     });
 
     const handleGoHome = () => {
@@ -114,8 +120,8 @@ function App() {
 
     const playFromHome = async (video: ProcessedVideo, fallbackList: ProcessedVideo[]) => {
         const path = video.file_path;
-        const lastSlash = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
-        let directory = '';
+        const lastSlash = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+        let directory = "";
         if (lastSlash !== -1) {
             directory = path.substring(0, lastSlash + 1);
         }
@@ -126,10 +132,10 @@ function App() {
                 playlist = await getVideosInDirectoryOrderedByWatchStatus(directory);
             }
         } catch (e) {
-            console.warn('Failed to load directory playlist, using fallback list', e);
+            console.warn("Failed to load directory playlist, using fallback list", e);
         }
 
-        if (!playlist.find(v => v.file_path === video.file_path)) {
+        if (!playlist.find((v) => v.file_path === video.file_path)) {
             playlist = [video, ...playlist];
         }
 
@@ -139,7 +145,7 @@ function App() {
 
     const [searchState, searchActions] = useVideoSearch({
         selectedFolder: videoLibraryState.selectedFolder,
-        onShowHomePage: handleGoHome
+        onShowHomePage: handleGoHome,
     });
 
     let toggleVideoWatchedStatus: (video: ProcessedVideo) => Promise<void>;
@@ -152,22 +158,23 @@ function App() {
                 const tools = await checkVideoToolsAvailable();
                 setVideoToolsAvailable(tools);
 
-                if (!tools.ffmpeg || !tools.ffprobe) console.warn('Video tools not available. Video processing will be limited.');
+                if (!tools.ffmpeg || !tools.ffprobe)
+                    console.warn("Video tools not available. Video processing will be limited.");
 
-                const savedFoldersLegacy = localStorage.getItem('libraryFolders');
+                const savedFoldersLegacy = localStorage.getItem("libraryFolders");
                 if (savedFoldersLegacy) {
                     const legacyFolders = JSON.parse(savedFoldersLegacy);
                     for (const folder of legacyFolders) {
                         await saveLibraryFolder(folder);
                         videoLibraryActions.addLibraryFolder(folder);
                     }
-                    localStorage.removeItem('libraryFolders');
+                    localStorage.removeItem("libraryFolders");
                     await videoLibraryActions.loadLibraryFolders();
                     await videoLibraryActions.loadHomePageData();
                 }
             } catch (error) {
-                console.error('Failed to initialize application:', error);
-                videoLibraryActions.setError('Failed to initialize application');
+                console.error("Failed to initialize application:", error);
+                videoLibraryActions.setError("Failed to initialize application");
             }
         };
 
@@ -195,19 +202,19 @@ function App() {
     const loadDirectoryContents = async (path: string) => {
         try {
             videoLibraryActions.setLoading(true);
-            
+
             const processedVideos = await VideoLibraryService.getVideosInDirectory(path);
             videoLibraryActions.setProcessedVideos(processedVideos);
-            
-            const directoryContents: any[] = await invoke('read_directory', { path });
+
+            const directoryContents: any[] = await invoke("read_directory", { path });
             navigationActions.setDirectoryContents(directoryContents);
-            
+
             if (videoToolsAvailable.ffmpeg && videoToolsAvailable.ffprobe) {
                 videoProcessingActions.processVideosInBackground(path);
             }
         } catch (error) {
-        console.error('Error loading directory contents:', error);
-        videoLibraryActions.setError('Error loading directory contents');
+            console.error("Error loading directory contents:", error);
+            videoLibraryActions.setError("Error loading directory contents");
         } finally {
             videoLibraryActions.setLoading(false);
         }
@@ -223,12 +230,11 @@ function App() {
     }, [navigationState.currentPath, navigationState.showHomePage]);
 
     const videoPlayer = useVideoPlayer({
-        setShowVideoPlayer: (_show: boolean) => {
-        },
+        setShowVideoPlayer: (_show: boolean) => {},
         updateWatchProgress,
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
         loadHomePageData: videoLibraryActions.loadHomePageData,
-        currentPath: navigationState.currentPath
+        currentPath: navigationState.currentPath,
     });
 
     ({ toggleVideoWatchedStatus } = useVideoWatchedStatus({
@@ -241,7 +247,7 @@ function App() {
         searchState,
         searchActions,
         currentlyPlayingVideo: videoPlayer.playingVideo,
-        setPlayingVideo: videoPlayer.setPlayingVideo
+        setPlayingVideo: videoPlayer.setPlayingVideo,
     }));
 
     const navigateToDirectory = (path: string) => {
@@ -265,10 +271,6 @@ function App() {
         modals.handleCancelEdit();
     };
 
-
-
-
-
     useEffect(() => {
         const handleMouseButtons = (event: MouseEvent) => {
             if (event.button === 3) {
@@ -283,7 +285,11 @@ function App() {
                 }
             } else if (event.button === 4) {
                 event.preventDefault();
-                if (!videoPlayer.playingVideo && videoPlayer.videoFolderPath && navigationState.currentPath === videoPlayer.videoFolderPath) {
+                if (
+                    !videoPlayer.playingVideo &&
+                    videoPlayer.videoFolderPath &&
+                    navigationState.currentPath === videoPlayer.videoFolderPath
+                ) {
                     videoPlayer.reopenLastVideo();
                 } else if (navigationComputed.canGoForward) {
                     navigationActions.goForward();
@@ -291,15 +297,21 @@ function App() {
             }
         };
 
-        document.addEventListener('mousedown', handleMouseButtons);
+        document.addEventListener("mousedown", handleMouseButtons);
         return () => {
-            document.removeEventListener('mousedown', handleMouseButtons);
+            document.removeEventListener("mousedown", handleMouseButtons);
         };
-    }, [navigationComputed.canGoBack, navigationComputed.canGoForward, videoPlayer.playingVideo, videoPlayer.videoFolderPath, navigationState.currentPath]);
+    }, [
+        navigationComputed.canGoBack,
+        navigationComputed.canGoForward,
+        videoPlayer.playingVideo,
+        videoPlayer.videoFolderPath,
+        navigationState.currentPath,
+    ]);
 
     useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
                 event.preventDefault();
                 if (videoPlayer.playingVideo) {
                     videoPlayer.handleCloseVideoPlayer();
@@ -307,13 +319,12 @@ function App() {
                 return;
             }
 
-            if (event.altKey && event.key === 'ArrowLeft') {
+            if (event.altKey && event.key === "ArrowLeft") {
                 event.preventDefault();
                 if (navigationComputed.canGoBack) {
                     navigationActions.goBack();
                 }
-            }
-            else if (event.altKey && event.key === 'ArrowRight') {
+            } else if (event.altKey && event.key === "ArrowRight") {
                 event.preventDefault();
                 if (navigationComputed.canGoForward) {
                     navigationActions.goForward();
@@ -333,13 +344,18 @@ function App() {
             }
         };
 
-        document.addEventListener('keydown', handleKeyDown);
-        document.addEventListener('mousedown', handlePointerDown);
+        document.addEventListener("keydown", handleKeyDown);
+        document.addEventListener("mousedown", handlePointerDown);
         return () => {
-            document.removeEventListener('keydown', handleKeyDown);
-            document.removeEventListener('mousedown', handlePointerDown);
+            document.removeEventListener("keydown", handleKeyDown);
+            document.removeEventListener("mousedown", handlePointerDown);
         };
-    }, [navigationComputed.canGoBack, navigationComputed.canGoForward, videoPlayer.playingVideo, videoPlayer.handleCloseVideoPlayer]);
+    }, [
+        navigationComputed.canGoBack,
+        navigationComputed.canGoForward,
+        videoPlayer.playingVideo,
+        videoPlayer.handleCloseVideoPlayer,
+    ]);
 
     const handleOpenSettings = () => {
         modals.handleOpenSettings();
@@ -371,17 +387,17 @@ function App() {
         navigation: { goToHomePage: handleGoHome },
         videoPlayer,
         selectedFolder: videoLibraryState.selectedFolder,
-        handleLibraryChanged
+        handleLibraryChanged,
     });
 
     const contextMenuHook = useContextMenu({
-        onOpenVideoDetails: handleOpenVideoDetails
+        onOpenVideoDetails: handleOpenVideoDetails,
     });
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+        return `${mins}:${secs.toString().padStart(2, "0")}`;
     };
 
     const playNextVideo = async () => {
@@ -394,7 +410,7 @@ function App() {
 
     const handleFolderContextMenu = async (event: React.MouseEvent, folderPath: string, folderName: string) => {
         event.preventDefault();
-        
+
         try {
             const stats = await getFolderStats(folderPath);
             setFolderContextMenu({
@@ -404,10 +420,10 @@ function App() {
                 folderPath: folderPath,
                 folderName: folderName,
                 hasWatchedVideos: stats.watchedVideos > 0,
-                hasUnwatchedVideos: stats.totalVideos - stats.watchedVideos > 0
+                hasUnwatchedVideos: stats.totalVideos - stats.watchedVideos > 0,
             });
         } catch (error) {
-            console.error('Error getting folder stats for context menu:', error);
+            console.error("Error getting folder stats for context menu:", error);
         }
     };
 
@@ -416,28 +432,28 @@ function App() {
             show: false,
             x: 0,
             y: 0,
-            folderPath: '',
-            folderName: '',
+            folderPath: "",
+            folderName: "",
             hasWatchedVideos: false,
-            hasUnwatchedVideos: false
+            hasUnwatchedVideos: false,
         });
     };
 
     const handleMarkAllAsWatchedRequest = async () => {
         if (!folderContextMenu.folderPath) return;
-        
+
         try {
             const stats = await getFolderStats(folderContextMenu.folderPath);
             setSelectedFolderForMarkAll({
                 path: folderContextMenu.folderPath,
                 name: folderContextMenu.folderName,
                 totalVideos: stats.totalVideos,
-                unwatchedVideos: stats.totalVideos - stats.watchedVideos
+                unwatchedVideos: stats.totalVideos - stats.watchedVideos,
             });
-            setMarkAllModalMode('watch');
+            setMarkAllModalMode("watch");
             setShowMarkAllWatchedModal(true);
         } catch (error) {
-            console.error('Error getting folder stats:', error);
+            console.error("Error getting folder stats:", error);
         }
     };
 
@@ -448,31 +464,31 @@ function App() {
             await markAllVideosInFolderAsWatched(selectedFolderForMarkAll.path);
             setShowMarkAllWatchedModal(false);
             setSelectedFolderForMarkAll(null);
-            
+
             if (navigationState.currentPath) {
                 loadDirectoryContents(navigationState.currentPath);
             }
         } catch (error) {
-            console.error('Error marking all as watched:', error);
-            alert('Erro ao marcar vídeos como assistidos');
+            console.error("Error marking all as watched:", error);
+            alert("Erro ao marcar vídeos como assistidos");
         }
     };
 
     const handleMarkAllAsUnwatchedRequest = async () => {
         if (!folderContextMenu.folderPath) return;
-        
+
         try {
             const stats = await getFolderStats(folderContextMenu.folderPath);
             setSelectedFolderForMarkAll({
                 path: folderContextMenu.folderPath,
                 name: folderContextMenu.folderName,
                 totalVideos: stats.totalVideos,
-                unwatchedVideos: stats.totalVideos - stats.watchedVideos
+                unwatchedVideos: stats.totalVideos - stats.watchedVideos,
             });
-            setMarkAllModalMode('unwatch');
+            setMarkAllModalMode("unwatch");
             setShowMarkAllWatchedModal(true);
         } catch (error) {
-            console.error('Error getting folder stats:', error);
+            console.error("Error getting folder stats:", error);
         }
     };
 
@@ -483,13 +499,13 @@ function App() {
             await markAllVideosInFolderAsUnwatched(selectedFolderForMarkAll.path);
             setShowMarkAllWatchedModal(false);
             setSelectedFolderForMarkAll(null);
-            
+
             if (navigationState.currentPath) {
                 loadDirectoryContents(navigationState.currentPath);
             }
         } catch (error) {
-            console.error('Error marking all as unwatched:', error);
-            alert('Erro ao desmarcar vídeos como assistidos');
+            console.error("Error marking all as unwatched:", error);
+            alert("Erro ao desmarcar vídeos como assistidos");
         }
     };
 
@@ -500,13 +516,13 @@ function App() {
 
     const handleLibraryFolderContextMenu = (event: React.MouseEvent, folderPath: string, folderName: string) => {
         event.preventDefault();
-        
+
         setLibraryFolderContextMenu({
             show: true,
             x: event.clientX,
             y: event.clientY,
             folderPath: folderPath,
-            folderName: folderName
+            folderName: folderName,
         });
     };
 
@@ -515,22 +531,22 @@ function App() {
             show: false,
             x: 0,
             y: 0,
-            folderPath: '',
-            folderName: ''
+            folderPath: "",
+            folderName: "",
         });
     };
 
     const handleSyncLibraryFolder = async () => {
         if (!libraryFolderContextMenu.folderPath) return;
-        
+
         try {
             handleCloseLibraryFolderContextMenu();
             await videoProcessingActions.processVideosInBackground(libraryFolderContextMenu.folderPath);
             await videoLibraryActions.loadHomePageData();
-            alert('Pasta da biblioteca sincronizada com sucesso!');
+            alert("Pasta da biblioteca sincronizada com sucesso!");
         } catch (error) {
-            console.error('Error syncing library folder:', error);
-            alert('Erro ao sincronizar pasta da biblioteca');
+            console.error("Error syncing library folder:", error);
+            alert("Erro ao sincronizar pasta da biblioteca");
         }
     };
 
@@ -544,9 +560,9 @@ function App() {
             }
         };
 
-        document.addEventListener('click', handleClickOutside);
+        document.addEventListener("click", handleClickOutside);
         return () => {
-            document.removeEventListener('click', handleClickOutside);
+            document.removeEventListener("click", handleClickOutside);
         };
     }, [folderContextMenu.show, libraryFolderContextMenu.show]);
 
@@ -583,10 +599,7 @@ function App() {
                     currentIndexingFolder={libraryState.currentIndexingFolder}
                 />
 
-                <SearchProgressBar
-                    show={searchState.isSearching}
-                    progress={searchState.searchProgress}
-                />
+                <SearchProgressBar show={searchState.isSearching} progress={searchState.searchProgress} />
 
                 <div className="flex-1 p-6 overflow-auto">
                     {searchState.showSearchResults ? (
@@ -608,7 +621,12 @@ function App() {
                             libraryFoldersWithPreviews={videoLibraryState.libraryFoldersWithPreviews}
                             onAddFolder={libraryActions.handleAddFolder}
                             onPlayVideo={async (video: ProcessedVideo, list?: ProcessedVideo[]) => {
-                                const baseList = list && list.length ? list : (videoLibraryState.suggestedVideos.length ? videoLibraryState.suggestedVideos : [video]);
+                                const baseList =
+                                    list && list.length
+                                        ? list
+                                        : videoLibraryState.suggestedVideos.length
+                                          ? videoLibraryState.suggestedVideos
+                                          : [video];
                                 await playFromHome(video, baseList);
                             }}
                             onContextMenu={contextMenuHook.handleContextMenu}
@@ -618,16 +636,24 @@ function App() {
                     ) : !videoLibraryState.selectedFolder ? (
                         <div className="flex flex-col items-center justify-center h-full text-center">
                             <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
-                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor"
-                                     viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                <svg
+                                    className="w-8 h-8 text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                                    />
                                 </svg>
                             </div>
                             <h3 className="text-xl font-semibold text-gray-300 mb-2">Get Started</h3>
                             <p className="text-gray-400 mb-6 max-w-md">
-                                Add folders containing your videos to start building your library.
-                                Mnemo will scan and organize your videos while preserving your folder structure.
+                                Add folders containing your videos to start building your library. Mnemo will scan and
+                                organize your videos while preserving your folder structure.
                             </p>
                             <button
                                 onClick={libraryActions.handleAddFolder}
@@ -677,11 +703,11 @@ function App() {
 
             <ConfirmMarkAllWatchedModal
                 show={showMarkAllWatchedModal}
-                folderName={selectedFolderForMarkAll?.name || ''}
+                folderName={selectedFolderForMarkAll?.name || ""}
                 totalVideos={selectedFolderForMarkAll?.totalVideos || 0}
                 unwatchedVideos={selectedFolderForMarkAll?.unwatchedVideos || 0}
                 mode={markAllModalMode}
-                onConfirm={markAllModalMode === 'watch' ? handleConfirmMarkAllWatched : handleConfirmMarkAllUnwatched}
+                onConfirm={markAllModalMode === "watch" ? handleConfirmMarkAllWatched : handleConfirmMarkAllUnwatched}
                 onCancel={handleCancelMarkAllWatched}
             />
 
@@ -741,13 +767,15 @@ function App() {
                     onVideoEnded={() => {
                         videoPlayer.setIsPlaying(false);
                         if (videoPlayer.playingVideo) {
-                            const currentIndex = videoLibraryState.processedVideos.findIndex((v: ProcessedVideo) => v.file_path === videoPlayer.playingVideo!.file_path);
+                            const currentIndex = videoLibraryState.processedVideos.findIndex(
+                                (v: ProcessedVideo) => v.file_path === videoPlayer.playingVideo!.file_path
+                            );
                             if (currentIndex !== -1 && currentIndex < videoLibraryState.processedVideos.length - 1) {
                                 const next = videoLibraryState.processedVideos[currentIndex + 1];
                                 const currentPlaybackSettings = {
                                     speed: videoPlayer.playbackSpeed,
                                     volume: videoPlayer.volume,
-                                    subtitlesEnabled: videoPlayer.subtitlesEnabled
+                                    subtitlesEnabled: videoPlayer.subtitlesEnabled,
                                 };
                                 modals.startNextVideoCountdown(next, currentPlaybackSettings);
                             }
@@ -781,12 +809,7 @@ function App() {
                 onCancel={cancelRemoveFolder}
             />
 
-            {modals.showSettings && (
-                <Settings
-                    onClose={handleCloseSettings}
-                    onLibraryChanged={handleLibraryChanged}
-                />
-            )}
+            {modals.showSettings && <Settings onClose={handleCloseSettings} onLibraryChanged={handleLibraryChanged} />}
         </div>
     );
 }

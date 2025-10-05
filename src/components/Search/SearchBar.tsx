@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface SearchBarProps {
     searchTerm: string;
@@ -7,12 +7,7 @@ interface SearchBarProps {
     onClearSearch: () => void;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({
-    searchTerm,
-    setSearchTerm,
-    isSearching,
-    onClearSearch
-}) => {
+const SearchBar: React.FC<SearchBarProps> = ({ searchTerm, setSearchTerm, isSearching, onClearSearch }) => {
     return (
         <div className="flex-1 max-w-md mx-4">
             <div className="relative">
@@ -33,12 +28,22 @@ const SearchBar: React.FC<SearchBarProps> = ({
                             title="Clear search"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
                             </svg>
                         </button>
                     ) : (
                         <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                            />
                         </svg>
                     )}
                 </div>

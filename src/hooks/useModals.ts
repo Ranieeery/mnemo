@@ -1,12 +1,16 @@
-import { useState } from 'react';
-import { ProcessedVideo } from '../types/video';
-import { updateVideoDetails } from '../database';
-import { checkAndLoadSubtitles, parseSubtitles } from '../utils/subtitleUtils';
+import { useState } from "react";
+import { ProcessedVideo } from "../types/video";
+import { updateVideoDetails } from "../database";
+import { checkAndLoadSubtitles, parseSubtitles } from "../utils/subtitleUtils";
 
 interface UseModalsProps {
     setProcessedVideos: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
     libraryActions: {
-        confirmRemoveFolder: (folderPath: string, selectedFolder: string | null, goToHomePage: () => void) => Promise<void>;
+        confirmRemoveFolder: (
+            folderPath: string,
+            selectedFolder: string | null,
+            goToHomePage: () => void
+        ) => Promise<void>;
     };
     navigation: {
         goToHomePage: () => void;
@@ -29,7 +33,7 @@ export const useModals = ({
     navigation,
     videoPlayer,
     selectedFolder,
-    handleLibraryChanged
+    handleLibraryChanged,
 }: UseModalsProps) => {
     const [selectedVideo, setSelectedVideo] = useState<ProcessedVideo | null>(null);
     const [showVideoDetails, setShowVideoDetails] = useState<boolean>(false);
@@ -47,7 +51,7 @@ export const useModals = ({
         speed: number;
         volume: number;
         subtitlesEnabled: boolean;
-    }>({speed: 1, volume: 1, subtitlesEnabled: false});
+    }>({ speed: 1, volume: 1, subtitlesEnabled: false });
     const [nextVideoTimeout, setNextVideoTimeout] = useState<number | null>(null);
     const [nextVideoCountdown, setNextVideoCountdown] = useState<number>(10);
 
@@ -69,13 +73,17 @@ export const useModals = ({
         try {
             await updateVideoDetails(selectedVideo.file_path, editingTitle, editingDescription);
 
-            setProcessedVideos(prev => prev.map(video =>
-                video.file_path === selectedVideo.file_path
-                    ? {...video, title: editingTitle, description: editingDescription}
-                    : video
-            ));
+            setProcessedVideos((prev) =>
+                prev.map((video) =>
+                    video.file_path === selectedVideo.file_path
+                        ? { ...video, title: editingTitle, description: editingDescription }
+                        : video
+                )
+            );
 
-            setSelectedVideo(prev => prev ? {...prev, title: editingTitle, description: editingDescription} : null);
+            setSelectedVideo((prev) =>
+                prev ? { ...prev, title: editingTitle, description: editingDescription } : null
+            );
 
             console.log("Video details saved successfully");
         } catch (error) {
@@ -139,7 +147,7 @@ export const useModals = ({
             }
 
             setTimeout(() => {
-                const video = document.querySelector('video') as HTMLVideoElement;
+                const video = document.querySelector("video") as HTMLVideoElement;
                 if (video) {
                     video.playbackRate = savedPlaybackSettings.speed;
                     video.volume = savedPlaybackSettings.volume;
@@ -164,14 +172,17 @@ export const useModals = ({
         setNextVideoCountdown(10);
     };
 
-    const startNextVideoCountdown = (video: ProcessedVideo, currentPlaybackSettings: {speed: number, volume: number, subtitlesEnabled: boolean}) => {
+    const startNextVideoCountdown = (
+        video: ProcessedVideo,
+        currentPlaybackSettings: { speed: number; volume: number; subtitlesEnabled: boolean }
+    ) => {
         setSavedPlaybackSettings(currentPlaybackSettings);
         setNextVideo(video);
         setShowNextVideoPrompt(true);
         setNextVideoCountdown(10);
 
         const countdownInterval = setInterval(() => {
-            setNextVideoCountdown(prev => {
+            setNextVideoCountdown((prev) => {
                 if (prev <= 1) {
                     clearInterval(countdownInterval);
                     playNextVideo();
@@ -213,6 +224,6 @@ export const useModals = ({
         },
         playNextVideo,
         cancelNextVideo,
-        startNextVideoCountdown
+        startNextVideoCountdown,
     };
 };

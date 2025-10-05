@@ -1,6 +1,6 @@
-import { ProcessedVideo } from '../types/video';
-import { markVideoAsWatched, markVideoAsUnwatched, getVideosInDirectoryOrderedByWatchStatus } from '../database';
-import { VideoSearchActions, VideoSearchState } from './useVideoSearch';
+import { ProcessedVideo } from "../types/video";
+import { markVideoAsWatched, markVideoAsUnwatched, getVideosInDirectoryOrderedByWatchStatus } from "../database";
+import { VideoSearchActions, VideoSearchState } from "./useVideoSearch";
 
 export interface UseVideoWatchedStatusProps {
     setProcessedVideos: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
@@ -25,7 +25,7 @@ export const useVideoWatchedStatus = ({
     searchState,
     searchActions,
     currentlyPlayingVideo,
-    setPlayingVideo
+    setPlayingVideo,
 }: UseVideoWatchedStatusProps) => {
     const toggleVideoWatchedStatus = async (video: ProcessedVideo) => {
         try {
@@ -37,7 +37,7 @@ export const useVideoWatchedStatus = ({
             }
             const updatedVideo: ProcessedVideo = { ...video, is_watched: !video.is_watched };
             const updateVideoInList = (videos: ProcessedVideo[]): ProcessedVideo[] =>
-                videos.map(v => v.file_path === video.file_path ? updatedVideo : v);
+                videos.map((v) => (v.file_path === video.file_path ? updatedVideo : v));
             setProcessedVideos((prev: ProcessedVideo[]) => updateVideoInList(prev));
             setRecentVideos((prev: ProcessedVideo[]) => updateVideoInList(prev));
             setVideosInProgress((prev: ProcessedVideo[]) => updateVideoInList(prev));
@@ -46,7 +46,9 @@ export const useVideoWatchedStatus = ({
                 searchActions.updateSearchResult(updatedVideo);
             }
             if (currentlyPlayingVideo && currentlyPlayingVideo.file_path === video.file_path) {
-                setPlayingVideo((prev: ProcessedVideo | null) => (prev && prev.file_path === video.file_path) ? updatedVideo : prev);
+                setPlayingVideo((prev: ProcessedVideo | null) =>
+                    prev && prev.file_path === video.file_path ? updatedVideo : prev
+                );
             }
             setTimeout(async () => {
                 try {
@@ -56,11 +58,11 @@ export const useVideoWatchedStatus = ({
                         setProcessedVideos(existingVideos);
                     }
                 } catch (e) {
-                    console.error('Error refreshing data after toggle watched:', e);
+                    console.error("Error refreshing data after toggle watched:", e);
                 }
             }, 0);
         } catch (error) {
-            console.error('Error toggling video watched status:', error);
+            console.error("Error toggling video watched status:", error);
         }
     };
 

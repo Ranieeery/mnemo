@@ -1,5 +1,5 @@
 import React from "react";
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
@@ -24,6 +24,6 @@ ReactDOM.createRoot(rootEl).render(
 const win = getCurrentWindow();
 win.show().catch(() => {});
 requestAnimationFrame(() => {
-    const root = document.getElementById('root');
-    if (root) root.style.opacity = '1';
+    const root = document.getElementById("root");
+    if (root) root.style.opacity = "1";
 });

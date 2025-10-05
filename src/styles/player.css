@@ -177,10 +177,22 @@ video::-ms-media-controls {
 }
 
 @keyframes fadeInOutScale {
-    0% { opacity: 0; transform: scale(0.65); }
-    18% { opacity: 1; transform: scale(1); }
-    82% { opacity: 1; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1); }
+    0% {
+        opacity: 0;
+        transform: scale(0.65);
+    }
+    18% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    82% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
 }
 
 .animate-fade-in-out {
@@ -189,15 +201,27 @@ video::-ms-media-controls {
 }
 
 .center-indicator-bg {
-    background: rgba(0,0,0,0.38);
+    background: rgba(0, 0, 0, 0.38);
     backdrop-filter: blur(2px);
 }
 
 @keyframes skipIndicatorFadePop {
-    0% { opacity: 0; transform: scale(0.6); }
-    20% { opacity: 1; transform: scale(1); }
-    80% { opacity: 1; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1); }
+    0% {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    20% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    80% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
 }
 
 .skip-indicator {
@@ -205,12 +229,20 @@ video::-ms-media-controls {
     will-change: opacity, transform;
 }
 
-.skip-indicator-left { left: 24%; }
-.skip-indicator-right { right: 24%; }
+.skip-indicator-left {
+    left: 24%;
+}
+.skip-indicator-right {
+    right: 24%;
+}
 
 @media (max-width: 900px) {
-    .skip-indicator-left { left: 18%; }
-    .skip-indicator-right { right: 18%; }
+    .skip-indicator-left {
+        left: 18%;
+    }
+    .skip-indicator-right {
+        right: 18%;
+    }
 }
 
 .skip-indicator .amount {

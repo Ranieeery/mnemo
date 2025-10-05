@@ -1,19 +1,14 @@
-import { useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
-import {
-    debugVideosInFolder,
-    getLibraryFolders,
-    removeLibraryFolder,
-    saveLibraryFolder
-} from '../database';
-import { processVideo } from '../services/videoProcessor';
-import { isVideoFile } from '../utils/videoUtils';
+import { useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { debugVideosInFolder, getLibraryFolders, removeLibraryFolder, saveLibraryFolder } from "../database";
+import { processVideo } from "../services/videoProcessor";
+import { isVideoFile } from "../utils/videoUtils";
 
 export interface LibraryManagementState {
     folderIndexingStatus: { [key: string]: boolean };
     currentIndexingFolder: string | null;
-    
+
     processingProgress: {
         total: number;
         processed: number;
@@ -25,7 +20,11 @@ export interface LibraryManagementState {
 export interface LibraryManagementActions {
     handleAddFolder: () => Promise<void>;
     indexFolderRecursively: (folderPath: string) => Promise<void>;
-    confirmRemoveFolder: (folderToRemove: string, selectedFolder: string | null, onSuccess: () => void) => Promise<void>;
+    confirmRemoveFolder: (
+        folderToRemove: string,
+        selectedFolder: string | null,
+        onSuccess: () => void
+    ) => Promise<void>;
     updateLibraryFolders: () => Promise<string[]>;
 }
 
@@ -43,11 +42,11 @@ export const useLibraryManagement = ({
     videoToolsAvailable,
     libraryFolders,
     setLibraryFolders,
-    loadHomePageData
+    loadHomePageData,
 }: UseLibraryManagementProps): [LibraryManagementState, LibraryManagementActions] => {
     const [folderIndexingStatus, setFolderIndexingStatus] = useState<{ [key: string]: boolean }>({});
     const [currentIndexingFolder, setCurrentIndexingFolder] = useState<string | null>(null);
-    
+
     const [processingProgress, setProcessingProgress] = useState<{
         total: number;
         processed: number;
@@ -62,7 +61,7 @@ export const useLibraryManagement = ({
                 multiple: false,
             });
 
-            if (selectedPath && typeof selectedPath === 'string' && !libraryFolders.includes(selectedPath)) {
+            if (selectedPath && typeof selectedPath === "string" && !libraryFolders.includes(selectedPath)) {
                 await saveLibraryFolder(selectedPath);
                 const updatedFolders = await getLibraryFolders();
                 setLibraryFolders(updatedFolders);
@@ -72,36 +71,36 @@ export const useLibraryManagement = ({
                 await loadHomePageData();
             }
         } catch (error) {
-            console.error('Error selecting folder:', error);
+            console.error("Error selecting folder:", error);
         }
     };
 
     const indexFolderRecursively = async (folderPath: string) => {
         if (!videoToolsAvailable.ffmpeg || !videoToolsAvailable.ffprobe) {
-            console.warn('Video tools not available. Skipping indexing.');
+            console.warn("Video tools not available. Skipping indexing.");
             return;
         }
 
         setCurrentIndexingFolder(folderPath);
-        setFolderIndexingStatus(prev => ({ ...prev, [folderPath]: true }));
+        setFolderIndexingStatus((prev) => ({ ...prev, [folderPath]: true }));
         setShowProcessingProgress(true);
         setProcessingProgress({ total: 0, processed: 0, currentFile: "" });
 
         try {
             console.log(`Starting recursive indexing for: ${folderPath}`);
 
-            const allFiles: any[] = await invoke('scan_directory_recursive', { path: folderPath });
-            const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+            const allFiles: any[] = await invoke("scan_directory_recursive", { path: folderPath });
+            const videoFiles = allFiles.filter((file) => !file.is_dir && isVideoFile(file.name));
 
-            setProcessingProgress(prev => ({ ...prev, total: videoFiles.length }));
+            setProcessingProgress((prev) => ({ ...prev, total: videoFiles.length }));
 
             let processedCount = 0;
 
             for (const videoFile of videoFiles) {
-                setProcessingProgress(prev => ({
+                setProcessingProgress((prev) => ({
                     ...prev,
                     processed: processedCount,
-                    currentFile: videoFile.name
+                    currentFile: videoFile.name,
                 }));
 
                 try {
@@ -113,17 +112,17 @@ export const useLibraryManagement = ({
                 processedCount++;
             }
 
-            setProcessingProgress(prev => ({
+            setProcessingProgress((prev) => ({
                 ...prev,
                 processed: processedCount,
-                currentFile: ""
+                currentFile: "",
             }));
 
             console.log(`Recursive indexing completed for ${folderPath}. Processed ${processedCount} videos.`);
         } catch (error) {
-            console.error('Error in recursive folder indexing:', error);
+            console.error("Error in recursive folder indexing:", error);
         } finally {
-            setFolderIndexingStatus(prev => ({ ...prev, [folderPath]: false }));
+            setFolderIndexingStatus((prev) => ({ ...prev, [folderPath]: false }));
             setCurrentIndexingFolder(null);
 
             setTimeout(() => {
@@ -132,7 +131,11 @@ export const useLibraryManagement = ({
         }
     };
 
-    const confirmRemoveFolder = async (folderToRemove: string, selectedFolder: string | null, onSuccess: () => void) => {
+    const confirmRemoveFolder = async (
+        folderToRemove: string,
+        selectedFolder: string | null,
+        onSuccess: () => void
+    ) => {
         try {
             console.log(`=== BEFORE REMOVAL ===`);
             await debugVideosInFolder(folderToRemove);
@@ -153,7 +156,7 @@ export const useLibraryManagement = ({
 
             console.log(`Successfully removed folder: ${folderToRemove}`);
         } catch (error) {
-            console.error('Error removing folder:', error);
+            console.error("Error removing folder:", error);
         }
     };
 
@@ -163,7 +166,7 @@ export const useLibraryManagement = ({
             setLibraryFolders(folders);
             return folders;
         } catch (error) {
-            console.error('Error updating library folders:', error);
+            console.error("Error updating library folders:", error);
             return [];
         }
     };
@@ -172,14 +175,14 @@ export const useLibraryManagement = ({
         folderIndexingStatus,
         currentIndexingFolder,
         processingProgress,
-        showProcessingProgress
+        showProcessingProgress,
     };
 
     const actions: LibraryManagementActions = {
         handleAddFolder,
         indexFolderRecursively,
         confirmRemoveFolder,
-        updateLibraryFolders
+        updateLibraryFolders,
     };
 
     return [state, actions];

@@ -1,13 +1,13 @@
-import React, {useEffect, useState} from 'react';
-import {addTagToVideo, getAllTags, getVideoTags, removeTagFromVideo, Tag} from '../database';
-import {ProcessedVideo} from '../types/video';
+import React, { useEffect, useState } from "react";
+import { addTagToVideo, getAllTags, getVideoTags, removeTagFromVideo, Tag } from "../database";
+import { ProcessedVideo } from "../types/video";
 
 interface VideoTagsManagerProps {
     video: ProcessedVideo;
     onTagsChange?: () => void;
 }
 
-export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTagsChange}) => {
+export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({ video, onTagsChange }) => {
     const [videoTags, setVideoTags] = useState<Tag[]>([]);
     const [allTags, setAllTags] = useState<Tag[]>([]);
     const [newTagName, setNewTagName] = useState<string>("");
@@ -22,10 +22,7 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
 
         setLoading(true);
         try {
-            const [videoTagsData, allTagsData] = await Promise.all([
-                getVideoTags(video.id),
-                getAllTags()
-            ]);
+            const [videoTagsData, allTagsData] = await Promise.all([getVideoTags(video.id), getAllTags()]);
 
             setVideoTags(videoTagsData);
             setAllTags(allTagsData);
@@ -71,12 +68,12 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
     const handleAddExistingTag = async (tagId: number) => {
         if (!video.id) return;
 
-        if (videoTags.some(tag => tag.id === tagId)) {
+        if (videoTags.some((tag) => tag.id === tagId)) {
             return;
         }
 
         try {
-            const tag = allTags.find(t => t.id === tagId);
+            const tag = allTags.find((t) => t.id === tagId);
             if (!tag) return;
 
             await addTagToVideo(video.id, tag.name);
@@ -91,7 +88,7 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
+        if (e.key === "Enter") {
             handleAddTag();
         }
     };
@@ -106,30 +103,27 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
 
     return (
         <div className="mb-4">
-
             {loading ? (
                 <div className="text-sm text-gray-500">Loading tags...</div>
             ) : (
                 <>
                     <div className="flex flex-wrap gap-2 mb-3">
-                        {videoTags.map(tag => (
+                        {videoTags.map((tag) => (
                             <span
                                 key={tag.id}
                                 className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-blue-600 text-white"
                             >
-                {tag.name}
+                                {tag.name}
                                 <button
                                     onClick={() => handleRemoveTag(tag.id)}
                                     className="ml-1 hover:text-red-300 transition-colors"
                                     title="Remove tag"
                                 >
-                  ×
-                </button>
-              </span>
+                                    ×
+                                </button>
+                            </span>
                         ))}
-                        {videoTags.length === 0 && (
-                            <span className="text-sm text-gray-500 italic">No tags added</span>
-                        )}
+                        {videoTags.length === 0 && <span className="text-sm text-gray-500 italic">No tags added</span>}
                     </div>
 
                     <div className="flex gap-2">
@@ -155,9 +149,9 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
                             <h5 className="text-xs text-gray-400 mb-2">Suggested tags:</h5>
                             <div className="flex flex-wrap gap-1">
                                 {allTags
-                                    .filter(tag => !videoTags.some(vt => vt.id === tag.id))
+                                    .filter((tag) => !videoTags.some((vt) => vt.id === tag.id))
                                     .slice(0, 10)
-                                    .map(tag => (
+                                    .map((tag) => (
                                         <button
                                             key={tag.id}
                                             onClick={() => handleAddExistingTag(tag.id)}

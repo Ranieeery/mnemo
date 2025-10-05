@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { getVideosInDirectoryOrderedByWatchStatus } from '../database';
-import { ProcessedVideo } from '../types/video';
-import { processVideo } from '../services/videoProcessor';
-import { isVideoFile } from '../utils/videoUtils';
+import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { getVideosInDirectoryOrderedByWatchStatus } from "../database";
+import { ProcessedVideo } from "../types/video";
+import { processVideo } from "../services/videoProcessor";
+import { isVideoFile } from "../utils/videoUtils";
 
 export interface VideoProcessingState {
     processingVideos: boolean;
@@ -24,7 +24,7 @@ interface UseVideoProcessingProps {
 }
 
 export const useVideoProcessing = ({
-    setProcessedVideos
+    setProcessedVideos,
 }: UseVideoProcessingProps): [VideoProcessingState, VideoProcessingActions] => {
     const [processingVideos, setProcessingVideos] = useState<boolean>(false);
     const [processingProgress, setProcessingProgress] = useState<{
@@ -35,7 +35,7 @@ export const useVideoProcessing = ({
     const [showProcessingProgress, setShowProcessingProgress] = useState<boolean>(false);
 
     const processVideosInBackground = async (directoryPath: string) => {
-    if (processingVideos) return;
+        if (processingVideos) return;
 
         setProcessingVideos(true);
         setShowProcessingProgress(true);
@@ -44,19 +44,19 @@ export const useVideoProcessing = ({
         try {
             console.log(`Starting background video processing for: ${directoryPath}`);
 
-            const allFiles: any[] = await invoke('scan_directory_recursive', { path: directoryPath });
-            const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+            const allFiles: any[] = await invoke("scan_directory_recursive", { path: directoryPath });
+            const videoFiles = allFiles.filter((file) => !file.is_dir && isVideoFile(file.name));
 
-            setProcessingProgress(prev => ({ ...prev, total: videoFiles.length }));
+            setProcessingProgress((prev) => ({ ...prev, total: videoFiles.length }));
 
             let processedCount = 0;
             const processedVideos = [];
 
             for (const videoFile of videoFiles) {
-                setProcessingProgress(prev => ({
+                setProcessingProgress((prev) => ({
                     ...prev,
                     processed: processedCount,
-                    currentFile: videoFile.name
+                    currentFile: videoFile.name,
                 }));
 
                 try {
@@ -71,10 +71,10 @@ export const useVideoProcessing = ({
                 processedCount++;
             }
 
-            setProcessingProgress(prev => ({
+            setProcessingProgress((prev) => ({
                 ...prev,
                 processed: processedCount,
-                currentFile: ""
+                currentFile: "",
             }));
 
             if (processedVideos.length > 0) {
@@ -83,7 +83,7 @@ export const useVideoProcessing = ({
                 console.log(`Background processing completed. Processed ${processedVideos.length} new videos.`);
             }
         } catch (error) {
-            console.error('Error in background video processing:', error);
+            console.error("Error in background video processing:", error);
         } finally {
             setProcessingVideos(false);
             setTimeout(() => {
@@ -95,11 +95,11 @@ export const useVideoProcessing = ({
     const state: VideoProcessingState = {
         processingVideos,
         processingProgress,
-        showProcessingProgress
+        showProcessingProgress,
     };
 
     const actions: VideoProcessingActions = {
-        processVideosInBackground
+        processVideosInBackground,
     };
 
     return [state, actions];

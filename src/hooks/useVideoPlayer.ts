@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { ProcessedVideo } from '../types/video';
-import { checkAndLoadSubtitles, parseSubtitles, getCurrentSubtitle, Subtitle } from '../utils/subtitleUtils';
+import { useState, useEffect, useRef } from "react";
+import { ProcessedVideo } from "../types/video";
+import { checkAndLoadSubtitles, parseSubtitles, getCurrentSubtitle, Subtitle } from "../utils/subtitleUtils";
 
 interface UseVideoPlayerProps {
     setShowVideoPlayer: (show: boolean) => void;
@@ -15,7 +15,7 @@ export const useVideoPlayer = ({
     updateWatchProgress,
     setProcessedVideos,
     loadHomePageData,
-    currentPath
+    currentPath,
 }: UseVideoPlayerProps) => {
     const [playingVideo, setPlayingVideo] = useState<ProcessedVideo | null>(null);
     const lastVideoRef = useRef<ProcessedVideo | null>(null);
@@ -65,7 +65,7 @@ export const useVideoPlayer = ({
             const subtitleData = await checkAndLoadSubtitles(video.file_path);
             if (subtitleData) {
                 const parsedSubtitles = parseSubtitles(subtitleData);
-                
+
                 if (parsedSubtitles.length > 0) {
                     setSubtitles(parsedSubtitles);
                     setSubtitlesAvailable(true);
@@ -73,7 +73,7 @@ export const useVideoPlayer = ({
                 }
             }
         } catch (error) {
-            console.error('Error loading subtitles:', error);
+            console.error("Error loading subtitles:", error);
             setSubtitles([]);
             setSubtitlesAvailable(false);
             setSubtitlesEnabled(false);
@@ -100,7 +100,7 @@ export const useVideoPlayer = ({
 
     const handleSpeedChange = (speed: number) => {
         setPlaybackSpeed(speed);
-        const video = document.querySelector('video') as HTMLVideoElement;
+        const video = document.querySelector("video") as HTMLVideoElement;
         if (video) {
             video.playbackRate = speed;
         }
@@ -116,13 +116,13 @@ export const useVideoPlayer = ({
                 setIsFullscreen(false);
             }
         } catch (error) {
-            console.error('Error toggling fullscreen:', error);
+            console.error("Error toggling fullscreen:", error);
             setIsFullscreen(!isFullscreen);
         }
     };
 
     const togglePlayPause = () => {
-        const video = document.querySelector('video') as HTMLVideoElement;
+        const video = document.querySelector("video") as HTMLVideoElement;
         if (video) {
             setIsIconChanging(true);
 
@@ -141,7 +141,7 @@ export const useVideoPlayer = ({
     };
 
     const handleSeek = (time: number) => {
-        const video = document.querySelector('video') as HTMLVideoElement;
+        const video = document.querySelector("video") as HTMLVideoElement;
         if (video) {
             video.currentTime = time;
             setCurrentTime(time);
@@ -149,7 +149,7 @@ export const useVideoPlayer = ({
     };
 
     const handleVolumeChange = (newVolume: number) => {
-        const video = document.querySelector('video') as HTMLVideoElement;
+        const video = document.querySelector("video") as HTMLVideoElement;
         if (video) {
             video.volume = newVolume;
             setVolume(newVolume);
@@ -196,9 +196,9 @@ export const useVideoPlayer = ({
             setIsFullscreen(isCurrentlyFullscreen);
         };
 
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
         return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
         };
     }, [playingVideo]);
 
@@ -209,16 +209,14 @@ export const useVideoPlayer = ({
 
                 const watchedThreshold = video.duration_seconds * 0.75;
                 if (currentTime >= watchedThreshold && !video.is_watched) {
-                    const updatedVideo = {...video, is_watched: true, watch_progress_seconds: currentTime};
+                    const updatedVideo = { ...video, is_watched: true, watch_progress_seconds: currentTime };
 
-                    setProcessedVideos(prev => prev.map(v =>
-                        v.file_path === video.file_path ? updatedVideo : v
-                    ));
+                    setProcessedVideos((prev) => prev.map((v) => (v.file_path === video.file_path ? updatedVideo : v)));
 
                     await loadHomePageData();
                 }
             } catch (error) {
-                console.error('Error updating video progress:', error);
+                console.error("Error updating video progress:", error);
             }
         }
     };
@@ -255,8 +253,7 @@ export const useVideoPlayer = ({
         handleVolumeChange,
         toggleSubtitles,
         resetControlsTimeout,
-        handleVideoProgress
-    ,
-    reopenLastVideo
+        handleVideoProgress,
+        reopenLastVideo,
     };
 };

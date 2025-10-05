@@ -1,7 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
 import { ProcessedVideo, FolderStats } from "./types/video";
-import {isVideoFile} from "./utils/videoUtils";
-import {invoke} from '@tauri-apps/api/core';
+import { isVideoFile } from "./utils/videoUtils";
+import { invoke } from "@tauri-apps/api/core";
 
 let db: Database | null = null;
 
@@ -84,18 +84,15 @@ async function createTables() {
 
     try {
         await db.execute(`ALTER TABLE videos ADD COLUMN is_watched BOOLEAN DEFAULT FALSE`);
-    } catch (e) {
-    }
+    } catch (e) {}
 
     try {
         await db.execute(`ALTER TABLE videos ADD COLUMN watch_progress_seconds INTEGER DEFAULT 0`);
-    } catch (e) {
-    }
+    } catch (e) {}
 
     try {
         await db.execute(`ALTER TABLE videos ADD COLUMN last_watched_at DATETIME`);
-    } catch (e) {
-    }
+    } catch (e) {}
 
     console.log("Database tables created successfully");
 }
@@ -181,34 +178,37 @@ export async function getVideoByPath(filePath: string): Promise<ProcessedVideo |
 export async function getVideosInDirectory(directoryPath: string) {
     const database = await getDatabase();
 
-    const result = await database.select(
-        "SELECT * FROM videos WHERE file_path LIKE $1 ORDER BY title",
-        [`${directoryPath}%`]
-    ) as any[];
+    const result = (await database.select("SELECT * FROM videos WHERE file_path LIKE $1 ORDER BY title", [
+        `${directoryPath}%`,
+    ])) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
-export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: string, limit?: number): Promise<ProcessedVideo[]> {
+export async function getVideosInDirectoryOrderedByWatchStatus(
+    directoryPath: string,
+    limit?: number
+): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
-    const limitClause = limit ? `LIMIT ${limit}` : '';
+    const limitClause = limit ? `LIMIT ${limit}` : "";
 
-    const result = await database.select(`
+    const result = (await database.select(
+        `
     SELECT * FROM videos 
     WHERE file_path LIKE $1 
     ORDER BY 
@@ -220,25 +220,26 @@ export async function getVideosInDirectoryOrderedByWatchStatus(directoryPath: st
       last_watched_at DESC NULLS LAST,
       title
     ${limitClause}
-  `, [`${directoryPath}%`]) as any[];
+  `,
+        [`${directoryPath}%`]
+    )) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
-
 
 export async function searchVideosByTitle(searchTerm: string): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
@@ -247,27 +248,27 @@ export async function searchVideosByTitle(searchTerm: string): Promise<Processed
         return [];
     }
 
-    const result = await database.select(
+    const result = (await database.select(
         `SELECT * FROM videos 
      WHERE title LIKE $1 
      ORDER BY title`,
         [`%${searchTerm.trim()}%`]
-    ) as any[];
+    )) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
@@ -280,7 +281,7 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
 
     const term = `%${searchTerm.trim()}%`;
 
-    const result = await database.select(
+    const result = (await database.select(
         `SELECT DISTINCT v.* FROM videos v
      LEFT JOIN video_tags vt ON v.id = vt.video_id
      LEFT JOIN tags t ON vt.tag_id = t.id
@@ -289,28 +290,32 @@ export async function searchVideos(searchTerm: string): Promise<ProcessedVideo[]
         OR t.name LIKE $1
      ORDER BY v.title`,
         [term]
-    ) as any[];
+    )) as any[];
 
     console.log(`Search for "${searchTerm}" returned ${result.length} results`);
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
-export async function searchVideosRecursive(searchTerm: string, progressCallback?: (current: number, total: number, currentFile: string) => void, specificFolder?: string): Promise<ProcessedVideo[]> {
+export async function searchVideosRecursive(
+    searchTerm: string,
+    progressCallback?: (current: number, total: number, currentFile: string) => void,
+    specificFolder?: string
+): Promise<ProcessedVideo[]> {
     if (!searchTerm.trim()) {
         return [];
     }
@@ -327,8 +332,8 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
 
     for (const folder of folders) {
         try {
-            const allFiles: any[] = await invoke('scan_directory_recursive', {path: folder});
-            const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+            const allFiles: any[] = await invoke("scan_directory_recursive", { path: folder });
+            const videoFiles = allFiles.filter((file) => !file.is_dir && isVideoFile(file.name));
             totalFiles += videoFiles.length;
         } catch (error) {
             console.error(`Error scanning folder ${folder}:`, error);
@@ -337,8 +342,8 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
 
     for (const folder of folders) {
         try {
-            const allFiles: any[] = await invoke('scan_directory_recursive', {path: folder});
-            const videoFiles = allFiles.filter(file => !file.is_dir && isVideoFile(file.name));
+            const allFiles: any[] = await invoke("scan_directory_recursive", { path: folder });
+            const videoFiles = allFiles.filter((file) => !file.is_dir && isVideoFile(file.name));
 
             for (const videoFile of videoFiles) {
                 processedFiles++;
@@ -358,13 +363,13 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
                         const basicVideo: ProcessedVideo = {
                             file_path: videoFile.path,
                             title: getVideoTitleFromFilename(videoFile.name),
-                            description: '',
+                            description: "",
                             duration_seconds: 0,
-                            thumbnail_path: '',
+                            thumbnail_path: "",
                             is_watched: false,
                             watch_progress_seconds: 0,
-                            duration: '00:00',
-                            size: 0
+                            duration: "00:00",
+                            size: 0,
                         };
                         results.push(basicVideo);
                     }
@@ -380,19 +385,17 @@ export async function searchVideosRecursive(searchTerm: string, progressCallback
 }
 
 function getVideoTitleFromFilename(filename: string): string {
-    const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+    const nameWithoutExt = filename.substring(0, filename.lastIndexOf("."));
 
     let title = nameWithoutExt
-        .replace(/\[.*?\]/g, '')
-        .replace(/\(.*?\)/g, '')
-        .replace(/_/g, ' ')
-        .replace(/\./g, ' ')
-        .replace(/\s+/g, ' ')
+        .replace(/\[.*?\]/g, "")
+        .replace(/\(.*?\)/g, "")
+        .replace(/_/g, " ")
+        .replace(/\./g, " ")
+        .replace(/\s+/g, " ")
         .trim();
 
-    title = title.replace(/\w\S*/g, (txt) =>
-        txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-    );
+    title = title.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
 
     return title || filename;
 }
@@ -400,27 +403,24 @@ function getVideoTitleFromFilename(filename: string): string {
 export async function getAllVideos(): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
-    const result = await database.select(
-        `SELECT * FROM videos ORDER BY title`
-    ) as any[];
+    const result = (await database.select(`SELECT * FROM videos ORDER BY title`)) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
-
 
 export async function markVideoAsWatched(videoId: number, watchProgressSeconds?: number): Promise<void> {
     const database = await getDatabase();
@@ -455,7 +455,11 @@ export async function markVideoAsUnwatched(videoId: number): Promise<void> {
     );
 }
 
-export async function updateWatchProgress(videoId: number, progressSeconds: number, durationSeconds: number): Promise<void> {
+export async function updateWatchProgress(
+    videoId: number,
+    progressSeconds: number,
+    durationSeconds: number
+): Promise<void> {
     const database = await getDatabase();
 
     const watchedThreshold = durationSeconds * 0.75;
@@ -480,97 +484,97 @@ export async function updateWatchProgress(videoId: number, progressSeconds: numb
     }
 }
 
-
 export async function getRecentlyWatchedVideos(limit: number = 10): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
-    const result = await database.select(
+    const result = (await database.select(
         `SELECT * FROM videos 
      WHERE last_watched_at IS NOT NULL 
      ORDER BY last_watched_at DESC 
      LIMIT $1`,
         [limit]
-    ) as any[];
+    )) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
 export async function getVideosInProgress(limit: number = 10): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
-    const result = await database.select(
+    const result = (await database.select(
         `SELECT * FROM videos 
      WHERE watch_progress_seconds > 0 
        AND is_watched = FALSE 
      ORDER BY last_watched_at DESC 
      LIMIT $1`,
         [limit]
-    ) as any[];
+    )) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
 export async function getUnwatchedVideos(limit: number = 5): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
-    const result = await database.select(
+    const result = (await database.select(
         `SELECT * FROM videos 
      WHERE is_watched = FALSE 
        AND (watch_progress_seconds = 0 OR watch_progress_seconds IS NULL)
      ORDER BY created_at DESC 
      LIMIT $1`,
         [limit]
-    ) as any[];
+    )) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
 export async function getVideoPreviewFromFolder(folderPath: string, limit: number = 5): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
-    const result = await database.select(`
+    const result = (await database.select(
+        `
     SELECT * FROM videos 
     WHERE file_path LIKE $1 
     ORDER BY 
@@ -582,26 +586,28 @@ export async function getVideoPreviewFromFolder(folderPath: string, limit: numbe
       last_watched_at DESC NULLS LAST,
       title
     LIMIT $2
-  `, [`${folderPath}%`, limit]) as any[];
+  `,
+        [`${folderPath}%`, limit]
+    )) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         is_watched: video.is_watched || false,
         watch_progress_seconds: video.watch_progress_seconds || 0,
         last_watched_at: video.last_watched_at,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
-export async function getLibraryFoldersWithPreviews(): Promise<{ folder: string, videos: ProcessedVideo[] }[]> {
+export async function getLibraryFoldersWithPreviews(): Promise<{ folder: string; videos: ProcessedVideo[] }[]> {
     const folders = await getLibraryFolders();
     const foldersWithPreviews = [];
 
@@ -610,7 +616,7 @@ export async function getLibraryFoldersWithPreviews(): Promise<{ folder: string,
         if (videos.length > 0) {
             foldersWithPreviews.push({
                 folder,
-                videos
+                videos,
             });
         }
     }
@@ -621,18 +627,13 @@ export async function getLibraryFoldersWithPreviews(): Promise<{ folder: string,
 export async function saveLibraryFolder(folderPath: string) {
     const database = await getDatabase();
 
-    await database.execute(
-        "INSERT OR IGNORE INTO library_folders (path) VALUES ($1)",
-        [folderPath]
-    );
+    await database.execute("INSERT OR IGNORE INTO library_folders (path) VALUES ($1)", [folderPath]);
 }
 
 export async function getLibraryFolders(): Promise<string[]> {
     const database = await getDatabase();
 
-    const result = await database.select(
-        "SELECT path FROM library_folders ORDER BY created_at"
-    ) as any[];
+    const result = (await database.select("SELECT path FROM library_folders ORDER BY created_at")) as any[];
 
     return result.map((row: any) => row.path);
 }
@@ -642,21 +643,17 @@ export async function removeLibraryFolder(folderPath: string) {
 
     await removeVideosFromFolder(folderPath);
 
-    await database.execute(
-        "DELETE FROM library_folders WHERE path = $1",
-        [folderPath]
-    );
+    await database.execute("DELETE FROM library_folders WHERE path = $1", [folderPath]);
 }
 
 export async function removeVideosFromFolder(folderPath: string) {
     const database = await getDatabase();
 
-    const normalizedFolderPath = folderPath.replace(/\\/g, '/');
+    const normalizedFolderPath = folderPath.replace(/\\/g, "/");
 
-    const videosToRemove = await database.select(
-        "SELECT id FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1",
-        [`${normalizedFolderPath}/%`]
-    ) as any[];
+    const videosToRemove = (await database.select("SELECT id FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1", [
+        `${normalizedFolderPath}/%`,
+    ])) as any[];
 
     const videoIds = videosToRemove.map((row: any) => row.id);
 
@@ -667,23 +664,13 @@ export async function removeVideosFromFolder(folderPath: string) {
 
     console.log(`Removing ${videoIds.length} videos from folder: ${folderPath}`);
 
-    const placeholders = videoIds.map(() => '?').join(',');
+    const placeholders = videoIds.map(() => "?").join(",");
 
+    await database.execute(`DELETE FROM video_tags WHERE video_id IN (${placeholders})`, videoIds);
 
-    await database.execute(
-        `DELETE FROM video_tags WHERE video_id IN (${placeholders})`,
-        videoIds
-    );
+    await database.execute(`DELETE FROM watch_history WHERE video_id IN (${placeholders})`, videoIds);
 
-    await database.execute(
-        `DELETE FROM watch_history WHERE video_id IN (${placeholders})`,
-        videoIds
-    );
-
-    await database.execute(
-        `DELETE FROM videos WHERE id IN (${placeholders})`,
-        videoIds
-    );
+    await database.execute(`DELETE FROM videos WHERE id IN (${placeholders})`, videoIds);
 
     console.log(`Successfully removed ${videoIds.length} videos and their related data from folder: ${folderPath}`);
 }
@@ -693,24 +680,21 @@ export async function debugDatabaseInfo() {
 
     console.log("=== DATABASE DEBUG INFO ===");
 
-    const tables = await database.select(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    ) as any[];
+    const tables = (await database.select("SELECT name FROM sqlite_master WHERE type='table'")) as any[];
 
-    console.log("Tables:", tables.map(t => t.name));
+    console.log(
+        "Tables:",
+        tables.map((t) => t.name)
+    );
 
     for (const table of tables) {
-        if (table.name.startsWith('sqlite_')) continue;
+        if (table.name.startsWith("sqlite_")) continue;
 
-        const count = await database.select(
-            `SELECT COUNT(*) as count FROM ${table.name}`
-        ) as any[];
+        const count = (await database.select(`SELECT COUNT(*) as count FROM ${table.name}`)) as any[];
 
         console.log(`${table.name}: ${count[0].count} records`);
 
-        const samples = await database.select(
-            `SELECT * FROM ${table.name} LIMIT 5`
-        ) as any[];
+        const samples = (await database.select(`SELECT * FROM ${table.name} LIMIT 5`)) as any[];
 
         if (samples.length > 0) {
             console.log(`Sample data from ${table.name}:`, samples);
@@ -719,20 +703,17 @@ export async function debugDatabaseInfo() {
 
     console.log("=== END DEBUG INFO ===");
 
-    return {tables, database};
+    return { tables, database };
 }
 
 export async function getAllLibraryFoldersDebug() {
     const database = await getDatabase();
 
-    const result = await database.select(
-        "SELECT * FROM library_folders ORDER BY created_at"
-    ) as any[];
+    const result = (await database.select("SELECT * FROM library_folders ORDER BY created_at")) as any[];
 
     console.log("All library folders:", result);
     return result;
 }
-
 
 export interface Tag {
     id: number;
@@ -751,24 +732,19 @@ export interface VideoTag {
 export async function createOrGetTag(tagName: string): Promise<Tag> {
     const database = await getDatabase();
 
-    const existingTag = await database.select(
-        "SELECT * FROM tags WHERE name = $1",
-        [tagName.trim().toLowerCase()]
-    ) as Tag[];
+    const existingTag = (await database.select("SELECT * FROM tags WHERE name = $1", [
+        tagName.trim().toLowerCase(),
+    ])) as Tag[];
 
     if (existingTag.length > 0) {
         return existingTag[0];
     }
 
-    await database.execute(
-        "INSERT INTO tags (name) VALUES ($1)",
-        [tagName.trim().toLowerCase()]
-    );
+    await database.execute("INSERT INTO tags (name) VALUES ($1)", [tagName.trim().toLowerCase()]);
 
-    const newTag = await database.select(
-        "SELECT * FROM tags WHERE name = $1",
-        [tagName.trim().toLowerCase()]
-    ) as Tag[];
+    const newTag = (await database.select("SELECT * FROM tags WHERE name = $1", [
+        tagName.trim().toLowerCase(),
+    ])) as Tag[];
 
     return newTag[0];
 }
@@ -776,9 +752,7 @@ export async function createOrGetTag(tagName: string): Promise<Tag> {
 export async function getAllTags(): Promise<Tag[]> {
     const database = await getDatabase();
 
-    const result = await database.select(
-        "SELECT * FROM tags ORDER BY name"
-    ) as Tag[];
+    const result = (await database.select("SELECT * FROM tags ORDER BY name")) as Tag[];
 
     return result;
 }
@@ -788,38 +762,32 @@ export async function addTagToVideo(videoId: number, tagName: string): Promise<v
 
     const tag = await createOrGetTag(tagName);
 
-    const existing = await database.select(
-        "SELECT * FROM video_tags WHERE video_id = $1 AND tag_id = $2",
-        [videoId, tag.id]
-    ) as VideoTag[];
+    const existing = (await database.select("SELECT * FROM video_tags WHERE video_id = $1 AND tag_id = $2", [
+        videoId,
+        tag.id,
+    ])) as VideoTag[];
 
     if (existing.length === 0) {
-        await database.execute(
-            "INSERT INTO video_tags (video_id, tag_id) VALUES ($1, $2)",
-            [videoId, tag.id]
-        );
+        await database.execute("INSERT INTO video_tags (video_id, tag_id) VALUES ($1, $2)", [videoId, tag.id]);
     }
 }
 
 export async function removeTagFromVideo(videoId: number, tagId: number): Promise<void> {
     const database = await getDatabase();
 
-    await database.execute(
-        "DELETE FROM video_tags WHERE video_id = $1 AND tag_id = $2",
-        [videoId, tagId]
-    );
+    await database.execute("DELETE FROM video_tags WHERE video_id = $1 AND tag_id = $2", [videoId, tagId]);
 }
 
 export async function getVideoTags(videoId: number): Promise<Tag[]> {
     const database = await getDatabase();
 
-    const result = await database.select(
+    const result = (await database.select(
         `SELECT t.* FROM tags t
      INNER JOIN video_tags vt ON t.id = vt.tag_id
      WHERE vt.video_id = $1
      ORDER BY t.name`,
         [videoId]
-    ) as Tag[];
+    )) as Tag[];
 
     return result;
 }
@@ -831,29 +799,29 @@ export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedV
         return [];
     }
 
-    const placeholders = tagNames.map((_, index) => `$${index + 1}`).join(', ');
-    const normalizedTags = tagNames.map(tag => tag.trim().toLowerCase());
+    const placeholders = tagNames.map((_, index) => `$${index + 1}`).join(", ");
+    const normalizedTags = tagNames.map((tag) => tag.trim().toLowerCase());
 
-    const result = await database.select(
+    const result = (await database.select(
         `SELECT DISTINCT v.* FROM videos v
      INNER JOIN video_tags vt ON v.id = vt.video_id
      INNER JOIN tags t ON vt.tag_id = t.id
      WHERE t.name IN (${placeholders})
      ORDER BY v.title`,
         normalizedTags
-    ) as any[];
+    )) as any[];
 
-    return result.map(video => ({
+    return result.map((video) => ({
         id: video.id,
         file_path: video.file_path,
         title: video.title,
-        description: video.description || '',
+        description: video.description || "",
         duration_seconds: video.duration_seconds || 0,
-        thumbnail_path: video.thumbnail_path || '',
+        thumbnail_path: video.thumbnail_path || "",
         created_at: video.created_at,
         updated_at: video.updated_at,
-        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : '00:00',
-        size: 0
+        duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
+        size: 0,
     }));
 }
 
@@ -863,9 +831,9 @@ function formatDuration(seconds: number): string {
     const remainingSeconds = Math.floor(seconds % 60);
 
     if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        return `${hours}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
     }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
 export async function cleanupUnusedTags(): Promise<void> {
@@ -878,7 +846,6 @@ export async function cleanupUnusedTags(): Promise<void> {
      )`
     );
 }
-
 
 export interface LibraryExport {
     version: string;
@@ -893,10 +860,10 @@ export async function exportLibraryData(): Promise<LibraryExport> {
     const database = await getDatabase();
 
     try {
-        const videos = await database.select("SELECT * FROM videos ORDER BY id") as any[];
-        const tags = await database.select("SELECT * FROM tags ORDER BY id") as any[];
-        const videoTags = await database.select("SELECT * FROM video_tags ORDER BY id") as any[];
-        const libraryFolders = await database.select("SELECT * FROM library_folders ORDER BY id") as any[];
+        const videos = (await database.select("SELECT * FROM videos ORDER BY id")) as any[];
+        const tags = (await database.select("SELECT * FROM tags ORDER BY id")) as any[];
+        const videoTags = (await database.select("SELECT * FROM video_tags ORDER BY id")) as any[];
+        const libraryFolders = (await database.select("SELECT * FROM library_folders ORDER BY id")) as any[];
 
         const exportData: LibraryExport = {
             version: "1.0.0",
@@ -904,10 +871,12 @@ export async function exportLibraryData(): Promise<LibraryExport> {
             videos,
             tags,
             videoTags,
-            libraryFolders
+            libraryFolders,
         };
 
-        console.log(`Library export completed: ${videos.length} videos, ${tags.length} tags, ${libraryFolders.length} folders`);
+        console.log(
+            `Library export completed: ${videos.length} videos, ${tags.length} tags, ${libraryFolders.length} folders`
+        );
         return exportData;
     } catch (error) {
         console.error("Error exporting library:", error);
@@ -921,7 +890,13 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
     try {
         console.log("Starting library import...");
 
-        if (!importData.version || !importData.videos || !importData.tags || !importData.videoTags || !importData.libraryFolders) {
+        if (
+            !importData.version ||
+            !importData.videos ||
+            !importData.tags ||
+            !importData.videoTags ||
+            !importData.libraryFolders
+        ) {
             throw new Error("Invalid import data format");
         }
 
@@ -931,23 +906,27 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
         await database.execute("DELETE FROM tags");
         await database.execute("DELETE FROM library_folders");
 
-        await database.execute("DELETE FROM sqlite_sequence WHERE name IN ('videos', 'tags', 'video_tags', 'library_folders', 'watch_history')");
+        await database.execute(
+            "DELETE FROM sqlite_sequence WHERE name IN ('videos', 'tags', 'video_tags', 'library_folders', 'watch_history')"
+        );
 
         console.log("Existing data cleared");
 
         for (const folder of importData.libraryFolders) {
-            await database.execute(
-                "INSERT INTO library_folders (id, path, created_at) VALUES (?, ?, ?)",
-                [folder.id, folder.path, folder.created_at]
-            );
+            await database.execute("INSERT INTO library_folders (id, path, created_at) VALUES (?, ?, ?)", [
+                folder.id,
+                folder.path,
+                folder.created_at,
+            ]);
         }
         console.log(`Imported ${importData.libraryFolders.length} library folders`);
 
         for (const tag of importData.tags) {
-            await database.execute(
-                "INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)",
-                [tag.id, tag.name, tag.created_at]
-            );
+            await database.execute("INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)", [
+                tag.id,
+                tag.name,
+                tag.created_at,
+            ]);
         }
         console.log(`Imported ${importData.tags.length} tags`);
 
@@ -967,17 +946,19 @@ export async function importLibraryData(importData: LibraryExport): Promise<void
                     video.watch_progress_seconds || 0,
                     video.last_watched_at,
                     video.created_at,
-                    video.updated_at
+                    video.updated_at,
                 ]
             );
         }
         console.log(`Imported ${importData.videos.length} videos`);
 
         for (const videoTag of importData.videoTags) {
-            await database.execute(
-                "INSERT INTO video_tags (id, video_id, tag_id, created_at) VALUES (?, ?, ?, ?)",
-                [videoTag.id, videoTag.video_id, videoTag.tag_id, videoTag.created_at]
-            );
+            await database.execute("INSERT INTO video_tags (id, video_id, tag_id, created_at) VALUES (?, ?, ?, ?)", [
+                videoTag.id,
+                videoTag.video_id,
+                videoTag.tag_id,
+                videoTag.created_at,
+            ]);
         }
         console.log(`Imported ${importData.videoTags.length} video-tag relationships`);
 
@@ -998,7 +979,7 @@ export async function getLibraryStats(): Promise<{
     const database = await getDatabase();
 
     try {
-        const videoStats = await database.select(
+        const videoStats = (await database.select(
             `SELECT 
         COUNT(v.id) as total,
         COUNT(CASE WHEN v.is_watched = TRUE THEN 1 END) as watched,
@@ -1008,17 +989,17 @@ export async function getLibraryStats(): Promise<{
          SELECT 1 FROM library_folders lf 
          WHERE REPLACE(v.file_path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
        )`
-        ) as any[];
+        )) as any[];
 
-        const tagStats = await database.select("SELECT COUNT(*) as total FROM tags") as any[];
-        const folderStats = await database.select("SELECT COUNT(*) as total FROM library_folders") as any[];
+        const tagStats = (await database.select("SELECT COUNT(*) as total FROM tags")) as any[];
+        const folderStats = (await database.select("SELECT COUNT(*) as total FROM library_folders")) as any[];
 
         return {
             totalVideos: videoStats[0].total || 0,
             totalTags: tagStats[0].total || 0,
             totalFolders: folderStats[0].total || 0,
             watchedVideos: videoStats[0].watched || 0,
-            totalDuration: videoStats[0].total_duration || 0
+            totalDuration: videoStats[0].total_duration || 0,
         };
     } catch (error) {
         console.error("Error getting library stats:", error);
@@ -1027,7 +1008,7 @@ export async function getLibraryStats(): Promise<{
             totalTags: 0,
             totalFolders: 0,
             watchedVideos: 0,
-            totalDuration: 0
+            totalDuration: 0,
         };
     }
 }
@@ -1053,12 +1034,12 @@ export async function resetAllVideosAsUnwatched(): Promise<void> {
 export async function debugVideosInFolder(folderPath: string) {
     const database = await getDatabase();
 
-    const normalizedFolderPath = folderPath.replace(/\\/g, '/');
+    const normalizedFolderPath = folderPath.replace(/\\/g, "/");
 
-    const videos = await database.select(
+    const videos = (await database.select(
         "SELECT id, title, file_path FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1",
         [`${normalizedFolderPath}/%`]
-    ) as any[];
+    )) as any[];
 
     console.log(`=== VIDEOS IN FOLDER: ${folderPath} ===`);
     console.log(`Found ${videos.length} videos:`);
@@ -1072,14 +1053,14 @@ export async function debugVideosInFolder(folderPath: string) {
 export async function debugOrphanedVideos() {
     const database = await getDatabase();
 
-    const orphanedVideos = await database.select(
+    const orphanedVideos = (await database.select(
         `SELECT v.id, v.title, v.file_path, v.duration_seconds, v.is_watched
      FROM videos v
      LEFT JOIN library_folders lf ON (
        REPLACE(v.file_path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
      )
      WHERE lf.path IS NULL`
-    ) as any[];
+    )) as any[];
 
     console.log(`=== ORPHANED VIDEOS ===`);
     console.log(`Found ${orphanedVideos.length} orphaned videos (videos whose folders were removed):`);
@@ -1093,14 +1074,14 @@ export async function debugOrphanedVideos() {
 export async function cleanOrphanedVideos() {
     const database = await getDatabase();
 
-    const orphanedVideos = await database.select(
+    const orphanedVideos = (await database.select(
         `SELECT v.id
      FROM videos v
      LEFT JOIN library_folders lf ON (
        REPLACE(v.file_path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
      )
      WHERE lf.path IS NULL`
-    ) as any[];
+    )) as any[];
 
     const videoIds = orphanedVideos.map((row: any) => row.id);
 
@@ -1111,23 +1092,13 @@ export async function cleanOrphanedVideos() {
 
     console.log(`Cleaning ${videoIds.length} orphaned videos...`);
 
-    const placeholders = videoIds.map(() => '?').join(',');
+    const placeholders = videoIds.map(() => "?").join(",");
 
+    await database.execute(`DELETE FROM video_tags WHERE video_id IN (${placeholders})`, videoIds);
 
-    await database.execute(
-        `DELETE FROM video_tags WHERE video_id IN (${placeholders})`,
-        videoIds
-    );
+    await database.execute(`DELETE FROM video_progress WHERE video_id IN (${placeholders})`, videoIds);
 
-    await database.execute(
-        `DELETE FROM video_progress WHERE video_id IN (${placeholders})`,
-        videoIds
-    );
-
-    await database.execute(
-        `DELETE FROM videos WHERE id IN (${placeholders})`,
-        videoIds
-    );
+    await database.execute(`DELETE FROM videos WHERE id IN (${placeholders})`, videoIds);
 
     console.log(`Successfully cleaned ${videoIds.length} orphaned videos.`);
     return videoIds.length;
@@ -1144,7 +1115,7 @@ export async function getCorrectedLibraryStats(): Promise<{
     const database = await getDatabase();
 
     try {
-        const videoStats = await database.select(
+        const videoStats = (await database.select(
             `SELECT 
         COUNT(*) as total,
         COUNT(CASE WHEN v.is_watched = TRUE THEN 1 END) as watched,
@@ -1153,19 +1124,19 @@ export async function getCorrectedLibraryStats(): Promise<{
        INNER JOIN library_folders lf ON (
          REPLACE(v.path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
        )`
-        ) as any[];
+        )) as any[];
 
-        const orphanedStats = await database.select(
+        const orphanedStats = (await database.select(
             `SELECT COUNT(*) as total
        FROM videos v
        LEFT JOIN library_folders lf ON (
          REPLACE(v.path, '\\', '/') LIKE REPLACE(lf.path, '\\', '/') || '/%'
        )
        WHERE lf.path IS NULL`
-        ) as any[];
+        )) as any[];
 
-        const tagStats = await database.select("SELECT COUNT(*) as total FROM tags") as any[];
-        const folderStats = await database.select("SELECT COUNT(*) as total FROM library_folders") as any[];
+        const tagStats = (await database.select("SELECT COUNT(*) as total FROM tags")) as any[];
+        const folderStats = (await database.select("SELECT COUNT(*) as total FROM library_folders")) as any[];
 
         return {
             totalVideos: videoStats[0].total || 0,
@@ -1173,7 +1144,7 @@ export async function getCorrectedLibraryStats(): Promise<{
             totalFolders: folderStats[0].total || 0,
             watchedVideos: videoStats[0].watched || 0,
             totalDuration: videoStats[0].total_duration || 0,
-            orphanedVideos: orphanedStats[0].total || 0
+            orphanedVideos: orphanedStats[0].total || 0,
         };
     } catch (error) {
         console.error("Error getting corrected library stats:", error);
@@ -1183,7 +1154,7 @@ export async function getCorrectedLibraryStats(): Promise<{
             totalFolders: 0,
             watchedVideos: 0,
             totalDuration: 0,
-            orphanedVideos: 0
+            orphanedVideos: 0,
         };
     }
 }
@@ -1192,34 +1163,34 @@ export async function getFolderStats(folderPath: string): Promise<FolderStats> {
     const database = await getDatabase();
 
     try {
-        const normalizedPath = folderPath.replace(/\\/g, '/');
-        
-        const result = await database.select(
+        const normalizedPath = folderPath.replace(/\\/g, "/");
+
+        const result = (await database.select(
             `SELECT 
                 COUNT(*) as total,
                 SUM(CASE WHEN is_watched = 1 THEN 1 ELSE 0 END) as watched
              FROM videos 
              WHERE REPLACE(file_path, '\\', '/') LIKE ? || '%'`,
             [normalizedPath]
-        ) as any[];
+        )) as any[];
 
         const stats = result[0];
         const total = stats.total || 0;
         const watched = stats.watched || 0;
-        
+
         return {
             totalVideos: total,
             watchedVideos: watched,
             isFullyWatched: total > 0 && total === watched,
-            progressPercentage: total > 0 ? Math.round((watched / total) * 100) : 0
+            progressPercentage: total > 0 ? Math.round((watched / total) * 100) : 0,
         };
     } catch (error) {
-        console.error('Error getting folder stats:', error);
+        console.error("Error getting folder stats:", error);
         return {
             totalVideos: 0,
             watchedVideos: 0,
             isFullyWatched: false,
-            progressPercentage: 0
+            progressPercentage: 0,
         };
     }
 }
@@ -1228,8 +1199,8 @@ export async function markAllVideosInFolderAsWatched(folderPath: string): Promis
     const database = await getDatabase();
 
     try {
-        const normalizedPath = folderPath.replace(/\\/g, '/');
-        
+        const normalizedPath = folderPath.replace(/\\/g, "/");
+
         const result = await database.execute(
             `UPDATE videos 
              SET is_watched = 1, 
@@ -1243,7 +1214,7 @@ export async function markAllVideosInFolderAsWatched(folderPath: string): Promis
         console.log(`Marked all videos in ${folderPath} as watched`);
         return result.rowsAffected || 0;
     } catch (error) {
-        console.error('Error marking all videos as watched:', error);
+        console.error("Error marking all videos as watched:", error);
         throw error;
     }
 }
@@ -1252,8 +1223,8 @@ export async function markAllVideosInFolderAsUnwatched(folderPath: string): Prom
     const database = await getDatabase();
 
     try {
-        const normalizedPath = folderPath.replace(/\\/g, '/');
-        
+        const normalizedPath = folderPath.replace(/\\/g, "/");
+
         const result = await database.execute(
             `UPDATE videos 
              SET is_watched = 0, 
@@ -1267,7 +1238,7 @@ export async function markAllVideosInFolderAsUnwatched(folderPath: string): Prom
         console.log(`Marked all videos in ${folderPath} as unwatched`);
         return result.rowsAffected || 0;
     } catch (error) {
-        console.error('Error marking all videos as unwatched:', error);
+        console.error("Error marking all videos as unwatched:", error);
         throw error;
     }
 }

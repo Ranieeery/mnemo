@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useReducer } from 'react';
+import { createContext, useContext, ReactNode, useReducer } from "react";
 
 export interface DirEntry {
     name: string;
@@ -16,26 +16,26 @@ export interface NavigationState {
 }
 
 export type NavigationAction =
-    | { type: 'NAVIGATE_TO'; payload: string }
-    | { type: 'GO_BACK' }
-    | { type: 'GO_FORWARD' }
-    | { type: 'GO_TO_HOME' }
-    | { type: 'SET_CURRENT_PATH'; payload: string }
-    | { type: 'SET_DIRECTORY_CONTENTS'; payload: DirEntry[] };
+    | { type: "NAVIGATE_TO"; payload: string }
+    | { type: "GO_BACK" }
+    | { type: "GO_FORWARD" }
+    | { type: "GO_TO_HOME" }
+    | { type: "SET_CURRENT_PATH"; payload: string }
+    | { type: "SET_DIRECTORY_CONTENTS"; payload: DirEntry[] };
 
 const initialState: NavigationState = {
-    history: [''],
+    history: [""],
     currentIndex: 0,
-    currentPath: '',
+    currentPath: "",
     showHomePage: true,
     directoryContents: [],
 };
 
 function navigationReducer(state: NavigationState, action: NavigationAction): NavigationState {
     switch (action.type) {
-        case 'NAVIGATE_TO': {
-            if (action.payload === '') {
-                return navigationReducer(state, { type: 'GO_TO_HOME' });
+        case "NAVIGATE_TO": {
+            if (action.payload === "") {
+                return navigationReducer(state, { type: "GO_TO_HOME" });
             }
             const newHistory = [...state.history.slice(0, state.currentIndex + 1), action.payload];
             return {
@@ -46,7 +46,7 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
                 showHomePage: false,
             };
         }
-        case 'GO_BACK': {
+        case "GO_BACK": {
             if (state.currentIndex > 0) {
                 const newIndex = state.currentIndex - 1;
                 const newPath = state.history[newIndex];
@@ -54,12 +54,12 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
                     ...state,
                     currentIndex: newIndex,
                     currentPath: newPath,
-                    showHomePage: newPath === '',
+                    showHomePage: newPath === "",
                 };
             }
             return state;
         }
-        case 'GO_FORWARD': {
+        case "GO_FORWARD": {
             if (state.currentIndex < state.history.length - 1) {
                 const newIndex = state.currentIndex + 1;
                 const newPath = state.history[newIndex];
@@ -67,32 +67,32 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
                     ...state,
                     currentIndex: newIndex,
                     currentPath: newPath,
-                    showHomePage: newPath === '',
+                    showHomePage: newPath === "",
                 };
             }
             return state;
         }
-        case 'GO_TO_HOME': {
-            const alreadyHome = state.currentPath === '' && state.showHomePage;
+        case "GO_TO_HOME": {
+            const alreadyHome = state.currentPath === "" && state.showHomePage;
             if (alreadyHome) return state;
-            const newHistory = [...state.history.slice(0, state.currentIndex + 1), ''];
+            const newHistory = [...state.history.slice(0, state.currentIndex + 1), ""];
             return {
                 ...state,
                 history: newHistory,
                 currentIndex: newHistory.length - 1,
-                currentPath: '',
+                currentPath: "",
                 showHomePage: true,
                 directoryContents: [],
             };
         }
-        case 'SET_CURRENT_PATH': {
+        case "SET_CURRENT_PATH": {
             return {
                 ...state,
                 currentPath: action.payload,
-                showHomePage: action.payload === '',
+                showHomePage: action.payload === "",
             };
         }
-        case 'SET_DIRECTORY_CONTENTS': {
+        case "SET_DIRECTORY_CONTENTS": {
             return {
                 ...state,
                 directoryContents: action.payload,
@@ -117,7 +117,7 @@ interface NavigationContextType {
     computed: {
         canGoBack: boolean;
         canGoForward: boolean;
-    isHome: boolean;
+        isHome: boolean;
     };
 }
 
@@ -131,27 +131,27 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
     const [state, dispatch] = useReducer(navigationReducer, initialState);
 
     const navigateTo = (path: string) => {
-        dispatch({ type: 'NAVIGATE_TO', payload: path });
+        dispatch({ type: "NAVIGATE_TO", payload: path });
     };
 
     const goBack = () => {
-        dispatch({ type: 'GO_BACK' });
+        dispatch({ type: "GO_BACK" });
     };
 
     const goForward = () => {
-        dispatch({ type: 'GO_FORWARD' });
+        dispatch({ type: "GO_FORWARD" });
     };
 
     const goToHome = () => {
-        dispatch({ type: 'GO_TO_HOME' });
+        dispatch({ type: "GO_TO_HOME" });
     };
 
     const setCurrentPath = (path: string) => {
-        dispatch({ type: 'SET_CURRENT_PATH', payload: path });
+        dispatch({ type: "SET_CURRENT_PATH", payload: path });
     };
 
     const setDirectoryContents = (contents: DirEntry[]) => {
-        dispatch({ type: 'SET_DIRECTORY_CONTENTS', payload: contents });
+        dispatch({ type: "SET_DIRECTORY_CONTENTS", payload: contents });
     };
 
     const canGoBack = state.currentIndex > 0;
@@ -169,7 +169,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
     const computed = {
         canGoBack,
         canGoForward,
-        isHome: state.showHomePage && state.currentPath === '',
+        isHome: state.showHomePage && state.currentPath === "",
     };
 
     return (
@@ -182,7 +182,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
 export function useNavigation() {
     const context = useContext(NavigationContext);
     if (context === undefined) {
-    throw new Error('useNavigation must be used within a NavigationProvider');
+        throw new Error("useNavigation must be used within a NavigationProvider");
     }
     return context;
 }

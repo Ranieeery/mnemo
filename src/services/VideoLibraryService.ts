@@ -1,16 +1,16 @@
-import { ProcessedVideo } from '../types/video';
-import { 
-    getLibraryFolders, 
-    getRecentlyWatchedVideos, 
-    getVideosInProgress, 
+import { ProcessedVideo } from "../types/video";
+import {
+    getLibraryFolders,
+    getRecentlyWatchedVideos,
+    getVideosInProgress,
     getUnwatchedVideos,
     getLibraryFoldersWithPreviews,
     saveLibraryFolder,
     removeLibraryFolder as dbRemoveLibraryFolder,
     getVideosInDirectoryOrderedByWatchStatus,
     updateWatchProgress,
-    searchVideos
-} from '../database';
+    searchVideos,
+} from "../database";
 
 export interface HomePageData {
     recentVideos: ProcessedVideo[];
@@ -31,18 +31,18 @@ export class VideoLibraryService {
                 getRecentlyWatchedVideos(8),
                 getVideosInProgress(8),
                 getUnwatchedVideos(5),
-                getLibraryFoldersWithPreviews()
+                getLibraryFoldersWithPreviews(),
             ]);
 
             return {
                 recentVideos: recent,
                 videosInProgress: inProgress,
                 suggestedVideos: suggestions,
-                libraryFoldersWithPreviews: foldersWithPreviews
+                libraryFoldersWithPreviews: foldersWithPreviews,
             };
         } catch (error) {
-            console.error('Error loading home page data:', error);
-            throw new Error('Failed to load home page data');
+            console.error("Error loading home page data:", error);
+            throw new Error("Failed to load home page data");
         }
     }
 
@@ -50,8 +50,8 @@ export class VideoLibraryService {
         try {
             return await getLibraryFolders();
         } catch (error) {
-            console.error('Erro ao carregar pastas da biblioteca:', error);
-            throw new Error('Falha ao carregar pastas da biblioteca');
+            console.error("Erro ao carregar pastas da biblioteca:", error);
+            throw new Error("Falha ao carregar pastas da biblioteca");
         }
     }
 
@@ -59,8 +59,8 @@ export class VideoLibraryService {
         try {
             await saveLibraryFolder(folderPath);
         } catch (error) {
-            console.error('Erro ao adicionar pasta da biblioteca:', error);
-            throw new Error('Falha ao adicionar pasta da biblioteca');
+            console.error("Erro ao adicionar pasta da biblioteca:", error);
+            throw new Error("Falha ao adicionar pasta da biblioteca");
         }
     }
 
@@ -68,8 +68,8 @@ export class VideoLibraryService {
         try {
             await dbRemoveLibraryFolder(folderPath);
         } catch (error) {
-            console.error('Erro ao remover pasta da biblioteca:', error);
-            throw new Error('Falha ao remover pasta da biblioteca');
+            console.error("Erro ao remover pasta da biblioteca:", error);
+            throw new Error("Falha ao remover pasta da biblioteca");
         }
     }
 
@@ -77,8 +77,8 @@ export class VideoLibraryService {
         try {
             return await getVideosInDirectoryOrderedByWatchStatus(directoryPath);
         } catch (error) {
-            console.error('Error loading directory videos:', error);
-            throw new Error('Failed to load directory videos');
+            console.error("Error loading directory videos:", error);
+            throw new Error("Failed to load directory videos");
         }
     }
 
@@ -86,8 +86,8 @@ export class VideoLibraryService {
         try {
             await updateWatchProgress(videoId, currentTime, duration);
         } catch (error) {
-            console.error('Error updating video progress:', error);
-            throw new Error('Failed to update video progress');
+            console.error("Error updating video progress:", error);
+            throw new Error("Failed to update video progress");
         }
     }
 
@@ -96,17 +96,17 @@ export class VideoLibraryService {
             const videos = await searchVideos(query);
             return {
                 videos,
-                totalCount: videos.length
+                totalCount: videos.length,
             };
         } catch (error) {
-            console.error('Error searching videos:', error);
-            throw new Error('Failed to search videos');
+            console.error("Error searching videos:", error);
+            throw new Error("Failed to search videos");
         }
     }
 
     static isValidVideoPath(filePath: string): boolean {
-        const videoExtensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v'];
-        const extension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+        const videoExtensions = [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".m4v"];
+        const extension = filePath.toLowerCase().substring(filePath.lastIndexOf("."));
         return videoExtensions.includes(extension);
     }
 
@@ -116,9 +116,9 @@ export class VideoLibraryService {
         const remainingSeconds = Math.floor(seconds % 60);
 
         if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+            return `${hours}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
         } else {
-            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
         }
     }
 
@@ -133,12 +133,12 @@ export class VideoLibraryService {
     }
 
     static getVideoStatusText(video: ProcessedVideo): string {
-        if (!video.duration_seconds) return 'Unknown duration';
-        
+        if (!video.duration_seconds) return "Unknown duration";
+
         const percentage = this.calculateWatchPercentage(video.watch_progress_seconds || 0, video.duration_seconds);
-        
-        if (percentage >= 90) return 'Assistido';
+
+        if (percentage >= 90) return "Assistido";
         if (percentage > 5) return `${Math.round(percentage)}% assistido`;
-        return 'Not watched';
+        return "Not watched";
     }
 }

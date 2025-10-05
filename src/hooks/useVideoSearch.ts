@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { searchVideos, searchVideosRecursive } from '../database';
-import { ProcessedVideo } from '../types/video';
+import { useState, useEffect } from "react";
+import { searchVideos, searchVideosRecursive } from "../database";
+import { ProcessedVideo } from "../types/video";
 
 export interface VideoSearchState {
     searchTerm: string;
@@ -28,7 +28,7 @@ interface UseVideoSearchProps {
 
 export const useVideoSearch = ({
     selectedFolder,
-    onShowHomePage
+    onShowHomePage,
 }: UseVideoSearchProps): [VideoSearchState, VideoSearchActions] => {
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [searchResults, setSearchResults] = useState<ProcessedVideo[]>([]);
@@ -99,7 +99,7 @@ export const useVideoSearch = ({
             } else {
                 setSearchResults([]);
                 setShowSearchResults(false);
-                
+
                 if (!selectedFolder) {
                     onShowHomePage();
                 }
@@ -110,9 +110,9 @@ export const useVideoSearch = ({
     }, [searchTerm, selectedFolder]);
 
     const updateSearchResult = (updatedVideo: ProcessedVideo) => {
-        setSearchResults(prev => prev.map(video => 
-            video.file_path === updatedVideo.file_path ? updatedVideo : video
-        ));
+        setSearchResults((prev) =>
+            prev.map((video) => (video.file_path === updatedVideo.file_path ? updatedVideo : video))
+        );
     };
 
     const state: VideoSearchState = {
@@ -120,14 +120,14 @@ export const useVideoSearch = ({
         searchResults,
         isSearching,
         showSearchResults,
-        searchProgress
+        searchProgress,
     };
 
     const actions: VideoSearchActions = {
         handleSearch,
         clearSearch,
         setSearchTerm,
-        updateSearchResult
+        updateSearchResult,
     };
 
     return [state, actions];

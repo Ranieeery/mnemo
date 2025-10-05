@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 interface UseNavigationProps {
     setSelectedFolder: (folder: string | null) => void;
@@ -13,7 +13,7 @@ export const useNavigation = ({
     setCurrentPath,
     setShowHomePage,
     loadDirectoryContents,
-    loadHomePageData
+    loadHomePageData,
 }: UseNavigationProps) => {
     const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState<number>(-1);
@@ -80,6 +80,6 @@ export const useNavigation = ({
         goToHomePage,
         navigateToFolder,
         goBack,
-        goForward
+        goForward,
     };
 };

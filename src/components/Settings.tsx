@@ -1,6 +1,6 @@
-import {useEffect, useState} from "react";
-import {open, save} from "@tauri-apps/plugin-dialog";
-import {readTextFile, writeTextFile} from "@tauri-apps/plugin-fs";
+import { useEffect, useState } from "react";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
     cleanOrphanedVideos,
     debugDatabaseInfo,
@@ -11,9 +11,9 @@ import {
     getLibraryStats,
     importLibraryData,
     LibraryExport,
-    resetAllVideosAsUnwatched
+    resetAllVideosAsUnwatched,
 } from "../database";
-import {formatDuration} from "../utils/videoUtils";
+import { formatDuration } from "../utils/videoUtils";
 
 interface LibraryStats {
     totalVideos: number;
@@ -28,13 +28,13 @@ interface SettingsProps {
     onLibraryChanged: () => void;
 }
 
-export function Settings({onClose, onLibraryChanged}: SettingsProps) {
+export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
     const [stats, setStats] = useState<LibraryStats>({
         totalVideos: 0,
         totalTags: 0,
         totalFolders: 0,
         watchedVideos: 0,
-        totalDuration: 0
+        totalDuration: 0,
     });
     const [isExporting, setIsExporting] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
@@ -62,13 +62,13 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
         try {
             const filePath = await save({
                 title: "Export Library",
-                defaultPath: `mnemo-library-${new Date().toISOString().split('T')[0]}.json`,
+                defaultPath: `mnemo-library-${new Date().toISOString().split("T")[0]}.json`,
                 filters: [
                     {
                         name: "JSON Files",
-                        extensions: ["json"]
-                    }
-                ]
+                        extensions: ["json"],
+                    },
+                ],
             });
 
             if (filePath) {
@@ -94,12 +94,12 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                 filters: [
                     {
                         name: "JSON Files",
-                        extensions: ["json"]
-                    }
-                ]
+                        extensions: ["json"],
+                    },
+                ],
             });
 
-            if (selected && typeof selected === 'string') {
+            if (selected && typeof selected === "string") {
                 setImportFile(selected);
                 setShowImportConfirm(true);
             }
@@ -197,7 +197,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                 alert(message);
             }
         } catch (error) {
-            console.error('Error debugging database:', error);
+            console.error("Error debugging database:", error);
             alert("Error debugging database. Check the console for details.");
         } finally {
             setIsDebugging(false);
@@ -211,7 +211,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
             await loadStats();
             alert("Library synchronized successfully!");
         } catch (error) {
-            console.error('Error syncing library:', error);
+            console.error("Error syncing library:", error);
             alert("Error syncing library. Check the console for details.");
         } finally {
             setIsSyncing(false);
@@ -236,8 +236,12 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                         className="self-start sm:self-auto text-gray-400 hover:text-gray-200 transition-colors"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M6 18L18 6M6 6l12 12"/>
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                            />
                         </svg>
                     </button>
                 </div>
@@ -288,18 +292,31 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                                 {isExporting ? (
                                     <>
                                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                                    strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor"
-                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
                                         </svg>
                                         <span>Exporting...</span>
                                     </>
                                 ) : (
                                     <>
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                            />
                                         </svg>
                                         <span>Export</span>
                                     </>
@@ -322,18 +339,31 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                                 {isImporting ? (
                                     <>
                                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                                    strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor"
-                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
                                         </svg>
                                         <span>Importing...</span>
                                     </>
                                 ) : (
                                     <>
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
+                                            />
                                         </svg>
                                         <span>Import</span>
                                     </>
@@ -356,18 +386,31 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                                 {isResettingWatched ? (
                                     <>
                                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                                    strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor"
-                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
                                         </svg>
                                         <span>Resetting...</span>
                                     </>
                                 ) : (
                                     <>
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                            />
                                         </svg>
                                         <span>Reset All</span>
                                     </>
@@ -378,9 +421,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
                             <div>
                                 <h4 className="font-medium text-gray-200">Sync Library</h4>
-                                <p className="text-sm text-gray-400">
-                                    Rescan all folders and update video list
-                                </p>
+                                <p className="text-sm text-gray-400">Rescan all folders and update video list</p>
                             </div>
                             <button
                                 onClick={handleSyncLibrary}
@@ -390,18 +431,31 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                                 {isSyncing ? (
                                     <>
                                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                                    strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor"
-                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
                                         </svg>
                                         <span>Syncing...</span>
                                     </>
                                 ) : (
                                     <>
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                            />
                                         </svg>
                                         <span>Sync Now</span>
                                     </>
@@ -412,9 +466,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
                             <div>
                                 <h4 className="font-medium text-gray-200">Debug Database</h4>
-                                <p className="text-sm text-gray-400">
-                                    Inspect database info and clean orphaned videos
-                                </p>
+                                <p className="text-sm text-gray-400">Inspect database info and clean orphaned videos</p>
                             </div>
                             <button
                                 onClick={handleDebugDatabase}
@@ -424,18 +476,31 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                                 {isDebugging ? (
                                     <>
                                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                                    strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor"
-                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
                                         </svg>
                                         <span>Debugging...</span>
                                     </>
                                 ) : (
                                     <>
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"
+                                            />
                                         </svg>
                                         <span>Debug</span>
                                     </>
@@ -461,9 +526,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                             <p className="text-sm text-gray-300 mb-2">
                                 This will replace all current library data with the imported data.
                             </p>
-                            <p className="text-sm text-yellow-400">
-                                ⚠️ This action cannot be undone!
-                            </p>
+                            <p className="text-sm text-yellow-400">⚠️ This action cannot be undone!</p>
                             <div className="mt-3 p-3 bg-gray-800/70 border border-gray-700/60 rounded text-xs text-gray-400 break-all">
                                 File: {importFile?.split(/[/\\]/).pop()}
                             </div>

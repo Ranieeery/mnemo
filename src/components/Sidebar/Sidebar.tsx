@@ -1,5 +1,5 @@
-import React from 'react';
-import appIcon from '../../../src-tauri/icons/icon.png';
+import React from "react";
+import appIcon from "../../../src-tauri/icons/icon.png";
 
 interface SidebarProps {
     libraryFolders: string[];
@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     onRemoveFolderRequest,
     onLibraryFolderContextMenu,
     onGoToHomePage,
-    onOpenSettings
+    onOpenSettings,
 }) => {
     return (
         <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
@@ -37,7 +37,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                         alt="Mnemo Logo"
                         className="w-8 h-8 rounded shadow-sm group-hover:scale-105 transition-transform"
                     />
-                    <h1 className="text-xl font-bold text-blue-400 group-hover:text-blue-300 transition-colors">Mnemo</h1>
+                    <h1 className="text-xl font-bold text-blue-400 group-hover:text-blue-300 transition-colors">
+                        Mnemo
+                    </h1>
                 </div>
                 <p className="text-sm text-gray-400 mt-1">Video Library</p>
             </div>
@@ -79,10 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         : "text-gray-400 hover:bg-gray-700"
                                 }`}
                             >
-                                <div
-                                    onClick={() => onSelectFolder(folder)}
-                                    className="cursor-pointer pr-8"
-                                >
+                                <div onClick={() => onSelectFolder(folder)} className="cursor-pointer pr-8">
                                     <div className="font-medium truncate flex items-center" title={folder}>
                                         <span>📁</span>
                                         <span className="ml-2 truncate">{folder.split(/[/\\]/).pop()}</span>
@@ -90,9 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                             <div className="ml-2 animate-spin rounded-full h-3 w-3 border-b-2 border-current"></div>
                                         )}
                                     </div>
-                                    <div className="text-xs opacity-75 truncate">
-                                        {folder}
-                                    </div>
+                                    <div className="text-xs opacity-75 truncate">{folder}</div>
                                 </div>
                                 {!folderIndexingStatus[folder] && (
                                     <button
@@ -103,10 +100,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 p-1 rounded transition-all duration-200 hover:bg-red-400/20"
                                         title="Remove folder from library"
                                     >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor"
-                                             viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                            />
                                         </svg>
                                     </button>
                                 )}
