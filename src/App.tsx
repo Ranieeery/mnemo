@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
-import { saveLibraryFolder, updateWatchProgress } from "./database";
+import { saveLibraryFolder, updateWatchProgress, markAllVideosInFolderAsWatched, getFolderStats } from "./database";
 import { checkVideoToolsAvailable } from "./services/videoProcessor";
 import { ProcessedVideo } from "./types/video";
 import { VideoLibraryService } from "./services/VideoLibraryService";
@@ -11,9 +11,11 @@ import SearchProgressBar from "./components/Progress/SearchProgressBar";
 import TopBar from "./components/Navigation/TopBar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import ConfirmRemovalModal from "./components/Modals/ConfirmRemovalModal";
+import ConfirmMarkAllWatchedModal from "./components/Modals/ConfirmMarkAllWatchedModal";
 import NextVideoModal from "./components/Modals/NextVideoModal";
 import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
+import FolderContextMenu from "./components/ContextMenu/FolderContextMenu";
 import HomePage from "./components/HomePage/HomePage";
 import SearchResults from "./components/SearchResults/SearchResults";
 import YouTubeStyleVideoPlayer from "./components/VideoPlayer/YouTubeStyleVideoPlayer";
@@ -44,6 +46,28 @@ function App() {
         ffmpeg: boolean;
         ffprobe: boolean
     }>({ ffmpeg: false, ffprobe: false });
+
+    const [showMarkAllWatchedModal, setShowMarkAllWatchedModal] = useState(false);
+    const [selectedFolderForMarkAll, setSelectedFolderForMarkAll] = useState<{
+        path: string;
+        name: string;
+        totalVideos: number;
+        unwatchedVideos: number;
+    } | null>(null);
+
+    const [folderContextMenu, setFolderContextMenu] = useState<{
+        show: boolean;
+        x: number;
+        y: number;
+        folderPath: string;
+        folderName: string;
+    }>({
+        show: false,
+        x: 0,
+        y: 0,
+        folderPath: '',
+        folderName: ''
+    });
 
     const [libraryState, libraryActions] = useLibraryManagement({
         videoToolsAvailable,
@@ -340,6 +364,80 @@ function App() {
         modals.cancelNextVideo();
     };
 
+    const handleFolderContextMenu = async (event: React.MouseEvent, folderPath: string, folderName: string) => {
+        event.preventDefault();
+        
+        setFolderContextMenu({
+            show: true,
+            x: event.clientX,
+            y: event.clientY,
+            folderPath: folderPath,
+            folderName: folderName
+        });
+    };
+
+    const handleCloseFolderContextMenu = () => {
+        setFolderContextMenu({
+            show: false,
+            x: 0,
+            y: 0,
+            folderPath: '',
+            folderName: ''
+        });
+    };
+
+    const handleMarkAllAsWatchedRequest = async () => {
+        if (!folderContextMenu.folderPath) return;
+        
+        try {
+            const stats = await getFolderStats(folderContextMenu.folderPath);
+            setSelectedFolderForMarkAll({
+                path: folderContextMenu.folderPath,
+                name: folderContextMenu.folderName,
+                totalVideos: stats.totalVideos,
+                unwatchedVideos: stats.totalVideos - stats.watchedVideos
+            });
+            setShowMarkAllWatchedModal(true);
+        } catch (error) {
+            console.error('Error getting folder stats:', error);
+        }
+    };
+
+    const handleConfirmMarkAllWatched = async () => {
+        if (!selectedFolderForMarkAll) return;
+
+        try {
+            await markAllVideosInFolderAsWatched(selectedFolderForMarkAll.path);
+            setShowMarkAllWatchedModal(false);
+            setSelectedFolderForMarkAll(null);
+            
+            if (navigationState.currentPath) {
+                loadDirectoryContents(navigationState.currentPath);
+            }
+        } catch (error) {
+            console.error('Error marking all as watched:', error);
+            alert('Erro ao marcar vídeos como assistidos');
+        }
+    };
+
+    const handleCancelMarkAllWatched = () => {
+        setShowMarkAllWatchedModal(false);
+        setSelectedFolderForMarkAll(null);
+    };
+
+    useEffect(() => {
+        const handleClickOutside = () => {
+            if (folderContextMenu.show) {
+                handleCloseFolderContextMenu();
+            }
+        };
+
+        document.addEventListener('click', handleClickOutside);
+        return () => {
+            document.removeEventListener('click', handleClickOutside);
+        };
+    }, [folderContextMenu.show]);
+
     return (
         <div className="h-screen bg-gray-900 text-white flex">
             <Sidebar
@@ -436,11 +534,30 @@ function App() {
                             onPlayVideo={videoPlayer.handlePlayVideo}
                             onContextMenu={contextMenuHook.handleContextMenu}
                             onNavigateToDirectory={navigateToDirectory}
+                            onFolderContextMenu={handleFolderContextMenu}
                             naturalSort={naturalSort}
                         />
                     )}
                 </div>
             </div>
+
+            <FolderContextMenu
+                show={folderContextMenu.show}
+                x={folderContextMenu.x}
+                y={folderContextMenu.y}
+                folderName={folderContextMenu.folderName}
+                onMarkAllAsWatched={handleMarkAllAsWatchedRequest}
+                onClose={handleCloseFolderContextMenu}
+            />
+
+            <ConfirmMarkAllWatchedModal
+                show={showMarkAllWatchedModal}
+                folderName={selectedFolderForMarkAll?.name || ''}
+                totalVideos={selectedFolderForMarkAll?.totalVideos || 0}
+                unwatchedVideos={selectedFolderForMarkAll?.unwatchedVideos || 0}
+                onConfirm={handleConfirmMarkAllWatched}
+                onCancel={handleCancelMarkAllWatched}
+            />
 
             <VideoDetailsModal
                 show={modals.showVideoDetails}

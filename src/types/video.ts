@@ -15,6 +15,13 @@ export interface ProcessedVideo {
   size?: number;
 }
 
+export interface FolderStats {
+  totalVideos: number;
+  watchedVideos: number;
+  isFullyWatched: boolean;
+  progressPercentage: number;
+}
+
 export type VideoDbRow = Record<string, any>;
 
 export function formatDuration(seconds?: number | null): string {

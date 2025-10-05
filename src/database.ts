@@ -1,5 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
-import { ProcessedVideo } from "./types/video";
+import { ProcessedVideo, FolderStats } from "./types/video";
 import {isVideoFile} from "./utils/videoUtils";
 import {invoke} from '@tauri-apps/api/core';
 
@@ -1185,5 +1185,65 @@ export async function getCorrectedLibraryStats(): Promise<{
             totalDuration: 0,
             orphanedVideos: 0
         };
+    }
+}
+
+export async function getFolderStats(folderPath: string): Promise<FolderStats> {
+    const database = await getDatabase();
+
+    try {
+        const normalizedPath = folderPath.replace(/\\/g, '/');
+        
+        const result = await database.select(
+            `SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN is_watched = 1 THEN 1 ELSE 0 END) as watched
+             FROM videos 
+             WHERE REPLACE(file_path, '\\', '/') LIKE ? || '%'`,
+            [normalizedPath]
+        ) as any[];
+
+        const stats = result[0];
+        const total = stats.total || 0;
+        const watched = stats.watched || 0;
+        
+        return {
+            totalVideos: total,
+            watchedVideos: watched,
+            isFullyWatched: total > 0 && total === watched,
+            progressPercentage: total > 0 ? Math.round((watched / total) * 100) : 0
+        };
+    } catch (error) {
+        console.error('Error getting folder stats:', error);
+        return {
+            totalVideos: 0,
+            watchedVideos: 0,
+            isFullyWatched: false,
+            progressPercentage: 0
+        };
+    }
+}
+
+export async function markAllVideosInFolderAsWatched(folderPath: string): Promise<number> {
+    const database = await getDatabase();
+
+    try {
+        const normalizedPath = folderPath.replace(/\\/g, '/');
+        
+        const result = await database.execute(
+            `UPDATE videos 
+             SET is_watched = 1, 
+                 last_watched_at = CURRENT_TIMESTAMP,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE REPLACE(file_path, '\\', '/') LIKE ? || '%'
+             AND is_watched = 0`,
+            [normalizedPath]
+        );
+
+        console.log(`Marked all videos in ${folderPath} as watched`);
+        return result.rowsAffected || 0;
+    } catch (error) {
+        console.error('Error marking all videos as watched:', error);
+        throw error;
     }
 }

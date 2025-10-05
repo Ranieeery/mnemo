@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ProcessedVideo } from "../../types/video";
+import { ProcessedVideo, FolderStats } from "../../types/video";
 import { formatDuration } from "../../utils/videoUtils";
 import { DirEntry } from "../../contexts/NavigationContext";
+import { useFolderStats } from "../../hooks/useFolderStats";
+import { getFolderStats } from "../../database";
 
 interface DirectoryViewProps {
     loading: boolean;
@@ -16,6 +18,7 @@ interface DirectoryViewProps {
     onPlayVideo: (video: ProcessedVideo) => void;
     onContextMenu: (event: React.MouseEvent, video: ProcessedVideo) => void;
     onNavigateToDirectory: (path: string) => void;
+    onFolderContextMenu?: (event: React.MouseEvent, folderPath: string, folderName: string) => void;
     naturalSort: (a: string, b: string) => number;
 }
 
@@ -29,10 +32,36 @@ export default function DirectoryView({
     onPlayVideo,
     onContextMenu,
     onNavigateToDirectory,
+    onFolderContextMenu,
     naturalSort
 }: DirectoryViewProps) {
+    const { stats } = useFolderStats(currentPath);
+    const [folderStats, setFolderStats] = useState<Map<string, FolderStats>>(new Map());
+    
     const normalizePath = (p: string) => p.replace(/\\/g, '/').replace(/[\/]+$/, '').toLowerCase();
     const isTopLevelFolder = libraryFolders.some(f => normalizePath(f) === normalizePath(currentPath));
+
+    React.useEffect(() => {
+        const loadFolderStats = async () => {
+            const statsMap = new Map<string, FolderStats>();
+            const folders = directoryContents.filter(item => item.is_dir);
+            
+            for (const folder of folders) {
+                try {
+                    const stats = await getFolderStats(folder.path);
+                    statsMap.set(folder.path, stats);
+                } catch (error) {
+                    console.error(`Error loading stats for ${folder.path}:`, error);
+                }
+            }
+            
+            setFolderStats(statsMap);
+        };
+        
+        if (directoryContents.length > 0) {
+            loadFolderStats();
+        }
+    }, [directoryContents]);
 
     const sortedVideos = React.useMemo(
         () => [...processedVideos].sort((a, b) => naturalSort(a.title || a.file_path, b.title || b.file_path)),
@@ -52,9 +81,26 @@ export default function DirectoryView({
         <div>
             <div className="mb-4 flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-300 mb-2">
-                        {currentPath.split(/[/\\]/).pop() || currentPath}
-                    </h3>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-semibold text-gray-300">
+                            {currentPath.split(/[/\\]/).pop() || currentPath}
+                        </h3>
+                        {stats.isFullyWatched && stats.totalVideos > 0 && (
+                            <div className="flex items-center gap-1.5 text-green-500" title="Todos os vídeos assistidos">
+                                <svg 
+                                    className="w-5 h-5" 
+                                    fill="currentColor" 
+                                    viewBox="0 0 20 20"
+                                >
+                                    <path 
+                                        fillRule="evenodd" 
+                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" 
+                                        clipRule="evenodd" 
+                                    />
+                                </svg>
+                            </div>
+                        )}
+                    </div>
                     <p className="text-sm text-gray-400">{currentPath}</p>
                 </div>
                 {videoProcessingState.processingVideos && (
@@ -76,25 +122,55 @@ export default function DirectoryView({
                     {directoryContents
                         .filter(item => item.is_dir || !item.is_video)
                         .sort((a, b) => naturalSort(a.name, b.name))
-                        .map((item, index) => (
+                        .map((item, index) => {
+                            const itemStats = item.is_dir ? folderStats.get(item.path) : null;
+                            const isFullyWatched = itemStats?.isFullyWatched || false;
+                            
+                            return (
                             <div
                                 key={index}
                                 onClick={() => item.is_dir && onNavigateToDirectory(item.path)}
-                                className={`p-4 rounded-lg border border-gray-700 transition-colors ${
+                                onContextMenu={(e) => {
+                                    if (item.is_dir && onFolderContextMenu) {
+                                        e.preventDefault();
+                                        onFolderContextMenu(e, item.path, item.name);
+                                    }
+                                }}
+                                className={`p-4 rounded-lg border transition-all relative ${
                                     item.is_dir
-                                        ? "cursor-pointer hover:bg-gray-800 hover:border-gray-600"
-                                        : "cursor-default"
+                                        ? isFullyWatched
+                                            ? "cursor-pointer border-green-500 hover:bg-green-900 hover:bg-opacity-10"
+                                            : "cursor-pointer hover:bg-gray-800 hover:border-gray-600 border-gray-700"
+                                        : "cursor-default border-gray-700"
                                 }`}
                             >
                                 <div className="flex items-center space-x-3">
-                                    <div className="flex-shrink-0">
+                                    <div className="flex-shrink-0 relative">
                                         {item.is_dir ? (
-                                            <svg className="w-8 h-8 text-blue-400" fill="none"
-                                                 stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round"
-                                                      strokeLinejoin="round" strokeWidth={2}
-                                                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"/>
-                                            </svg>
+                                            <>
+                                                <svg 
+                                                    className={`w-8 h-8 ${isFullyWatched ? 'text-green-400' : 'text-blue-400'}`} 
+                                                    fill="none"
+                                                    stroke="currentColor" 
+                                                    viewBox="0 0 24 24"
+                                                    strokeWidth={isFullyWatched ? 2.5 : 2}
+                                                >
+                                                    <path strokeLinecap="round"
+                                                          strokeLinejoin="round"
+                                                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"/>
+                                                </svg>
+                                                {isFullyWatched && (
+                                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-gray-800">
+                                                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path 
+                                                                fillRule="evenodd" 
+                                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" 
+                                                                clipRule="evenodd" 
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </>
                                         ) : (
                                             <svg className="w-8 h-8 text-gray-400" fill="none"
                                                  stroke="currentColor" viewBox="0 0 24 24">
@@ -114,7 +190,8 @@ export default function DirectoryView({
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        );
+                        })}
                 </div>
             </div>
 

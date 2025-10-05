@@ -177,7 +177,6 @@ export default function HomePage({
                                                             </svg>
                                                         </div>
                                                     )}
-                                                    {/* Progress bar for videos in progress */}
                                                     {isInProgress && video.watch_progress_seconds != null && video.watch_progress_seconds > 0 && video.duration_seconds && !video.is_watched && (
                                                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-600">
                                                             <div
@@ -186,7 +185,6 @@ export default function HomePage({
                                                             ></div>
                                                         </div>
                                                     )}
-                                                    {/* Watched indicator for completed videos */}
                                                     {!isInProgress && video.is_watched && (
                                                         <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                                                             <svg className="w-4 h-4 text-white" fill="none"
