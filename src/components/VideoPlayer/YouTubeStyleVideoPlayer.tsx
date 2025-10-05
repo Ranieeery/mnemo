@@ -531,7 +531,7 @@ export default function YouTubeStyleVideoPlayer({
 
             <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 flex flex-col min-w-0">
-                    <div className="bg-black relative" style={{ aspectRatio: "16/9" }}>
+                    <div className={`bg-black relative ${isFullscreen ? "flex-1" : "flex-shrink-0"}`} style={isFullscreen ? {} : { maxHeight: 'calc(100vh - 250px)', aspectRatio: "16/9" }}>
                         {videoElement}
                         {overlayElements}
                         {controls}
@@ -595,7 +595,7 @@ export default function YouTubeStyleVideoPlayer({
                         </div>
                     </div>
 
-                    <div className="flex-1 p-4 bg-gray-800 overflow-y-auto">
+                    <div className="flex-1 p-4 bg-gray-800 overflow-y-auto min-h-0">
                         {video.description && (
                             <div>
                                 <h3 className="text-lg font-medium text-white mb-2">Description</h3>
@@ -605,21 +605,21 @@ export default function YouTubeStyleVideoPlayer({
                     </div>
                 </div>
 
-                <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
-                    <div className="p-4 border-b border-gray-700">
-                        <h3 className="text-lg font-semibold text-white">Up Next</h3>
-                        <p className="text-sm text-gray-400">{nextVideos.length} videos</p>
+                <div className="w-80 lg:w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
+                    <div className="p-3 lg:p-4 border-b border-gray-700">
+                        <h3 className="text-base lg:text-lg font-semibold text-white">Up Next</h3>
+                        <p className="text-xs lg:text-sm text-gray-400">{nextVideos.length} videos</p>
                     </div>
 
                     <div className="flex-1 overflow-y-auto">
                         {nextVideos.map((nextVideo) => (
                             <div
                                 key={nextVideo.file_path}
-                                className="p-3 border-b border-gray-700 hover:bg-gray-700 cursor-pointer transition-colors"
+                                className="p-2 lg:p-3 border-b border-gray-700 hover:bg-gray-700 cursor-pointer transition-colors"
                                 onClick={() => onPlayVideo(nextVideo)}
                             >
-                                <div className="flex space-x-3">
-                                    <div className="flex-shrink-0 w-32 h-18 bg-gray-700 rounded relative">
+                                <div className="flex space-x-2 lg:space-x-3">
+                                    <div className="flex-shrink-0 w-24 lg:w-32 h-16 lg:h-18 bg-gray-700 rounded relative">
                                         {nextVideo.thumbnail_path ? (
                                             <img
                                                 src={convertFileSrc(nextVideo.thumbnail_path)}
@@ -699,7 +699,7 @@ export default function YouTubeStyleVideoPlayer({
 
                                     <div className="flex-1 min-w-0">
                                         <h4
-                                            className="text-sm font-medium text-white mb-1 leading-tight overflow-hidden"
+                                            className="text-xs lg:text-sm font-medium text-white mb-1 leading-tight overflow-hidden"
                                             style={{
                                                 display: "-webkit-box",
                                                 WebkitLineClamp: 2,
