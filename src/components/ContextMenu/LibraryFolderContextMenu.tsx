@@ -57,7 +57,7 @@ const LibraryFolderContextMenu: React.FC<LibraryFolderContextMenuProps> = ({
             }}
         >
             <div className="px-4 py-2 border-b border-gray-700">
-                <p className="text-xs text-gray-400 truncate" title={folderName}>
+                <p className="text-2xs text-gray-400 truncate" title={folderName}>
                     {folderName}
                 </p>
             </div>
