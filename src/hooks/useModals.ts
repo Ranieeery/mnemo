@@ -175,13 +175,13 @@ export const useModals = ({
         const countdownInterval = setInterval(() => {
             countdown -= 1;
             setNextVideoCountdown(countdown);
-            
+
             if (countdown <= 0) {
                 clearInterval(countdownInterval);
                 setNextVideoTimeout(null);
-                
+
                 setShowNextVideoPrompt(false);
-                
+
                 videoPlayer.handlePlayVideo(video);
 
                 setTimeout(() => {
