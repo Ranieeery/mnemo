@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 interface ConfirmRemovalModalProps {
     show: boolean;
@@ -8,6 +8,19 @@ interface ConfirmRemovalModalProps {
 }
 
 const ConfirmRemovalModal: React.FC<ConfirmRemovalModalProps> = ({ show, folderToRemove, onConfirm, onCancel }) => {
+    useEffect(() => {
+        if (!show) return;
+
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onCancel();
+            }
+        };
+
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, [show, onCancel]);
+
     if (!show || !folderToRemove) return null;
 
     return (

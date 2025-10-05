@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { ProcessedVideo } from "../../types/video";
 
@@ -23,6 +23,19 @@ const NextVideoModal: React.FC<NextVideoModalProps> = ({
     onPlayNext,
     onCancel,
 }) => {
+    useEffect(() => {
+        if (!show) return;
+
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onCancel();
+            }
+        };
+
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, [show, onCancel]);
+
     if (!show || !nextVideo) {
         return null;
     }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 interface ConfirmMarkAllWatchedModalProps {
     show: boolean;
@@ -19,6 +19,19 @@ const ConfirmMarkAllWatchedModal: React.FC<ConfirmMarkAllWatchedModalProps> = ({
     onConfirm,
     onCancel,
 }) => {
+    useEffect(() => {
+        if (!show) return;
+
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onCancel();
+            }
+        };
+
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, [show, onCancel]);
+
     if (!show) return null;
 
     const isWatchMode = mode === "watch";

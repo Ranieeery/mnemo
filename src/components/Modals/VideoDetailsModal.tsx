@@ -37,6 +37,19 @@ const VideoDetailsModal: React.FC<VideoDetailsModalProps> = ({
         }
     }, [show]);
 
+    useEffect(() => {
+        if (!show) return;
+
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onClose();
+            }
+        };
+
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, [show, onClose]);
+
     if (!show || !video) return null;
 
     return (

@@ -48,6 +48,21 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
         loadStats();
     }, []);
 
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                if (showImportConfirm) {
+                    setShowImportConfirm(false);
+                } else {
+                    onClose();
+                }
+            }
+        };
+
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, [onClose, showImportConfirm]);
+
     const loadStats = async () => {
         try {
             const libraryStats = await getLibraryStats();
