@@ -93,6 +93,8 @@ export default function YouTubeStyleVideoPlayer({
     const lastVolumeRef = useRef(volume || 1);
     if (volume > 0) lastVolumeRef.current = volume;
 
+    const videoRef = useRef<HTMLVideoElement>(null);
+
     const [skipIndicator, setSkipIndicator] = useState<{ dir: 'back' | 'forward'; amount: number } | null>(null);
     const skipTimeoutRef = useRef<number | null>(null);
 
@@ -199,6 +201,15 @@ export default function YouTubeStyleVideoPlayer({
         return () => window.removeEventListener('keydown', handler);
     }, [currentTime, duration, volume, subtitlesAvailable, onSeek, onTogglePlayPause, onToggleSubtitles, onToggleFullscreen, onVolumeChange, resetControlsTimeout]);
 
+    useEffect(() => {
+        if (videoRef.current && currentTime > 0) {
+            const timeDiff = Math.abs(videoRef.current.currentTime - currentTime);
+            if (timeDiff > 0.5) {
+                videoRef.current.currentTime = currentTime;
+            }
+        }
+    }, [isFullscreen]);
+
     if (isFullscreen) {
         return (
             <div
@@ -208,6 +219,7 @@ export default function YouTubeStyleVideoPlayer({
             >
                 <div className="flex-1 relative bg-black">
                     <video
+                        ref={videoRef}
                         src={convertFileSrc(video.file_path)}
                         className="w-full h-full object-contain"
                         autoPlay
@@ -217,6 +229,9 @@ export default function YouTubeStyleVideoPlayer({
                             onLoadedMetadata(videoElement.duration, playbackSpeed, volume);
                             videoElement.playbackRate = playbackSpeed;
                             videoElement.volume = volume;
+                            if (currentTime > 0) {
+                                videoElement.currentTime = currentTime;
+                            }
                         }}
                         onTimeUpdate={(e) => {
                             const videoElement = e.currentTarget;
@@ -441,6 +456,7 @@ export default function YouTubeStyleVideoPlayer({
                 <div className="flex-1 flex flex-col min-w-0">
                     <div className="bg-black relative" style={{ aspectRatio: '16/9' }}>
                         <video
+                            ref={videoRef}
                             src={convertFileSrc(video.file_path)}
                             className="w-full h-full object-contain"
                             autoPlay
@@ -450,6 +466,9 @@ export default function YouTubeStyleVideoPlayer({
                                 onLoadedMetadata(videoElement.duration, playbackSpeed, volume);
                                 videoElement.playbackRate = playbackSpeed;
                                 videoElement.volume = volume;
+                                if (currentTime > 0) {
+                                    videoElement.currentTime = currentTime;
+                                }
                             }}
                             onTimeUpdate={(e) => {
                                 const videoElement = e.currentTarget;
