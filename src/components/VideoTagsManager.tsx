@@ -99,7 +99,6 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
     if (!video.id) {
         return (
             <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-300 mb-2">Tags</h4>
                 <p className="text-sm text-gray-500 italic">Video must be saved to database to add tags.</p>
             </div>
         );
@@ -107,7 +106,6 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({video, onTags
 
     return (
         <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-300 mb-2">Tags</h4>
 
             {loading ? (
                 <div className="text-sm text-gray-500">Loading tags...</div>
