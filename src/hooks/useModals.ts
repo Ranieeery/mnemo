@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ProcessedVideo } from "../types/video";
 import { updateVideoDetails } from "../database";
-import { checkAndLoadSubtitles, parseSubtitles } from "../utils/subtitleUtils";
 
 interface UseModalsProps {
     setProcessedVideos: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
@@ -17,6 +16,7 @@ interface UseModalsProps {
     };
     videoPlayer: {
         setPlayingVideo: (video: ProcessedVideo) => void;
+        handlePlayVideo: (video: ProcessedVideo) => Promise<void>;
         setSubtitles: (subtitles: any[]) => void;
         setSubtitlesAvailable: (available: boolean) => void;
         setSubtitlesEnabled: (enabled: boolean) => void;
@@ -53,7 +53,7 @@ export const useModals = ({
         subtitlesEnabled: boolean;
     }>({ speed: 1, volume: 1, subtitlesEnabled: false });
     const [nextVideoTimeout, setNextVideoTimeout] = useState<number | null>(null);
-    const [nextVideoCountdown, setNextVideoCountdown] = useState<number>(10);
+    const [nextVideoCountdown, setNextVideoCountdown] = useState<number>(5);
 
     const handleOpenVideoDetails = (video: ProcessedVideo) => {
         setSelectedVideo(video);
@@ -134,17 +134,7 @@ export const useModals = ({
 
             setShowNextVideoPrompt(false);
 
-            videoPlayer.setPlayingVideo(nextVideo);
-
-            const subtitleData = await checkAndLoadSubtitles(nextVideo.file_path);
-            if (subtitleData) {
-                const parsedSubtitles = parseSubtitles(subtitleData);
-                videoPlayer.setSubtitles(parsedSubtitles);
-                videoPlayer.setSubtitlesAvailable(true);
-            } else {
-                videoPlayer.setSubtitles([]);
-                videoPlayer.setSubtitlesAvailable(false);
-            }
+            await videoPlayer.handlePlayVideo(nextVideo);
 
             setTimeout(() => {
                 const video = document.querySelector("video") as HTMLVideoElement;
@@ -158,7 +148,7 @@ export const useModals = ({
             }, 100);
 
             setNextVideo(null);
-            setNextVideoCountdown(10);
+            setNextVideoCountdown(5);
         }
     };
 
@@ -169,7 +159,7 @@ export const useModals = ({
         }
         setShowNextVideoPrompt(false);
         setNextVideo(null);
-        setNextVideoCountdown(10);
+        setNextVideoCountdown(5);
     };
 
     const startNextVideoCountdown = (
@@ -179,17 +169,35 @@ export const useModals = ({
         setSavedPlaybackSettings(currentPlaybackSettings);
         setNextVideo(video);
         setShowNextVideoPrompt(true);
-        setNextVideoCountdown(10);
+        setNextVideoCountdown(5);
 
+        let countdown = 5;
         const countdownInterval = setInterval(() => {
-            setNextVideoCountdown((prev) => {
-                if (prev <= 1) {
-                    clearInterval(countdownInterval);
-                    playNextVideo();
-                    return 0;
-                }
-                return prev - 1;
-            });
+            countdown -= 1;
+            setNextVideoCountdown(countdown);
+            
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                setNextVideoTimeout(null);
+                
+                setShowNextVideoPrompt(false);
+                
+                videoPlayer.handlePlayVideo(video);
+
+                setTimeout(() => {
+                    const videoElement = document.querySelector("video") as HTMLVideoElement;
+                    if (videoElement) {
+                        videoElement.playbackRate = currentPlaybackSettings.speed;
+                        videoElement.volume = currentPlaybackSettings.volume;
+                        videoPlayer.handleSpeedChange(currentPlaybackSettings.speed);
+                        videoPlayer.handleVolumeChange(currentPlaybackSettings.volume);
+                        videoPlayer.setSubtitlesEnabled(currentPlaybackSettings.subtitlesEnabled);
+                    }
+                }, 100);
+
+                setNextVideo(null);
+                setNextVideoCountdown(5);
+            }
         }, 1000);
 
         setNextVideoTimeout(countdownInterval);
