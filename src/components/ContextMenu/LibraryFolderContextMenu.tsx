@@ -59,33 +59,10 @@ const LibraryFolderContextMenu: React.FC<LibraryFolderContextMenuProps> = ({
             }}
         >
             <div className="px-4 py-2 border-b border-gray-700">
-                <p className="text-2xs text-gray-400 truncate" title={folderName}>
+                <p className="text-2xs text-gray-200 truncate" title={folderName}>
                     {folderName}
                 </p>
             </div>
-
-            <button
-                onClick={() => {
-                    onSyncFolder();
-                    onClose();
-                }}
-                className={buttonClass}
-            >
-                <svg
-                    className={`${iconClass} text-purple-400 group-hover:text-purple-300 group-active:text-purple-200`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                </svg>
-                <span className="font-medium">Sync Folder</span>
-            </button>
 
             <button
                 onClick={() => {
@@ -108,6 +85,29 @@ const LibraryFolderContextMenu: React.FC<LibraryFolderContextMenuProps> = ({
                     />
                 </svg>
                 <span className="font-medium">Change Icon</span>
+            </button>
+
+            <button
+                onClick={() => {
+                    onSyncFolder();
+                    onClose();
+                }}
+                className={buttonClass}
+            >
+                <svg
+                    className={`${iconClass} text-purple-400 group-hover:text-purple-300 group-active:text-purple-200`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                </svg>
+                <span className="font-medium">Sync Folder</span>
             </button>
         </div>
     );
