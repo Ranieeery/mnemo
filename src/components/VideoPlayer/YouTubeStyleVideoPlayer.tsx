@@ -194,6 +194,12 @@ export default function YouTubeStyleVideoPlayer({
                     const newFastSpeed = Math.min(2, playbackSpeed + 0.25);
                     onSpeedChange(newFastSpeed);
                     break;
+                case "backspace":
+                    e.preventDefault();
+                    if (playbackSpeed !== 1) {
+                        onSpeedChange(1);
+                    }
+                    break;
                 case "arrowleft":
                     e.preventDefault();
                     seek(-5);
