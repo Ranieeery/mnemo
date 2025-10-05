@@ -16,6 +16,7 @@ import NextVideoModal from "./components/Modals/NextVideoModal";
 import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
 import FolderContextMenu from "./components/ContextMenu/FolderContextMenu";
+import LibraryFolderContextMenu from "./components/ContextMenu/LibraryFolderContextMenu";
 import HomePage from "./components/HomePage/HomePage";
 import SearchResults from "./components/SearchResults/SearchResults";
 import YouTubeStyleVideoPlayer from "./components/VideoPlayer/YouTubeStyleVideoPlayer";
@@ -56,6 +57,20 @@ function App() {
     } | null>(null);
 
     const [folderContextMenu, setFolderContextMenu] = useState<{
+        show: boolean;
+        x: number;
+        y: number;
+        folderPath: string;
+        folderName: string;
+    }>({
+        show: false,
+        x: 0,
+        y: 0,
+        folderPath: '',
+        folderName: ''
+    });
+
+    const [libraryFolderContextMenu, setLibraryFolderContextMenu] = useState<{
         show: boolean;
         x: number;
         y: number;
@@ -425,10 +440,49 @@ function App() {
         setSelectedFolderForMarkAll(null);
     };
 
+    const handleLibraryFolderContextMenu = (event: React.MouseEvent, folderPath: string, folderName: string) => {
+        event.preventDefault();
+        
+        setLibraryFolderContextMenu({
+            show: true,
+            x: event.clientX,
+            y: event.clientY,
+            folderPath: folderPath,
+            folderName: folderName
+        });
+    };
+
+    const handleCloseLibraryFolderContextMenu = () => {
+        setLibraryFolderContextMenu({
+            show: false,
+            x: 0,
+            y: 0,
+            folderPath: '',
+            folderName: ''
+        });
+    };
+
+    const handleSyncLibraryFolder = async () => {
+        if (!libraryFolderContextMenu.folderPath) return;
+        
+        try {
+            handleCloseLibraryFolderContextMenu();
+            await videoProcessingActions.processVideosInBackground(libraryFolderContextMenu.folderPath);
+            await videoLibraryActions.loadHomePageData();
+            alert('Pasta da biblioteca sincronizada com sucesso!');
+        } catch (error) {
+            console.error('Error syncing library folder:', error);
+            alert('Erro ao sincronizar pasta da biblioteca');
+        }
+    };
+
     useEffect(() => {
         const handleClickOutside = () => {
             if (folderContextMenu.show) {
                 handleCloseFolderContextMenu();
+            }
+            if (libraryFolderContextMenu.show) {
+                handleCloseLibraryFolderContextMenu();
             }
         };
 
@@ -436,7 +490,7 @@ function App() {
         return () => {
             document.removeEventListener('click', handleClickOutside);
         };
-    }, [folderContextMenu.show]);
+    }, [folderContextMenu.show, libraryFolderContextMenu.show]);
 
     return (
         <div className="h-screen bg-gray-900 text-white flex">
@@ -449,6 +503,7 @@ function App() {
                 onRemoveFolderRequest={handleRemoveFolderRequest}
                 onGoToHomePage={handleGoHome}
                 onOpenSettings={handleOpenSettings}
+                onLibraryFolderContextMenu={handleLibraryFolderContextMenu}
             />
 
             <div className="flex-1 flex flex-col">
@@ -548,6 +603,15 @@ function App() {
                 folderName={folderContextMenu.folderName}
                 onMarkAllAsWatched={handleMarkAllAsWatchedRequest}
                 onClose={handleCloseFolderContextMenu}
+            />
+
+            <LibraryFolderContextMenu
+                show={libraryFolderContextMenu.show}
+                x={libraryFolderContextMenu.x}
+                y={libraryFolderContextMenu.y}
+                folderName={libraryFolderContextMenu.folderName}
+                onSyncFolder={handleSyncLibraryFolder}
+                onClose={handleCloseLibraryFolderContextMenu}
             />
 
             <ConfirmMarkAllWatchedModal

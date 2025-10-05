@@ -8,6 +8,7 @@ interface SidebarProps {
     onAddFolder: () => void;
     onSelectFolder: (folder: string) => void;
     onRemoveFolderRequest: (folder: string) => void;
+    onLibraryFolderContextMenu?: (event: React.MouseEvent, folderPath: string, folderName: string) => void;
     onGoToHomePage: () => void;
     onOpenSettings: () => void;
 }
@@ -19,6 +20,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     onAddFolder,
     onSelectFolder,
     onRemoveFolderRequest,
+    onLibraryFolderContextMenu,
     onGoToHomePage,
     onOpenSettings
 }) => {
@@ -64,6 +66,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                         libraryFolders.map((folder, index) => (
                             <div
                                 key={index}
+                                onContextMenu={(e) => {
+                                    if (onLibraryFolderContextMenu) {
+                                        e.preventDefault();
+                                        const folderName = folder.split(/[/\\]/).pop() || folder;
+                                        onLibraryFolderContextMenu(e, folder, folderName);
+                                    }
+                                }}
                                 className={`text-sm rounded-md p-2 transition-all group relative ${
                                     selectedFolder === folder
                                         ? "bg-blue-600 text-white"

@@ -42,6 +42,7 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
     const [importFile, setImportFile] = useState<string | null>(null);
     const [isResettingWatched, setIsResettingWatched] = useState(false);
     const [isDebugging, setIsDebugging] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
         loadStats();
@@ -203,6 +204,20 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
         }
     };
 
+    const handleSyncLibrary = async () => {
+        setIsSyncing(true);
+        try {
+            await onLibraryChanged();
+            await loadStats();
+            alert("Library synchronized successfully!");
+        } catch (error) {
+            console.error('Error syncing library:', error);
+            alert("Error syncing library. Check the console for details.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8">
             <div
@@ -355,6 +370,40 @@ export function Settings({onClose, onLibraryChanged}: SettingsProps) {
                                                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                                         </svg>
                                         <span>Reset All</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
+                            <div>
+                                <h4 className="font-medium text-gray-200">Sync Library</h4>
+                                <p className="text-sm text-gray-400">
+                                    Rescan all folders and update video list
+                                </p>
+                            </div>
+                            <button
+                                onClick={handleSyncLibrary}
+                                disabled={isSyncing}
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 text-white rounded-md transition-colors flex items-center space-x-2"
+                            >
+                                {isSyncing ? (
+                                    <>
+                                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                                    strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor"
+                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>Syncing...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                        </svg>
+                                        <span>Sync Now</span>
                                     </>
                                 )}
                             </button>
