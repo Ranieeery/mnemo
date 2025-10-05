@@ -79,6 +79,24 @@ Platform notes:
 - macOS: build on macOS for signed/notarized DMG (optional signing not yet enabled).
 - Linux: build on a Linux host (or CI) to produce `.deb` & `.AppImage`.
 
+### Code Formatting
+
+This project uses Prettier for consistent code formatting.
+
+Format all files:
+
+```sh
+bun run format
+```
+
+Check formatting without making changes:
+
+```sh
+bun run format:check
+```
+
+The VS Code settings are configured to format on save automatically when the Prettier extension is installed.
+
 ## Development Process
 
 This project was created iteratively, following strict best practices for stability and code quality. Each feature was implemented and tested step-by-step, with immediate fixes for any errors. The AI provided the initial architecture and code, while the project owner (me) made significant manual improvements and customizations.
