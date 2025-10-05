@@ -649,7 +649,9 @@ export async function getLibraryFolders(): Promise<string[]> {
 export async function getLibraryFoldersWithIcons(): Promise<{ folder: string; customIcon: string | null }[]> {
     const database = await getDatabase();
 
-    const result = (await database.select("SELECT path, custom_icon FROM library_folders ORDER BY created_at")) as any[];
+    const result = (await database.select(
+        "SELECT path, custom_icon FROM library_folders ORDER BY created_at"
+    )) as any[];
 
     return result.map((row: any) => ({
         folder: row.path,

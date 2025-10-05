@@ -35,7 +35,12 @@ const ConfirmOpenFileModal: React.FC<ConfirmOpenFileModalProps> = ({ show, fileP
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg
+                                className="w-6 h-6 text-blue-600"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
                                 <path
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -62,7 +67,7 @@ const ConfirmOpenFileModal: React.FC<ConfirmOpenFileModalProps> = ({ show, fileP
                     <p className="text-gray-300 mb-3">
                         This file will be opened with your system's default application.
                     </p>
-                    
+
                     <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                         <p className="text-xs text-gray-400 break-all">{filePath}</p>
                     </div>

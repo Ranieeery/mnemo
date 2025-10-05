@@ -100,7 +100,11 @@ function App() {
     });
 
     const [showChangeIconModal, setShowChangeIconModal] = useState(false);
-    const [iconChangeFolder, setIconChangeFolder] = useState<{ path: string; name: string; currentIcon: string | null }>({
+    const [iconChangeFolder, setIconChangeFolder] = useState<{
+        path: string;
+        name: string;
+        currentIcon: string | null;
+    }>({
         path: "",
         name: "",
         currentIcon: null,
@@ -602,10 +606,10 @@ function App() {
         try {
             await updateLibraryFolderIcon(iconChangeFolder.path, icon);
             setShowChangeIconModal(false);
-            
+
             const foldersWithIcons = await getLibraryFoldersWithIcons();
             setLibraryFoldersWithIcons(foldersWithIcons);
-            
+
             await videoLibraryActions.loadHomePageData();
         } catch (error) {
             console.error("Error updating folder icon:", error);

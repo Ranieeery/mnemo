@@ -531,7 +531,10 @@ export default function YouTubeStyleVideoPlayer({
 
             <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 flex flex-col min-w-0">
-                    <div className={`bg-black relative ${isFullscreen ? "flex-1" : "flex-shrink-0"}`} style={isFullscreen ? {} : { maxHeight: 'calc(100vh - 250px)', aspectRatio: "16/9" }}>
+                    <div
+                        className={`bg-black relative ${isFullscreen ? "flex-1" : "flex-shrink-0"}`}
+                        style={isFullscreen ? {} : { maxHeight: "calc(100vh - 250px)", aspectRatio: "16/9" }}
+                    >
                         {videoElement}
                         {overlayElements}
                         {controls}
