@@ -833,6 +833,76 @@ export async function getVideoTags(videoId: number): Promise<Tag[]> {
     return result;
 }
 
+export async function addTagToFolder(folderPath: string, tagName: string): Promise<number> {
+    const database = await getDatabase();
+
+    const normalizedFolderPath = folderPath.replace(/\\/g, "/");
+    const tag = await createOrGetTag(tagName);
+
+    const videos = (await database.select("SELECT id FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1", [
+        `${normalizedFolderPath}/%`,
+    ])) as any[];
+
+    let addedCount = 0;
+
+    for (const video of videos) {
+        const existing = (await database.select("SELECT * FROM video_tags WHERE video_id = $1 AND tag_id = $2", [
+            video.id,
+            tag.id,
+        ])) as VideoTag[];
+
+        if (existing.length === 0) {
+            await database.execute("INSERT INTO video_tags (video_id, tag_id) VALUES ($1, $2)", [video.id, tag.id]);
+            addedCount++;
+        }
+    }
+
+    return addedCount;
+}
+
+export async function removeAllTagsFromFolder(folderPath: string): Promise<number> {
+    const database = await getDatabase();
+
+    const normalizedFolderPath = folderPath.replace(/\\/g, "/");
+
+    const videos = (await database.select("SELECT id FROM videos WHERE REPLACE(file_path, '\\', '/') LIKE $1", [
+        `${normalizedFolderPath}/%`,
+    ])) as any[];
+
+    if (videos.length === 0) {
+        return 0;
+    }
+
+    const videoIds = videos.map((v) => v.id);
+    const placeholders = videoIds.map((_, index) => `$${index + 1}`).join(", ");
+
+    const countResult = (await database.select(
+        `SELECT COUNT(*) as count FROM video_tags WHERE video_id IN (${placeholders})`,
+        videoIds
+    )) as any[];
+    const removedCount = countResult[0]?.count || 0;
+
+    await database.execute(`DELETE FROM video_tags WHERE video_id IN (${placeholders})`, videoIds);
+
+    return removedCount;
+}
+
+export async function getFolderTagCount(folderPath: string): Promise<number> {
+    const database = await getDatabase();
+
+    const normalizedFolderPath = folderPath.replace(/\\/g, "/");
+
+    const result = (await database.select(
+        `SELECT COUNT(DISTINCT vt.id) as count 
+         FROM video_tags vt
+         INNER JOIN videos v ON vt.video_id = v.id
+         WHERE REPLACE(v.file_path, '\\', '/') LIKE $1`,
+        [`${normalizedFolderPath}/%`]
+    )) as any[];
+
+    return result[0]?.count || 0;
+}
+
 export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedVideo[]> {
     const database = await getDatabase();
 
@@ -1065,7 +1135,10 @@ export async function resetAllVideosAsUnwatched(): Promise<void> {
            last_watched_at = NULL,
            updated_at = CURRENT_TIMESTAMP`
         );
-        console.log("All videos reset as unwatched");
+
+        await database.execute("DELETE FROM video_tags");
+
+        console.log("All videos reset as unwatched and tags cleared");
     } catch (error) {
         console.error("Error resetting videos as unwatched:", error);
         throw error;

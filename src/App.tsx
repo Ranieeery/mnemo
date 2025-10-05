@@ -9,6 +9,9 @@ import {
     updateLibraryFolderIcon,
     getLibraryFolderIcon,
     getLibraryFoldersWithIcons,
+    addTagToFolder,
+    removeAllTagsFromFolder,
+    getFolderTagCount,
 } from "./database";
 import { checkVideoToolsAvailable } from "./services/videoProcessor";
 import { ProcessedVideo } from "./types/video";
@@ -24,6 +27,8 @@ import ConfirmMarkAllWatchedModal from "./components/Modals/ConfirmMarkAllWatche
 import NextVideoModal from "./components/Modals/NextVideoModal";
 import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
 import ChangeIconModal from "./components/Modals/ChangeIconModal";
+import AddTagToFolderModal from "./components/Modals/AddTagToFolderModal";
+import ConfirmRemoveAllTagsModal from "./components/Modals/ConfirmRemoveAllTagsModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
 import FolderContextMenu from "./components/ContextMenu/FolderContextMenu";
 import LibraryFolderContextMenu from "./components/ContextMenu/LibraryFolderContextMenu";
@@ -75,6 +80,7 @@ function App() {
         folderName: string;
         hasWatchedVideos: boolean;
         hasUnwatchedVideos: boolean;
+        hasTags: boolean;
     }>({
         show: false,
         x: 0,
@@ -83,6 +89,7 @@ function App() {
         folderName: "",
         hasWatchedVideos: false,
         hasUnwatchedVideos: false,
+        hasTags: false,
     });
 
     const [libraryFolderContextMenu, setLibraryFolderContextMenu] = useState<{
@@ -113,6 +120,18 @@ function App() {
     const [libraryFoldersWithIcons, setLibraryFoldersWithIcons] = useState<
         { folder: string; customIcon: string | null }[]
     >([]);
+
+    const [showAddTagModal, setShowAddTagModal] = useState(false);
+    const [tagTargetFolder, setTagTargetFolder] = useState<{ path: string; name: string }>({
+        path: "",
+        name: "",
+    });
+
+    const [showRemoveAllTagsModal, setShowRemoveAllTagsModal] = useState(false);
+    const [removeTagsFolder, setRemoveTagsFolder] = useState<{ path: string; name: string }>({
+        path: "",
+        name: "",
+    });
 
     const [libraryState, libraryActions] = useLibraryManagement({
         videoToolsAvailable,
@@ -449,6 +468,7 @@ function App() {
 
         try {
             const stats = await getFolderStats(folderPath);
+            const tagCount = await getFolderTagCount(folderPath);
             setFolderContextMenu({
                 show: true,
                 x: event.clientX,
@@ -457,6 +477,7 @@ function App() {
                 folderName: folderName,
                 hasWatchedVideos: stats.watchedVideos > 0,
                 hasUnwatchedVideos: stats.totalVideos - stats.watchedVideos > 0,
+                hasTags: tagCount > 0,
             });
         } catch (error) {
             console.error("Error getting folder stats for context menu:", error);
@@ -472,6 +493,7 @@ function App() {
             folderName: "",
             hasWatchedVideos: false,
             hasUnwatchedVideos: false,
+            hasTags: false,
         });
     };
 
@@ -548,6 +570,67 @@ function App() {
     const handleCancelMarkAllWatched = () => {
         setShowMarkAllWatchedModal(false);
         setSelectedFolderForMarkAll(null);
+    };
+
+    const handleAddTagToFolderRequest = () => {
+        if (!folderContextMenu.folderPath) return;
+
+        setTagTargetFolder({
+            path: folderContextMenu.folderPath,
+            name: folderContextMenu.folderName,
+        });
+        setShowAddTagModal(true);
+    };
+
+    const handleConfirmAddTag = async (tagName: string) => {
+        try {
+            const addedCount = await addTagToFolder(tagTargetFolder.path, tagName);
+            setShowAddTagModal(false);
+            setTagTargetFolder({ path: "", name: "" });
+
+            alert(`Tag "${tagName}" added to ${addedCount} video(s)!`);
+        } catch (error) {
+            console.error("Error adding tag to folder:", error);
+            alert("Error adding tag to folder");
+        }
+    };
+
+    const handleCancelAddTag = () => {
+        setShowAddTagModal(false);
+        setTagTargetFolder({ path: "", name: "" });
+    };
+
+    const handleRemoveAllTagsRequest = () => {
+        if (!folderContextMenu.folderPath) return;
+
+        setRemoveTagsFolder({
+            path: folderContextMenu.folderPath,
+            name: folderContextMenu.folderName,
+        });
+        setShowRemoveAllTagsModal(true);
+    };
+
+    const handleConfirmRemoveAllTags = async () => {
+        try {
+            const removedCount = await removeAllTagsFromFolder(removeTagsFolder.path);
+            setShowRemoveAllTagsModal(false);
+            setRemoveTagsFolder({ path: "", name: "" });
+
+            alert(`Removed tags from ${removedCount} video(s)!`);
+
+            // Reload videos if we're currently viewing this folder
+            if (navigationState.currentPath) {
+                loadDirectoryContents(navigationState.currentPath);
+            }
+        } catch (error) {
+            console.error("Error removing tags from folder:", error);
+            alert("Error removing tags from folder");
+        }
+    };
+
+    const handleCancelRemoveAllTags = () => {
+        setShowRemoveAllTagsModal(false);
+        setRemoveTagsFolder({ path: "", name: "" });
     };
 
     const handleLibraryFolderContextMenu = (event: React.MouseEvent, folderPath: string, folderName: string) => {
@@ -759,8 +842,11 @@ function App() {
                 folderName={folderContextMenu.folderName}
                 hasWatchedVideos={folderContextMenu.hasWatchedVideos}
                 hasUnwatchedVideos={folderContextMenu.hasUnwatchedVideos}
+                hasTags={folderContextMenu.hasTags}
                 onMarkAllAsWatched={handleMarkAllAsWatchedRequest}
                 onMarkAllAsUnwatched={handleMarkAllAsUnwatchedRequest}
+                onAddTag={handleAddTagToFolderRequest}
+                onRemoveAllTags={handleRemoveAllTagsRequest}
                 onClose={handleCloseFolderContextMenu}
             />
 
@@ -888,6 +974,20 @@ function App() {
                 currentIcon={iconChangeFolder.currentIcon}
                 onConfirm={handleConfirmChangeIcon}
                 onCancel={handleCancelChangeIcon}
+            />
+
+            <AddTagToFolderModal
+                show={showAddTagModal}
+                folderName={tagTargetFolder.name}
+                onConfirm={handleConfirmAddTag}
+                onCancel={handleCancelAddTag}
+            />
+
+            <ConfirmRemoveAllTagsModal
+                show={showRemoveAllTagsModal}
+                folderName={removeTagsFolder.name}
+                onConfirm={handleConfirmRemoveAllTags}
+                onCancel={handleCancelRemoveAllTags}
             />
 
             {modals.showSettings && <Settings onClose={handleCloseSettings} onLibraryChanged={handleLibraryChanged} />}
