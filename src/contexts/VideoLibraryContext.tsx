@@ -14,7 +14,7 @@ export interface VideoLibraryState {
     recentVideos: ProcessedVideo[];
     videosInProgress: ProcessedVideo[];
     suggestedVideos: ProcessedVideo[];
-    libraryFoldersWithPreviews: { folder: string; videos: ProcessedVideo[] }[];
+    libraryFoldersWithPreviews: { folder: string; videos: ProcessedVideo[]; customIcon: string | null }[];
     selectedFolder: string | null;
     processedVideos: ProcessedVideo[];
     loading: boolean;
@@ -26,7 +26,10 @@ export type VideoLibraryAction =
     | { type: "SET_RECENT_VIDEOS"; payload: ProcessedVideo[] }
     | { type: "SET_VIDEOS_IN_PROGRESS"; payload: ProcessedVideo[] }
     | { type: "SET_SUGGESTED_VIDEOS"; payload: ProcessedVideo[] }
-    | { type: "SET_LIBRARY_FOLDERS_WITH_PREVIEWS"; payload: { folder: string; videos: ProcessedVideo[] }[] }
+    | {
+          type: "SET_LIBRARY_FOLDERS_WITH_PREVIEWS";
+          payload: { folder: string; videos: ProcessedVideo[]; customIcon: string | null }[];
+      }
     | { type: "SET_SELECTED_FOLDER"; payload: string | null }
     | { type: "SET_PROCESSED_VIDEOS"; payload: ProcessedVideo[] }
     | { type: "SET_LOADING"; payload: boolean }
@@ -117,7 +120,9 @@ interface VideoLibraryContextType {
         setVideosInProgress: (videos: ProcessedVideo[]) => void;
         setSuggestedVideos: (videos: ProcessedVideo[]) => void;
         setProcessedVideos: (videos: ProcessedVideo[]) => void;
-        setLibraryFoldersWithPreviews: (folders: { folder: string; videos: ProcessedVideo[] }[]) => void;
+        setLibraryFoldersWithPreviews: (
+            folders: { folder: string; videos: ProcessedVideo[]; customIcon: string | null }[]
+        ) => void;
         setLoading: (loading: boolean) => void;
         setError: (error: string | null) => void;
         setProcessedVideosReact: React.Dispatch<React.SetStateAction<ProcessedVideo[]>>;
@@ -230,7 +235,9 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
         setProcessedVideos: (videos: ProcessedVideo[]) => {
             dispatch({ type: "SET_PROCESSED_VIDEOS", payload: videos });
         },
-        setLibraryFoldersWithPreviews: (folders: { folder: string; videos: ProcessedVideo[] }[]) => {
+        setLibraryFoldersWithPreviews: (
+            folders: { folder: string; videos: ProcessedVideo[]; customIcon: string | null }[]
+        ) => {
             dispatch({ type: "SET_LIBRARY_FOLDERS_WITH_PREVIEWS", payload: folders });
         },
         setLoading: (loading: boolean) => {

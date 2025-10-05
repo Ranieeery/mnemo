@@ -8,7 +8,7 @@ interface HomePageProps {
     videosInProgress: ProcessedVideo[];
     recentVideos: ProcessedVideo[];
     suggestedVideos: ProcessedVideo[];
-    libraryFoldersWithPreviews: { folder: string; videos: ProcessedVideo[] }[];
+    libraryFoldersWithPreviews: { folder: string; videos: ProcessedVideo[]; customIcon: string | null }[];
     onAddFolder: () => void;
     onPlayVideo: (video: ProcessedVideo, list?: ProcessedVideo[]) => void;
     onContextMenu: (event: React.MouseEvent, video: ProcessedVideo) => void;
@@ -267,12 +267,15 @@ export default function HomePage({
                                     <div key={`folder-${folderData.folder}-${folderIndex}`}>
                                         <div className="flex items-center justify-between mb-3">
                                             <h4
-                                                className="text-md font-medium text-gray-300 hover:text-gray-100 cursor-pointer transition-colors"
+                                                className="text-md font-medium text-gray-300 hover:text-gray-100 cursor-pointer transition-colors flex items-center gap-2"
                                                 onClick={() => onSelectFolder(folderData.folder)}
                                             >
-                                                {folderData.folder.split("\\").pop() ||
-                                                    folderData.folder.split("/").pop() ||
-                                                    folderData.folder}
+                                                <span className="text-2xl">{folderData.customIcon || "📁"}</span>
+                                                <span>
+                                                    {folderData.folder.split("\\").pop() ||
+                                                        folderData.folder.split("/").pop() ||
+                                                        folderData.folder}
+                                                </span>
                                             </h4>
                                             <button
                                                 onClick={() => onSelectFolder(folderData.folder)}

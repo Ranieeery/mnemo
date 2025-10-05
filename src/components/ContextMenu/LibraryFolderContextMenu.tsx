@@ -6,6 +6,7 @@ interface LibraryFolderContextMenuProps {
     y: number;
     folderName: string;
     onSyncFolder: () => void;
+    onChangeIcon: () => void;
     onClose: () => void;
 }
 
@@ -15,6 +16,7 @@ const LibraryFolderContextMenu: React.FC<LibraryFolderContextMenuProps> = ({
     y,
     folderName,
     onSyncFolder,
+    onChangeIcon,
     onClose,
 }) => {
     if (!show) {
@@ -23,7 +25,7 @@ const LibraryFolderContextMenu: React.FC<LibraryFolderContextMenuProps> = ({
 
     const isMobile = window.innerWidth < 768;
     const menuWidth = isMobile ? 280 : 220;
-    const menuHeight = isMobile ? 100 : 80;
+    const menuHeight = isMobile ? 160 : 140;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
@@ -67,7 +69,7 @@ const LibraryFolderContextMenu: React.FC<LibraryFolderContextMenuProps> = ({
                     onSyncFolder();
                     onClose();
                 }}
-                className={`${buttonClass} rounded-b-xl`}
+                className={buttonClass}
             >
                 <svg
                     className={`${iconClass} text-purple-400 group-hover:text-purple-300 group-active:text-purple-200`}
@@ -83,6 +85,29 @@ const LibraryFolderContextMenu: React.FC<LibraryFolderContextMenuProps> = ({
                     />
                 </svg>
                 <span className="font-medium">Sync Folder</span>
+            </button>
+
+            <button
+                onClick={() => {
+                    onChangeIcon();
+                    onClose();
+                }}
+                className={`${buttonClass} rounded-b-xl`}
+            >
+                <svg
+                    className={`${iconClass} text-blue-400 group-hover:text-blue-300 group-active:text-blue-200`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+                    />
+                </svg>
+                <span className="font-medium">Change Icon</span>
             </button>
         </div>
     );

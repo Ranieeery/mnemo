@@ -94,6 +94,10 @@ async function createTables() {
         await db.execute(`ALTER TABLE videos ADD COLUMN last_watched_at DATETIME`);
     } catch (e) {}
 
+    try {
+        await db.execute(`ALTER TABLE library_folders ADD COLUMN custom_icon TEXT`);
+    } catch (e) {}
+
     console.log("Database tables created successfully");
 }
 
@@ -607,16 +611,20 @@ export async function getVideoPreviewFromFolder(folderPath: string, limit: numbe
     }));
 }
 
-export async function getLibraryFoldersWithPreviews(): Promise<{ folder: string; videos: ProcessedVideo[] }[]> {
+export async function getLibraryFoldersWithPreviews(): Promise<
+    { folder: string; videos: ProcessedVideo[]; customIcon: string | null }[]
+> {
     const folders = await getLibraryFolders();
     const foldersWithPreviews = [];
 
     for (const folder of folders) {
         const videos = await getVideoPreviewFromFolder(folder, 5);
         if (videos.length > 0) {
+            const customIcon = await getLibraryFolderIcon(folder);
             foldersWithPreviews.push({
                 folder,
                 videos,
+                customIcon,
             });
         }
     }
@@ -638,12 +646,43 @@ export async function getLibraryFolders(): Promise<string[]> {
     return result.map((row: any) => row.path);
 }
 
+export async function getLibraryFoldersWithIcons(): Promise<{ folder: string; customIcon: string | null }[]> {
+    const database = await getDatabase();
+
+    const result = (await database.select("SELECT path, custom_icon FROM library_folders ORDER BY created_at")) as any[];
+
+    return result.map((row: any) => ({
+        folder: row.path,
+        customIcon: row.custom_icon || null,
+    }));
+}
+
 export async function removeLibraryFolder(folderPath: string) {
     const database = await getDatabase();
 
     await removeVideosFromFolder(folderPath);
 
     await database.execute("DELETE FROM library_folders WHERE path = $1", [folderPath]);
+}
+
+export async function updateLibraryFolderIcon(folderPath: string, icon: string | null) {
+    const database = await getDatabase();
+
+    await database.execute("UPDATE library_folders SET custom_icon = $1 WHERE path = $2", [icon, folderPath]);
+}
+
+export async function getLibraryFolderIcon(folderPath: string): Promise<string | null> {
+    const database = await getDatabase();
+
+    const result = (await database.select("SELECT custom_icon FROM library_folders WHERE path = $1", [
+        folderPath,
+    ])) as any[];
+
+    if (result.length > 0) {
+        return result[0].custom_icon || null;
+    }
+
+    return null;
 }
 
 export async function removeVideosFromFolder(folderPath: string) {

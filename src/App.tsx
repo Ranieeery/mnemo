@@ -6,6 +6,9 @@ import {
     markAllVideosInFolderAsWatched,
     markAllVideosInFolderAsUnwatched,
     getFolderStats,
+    updateLibraryFolderIcon,
+    getLibraryFolderIcon,
+    getLibraryFoldersWithIcons,
 } from "./database";
 import { checkVideoToolsAvailable } from "./services/videoProcessor";
 import { ProcessedVideo } from "./types/video";
@@ -20,6 +23,7 @@ import ConfirmRemovalModal from "./components/Modals/ConfirmRemovalModal";
 import ConfirmMarkAllWatchedModal from "./components/Modals/ConfirmMarkAllWatchedModal";
 import NextVideoModal from "./components/Modals/NextVideoModal";
 import VideoDetailsModal from "./components/Modals/VideoDetailsModal";
+import ChangeIconModal from "./components/Modals/ChangeIconModal";
 import ContextMenu from "./components/ContextMenu/ContextMenu";
 import FolderContextMenu from "./components/ContextMenu/FolderContextMenu";
 import LibraryFolderContextMenu from "./components/ContextMenu/LibraryFolderContextMenu";
@@ -95,6 +99,17 @@ function App() {
         folderName: "",
     });
 
+    const [showChangeIconModal, setShowChangeIconModal] = useState(false);
+    const [iconChangeFolder, setIconChangeFolder] = useState<{ path: string; name: string; currentIcon: string | null }>({
+        path: "",
+        name: "",
+        currentIcon: null,
+    });
+
+    const [libraryFoldersWithIcons, setLibraryFoldersWithIcons] = useState<
+        { folder: string; customIcon: string | null }[]
+    >([]);
+
     const [libraryState, libraryActions] = useLibraryManagement({
         videoToolsAvailable,
         libraryFolders: videoLibraryState.libraryFolders,
@@ -111,6 +126,23 @@ function App() {
     const [videoProcessingState, videoProcessingActions] = useVideoProcessing({
         setProcessedVideos: videoLibraryActions.setProcessedVideosReact,
     });
+
+    useEffect(() => {
+        const loadFolderIcons = async () => {
+            try {
+                const foldersWithIcons = await getLibraryFoldersWithIcons();
+                setLibraryFoldersWithIcons(foldersWithIcons);
+            } catch (error) {
+                console.error("Error loading folder icons:", error);
+            }
+        };
+
+        if (videoLibraryState.libraryFolders.length > 0) {
+            loadFolderIcons();
+        } else {
+            setLibraryFoldersWithIcons([]);
+        }
+    }, [videoLibraryState.libraryFolders]);
 
     const handleGoHome = () => {
         navigationActions.goToHome();
@@ -550,6 +582,41 @@ function App() {
         }
     };
 
+    const handleChangeLibraryFolderIcon = async () => {
+        if (!libraryFolderContextMenu.folderPath) return;
+
+        try {
+            const currentIcon = await getLibraryFolderIcon(libraryFolderContextMenu.folderPath);
+            setIconChangeFolder({
+                path: libraryFolderContextMenu.folderPath,
+                name: libraryFolderContextMenu.folderName,
+                currentIcon: currentIcon,
+            });
+            setShowChangeIconModal(true);
+        } catch (error) {
+            console.error("Error getting folder icon:", error);
+        }
+    };
+
+    const handleConfirmChangeIcon = async (icon: string | null) => {
+        try {
+            await updateLibraryFolderIcon(iconChangeFolder.path, icon);
+            setShowChangeIconModal(false);
+            
+            const foldersWithIcons = await getLibraryFoldersWithIcons();
+            setLibraryFoldersWithIcons(foldersWithIcons);
+            
+            await videoLibraryActions.loadHomePageData();
+        } catch (error) {
+            console.error("Error updating folder icon:", error);
+            alert("Error updating folder icon");
+        }
+    };
+
+    const handleCancelChangeIcon = () => {
+        setShowChangeIconModal(false);
+    };
+
     useEffect(() => {
         const handleClickOutside = () => {
             if (folderContextMenu.show) {
@@ -570,6 +637,7 @@ function App() {
         <div className="h-screen bg-gray-900 text-white flex">
             <Sidebar
                 libraryFolders={videoLibraryState.libraryFolders}
+                libraryFoldersWithIcons={libraryFoldersWithIcons}
                 selectedFolder={videoLibraryState.selectedFolder}
                 folderIndexingStatus={libraryState.folderIndexingStatus}
                 onAddFolder={libraryActions.handleAddFolder}
@@ -698,6 +766,7 @@ function App() {
                 y={libraryFolderContextMenu.y}
                 folderName={libraryFolderContextMenu.folderName}
                 onSyncFolder={handleSyncLibraryFolder}
+                onChangeIcon={handleChangeLibraryFolderIcon}
                 onClose={handleCloseLibraryFolderContextMenu}
             />
 
@@ -807,6 +876,14 @@ function App() {
                 folderToRemove={modals.folderToRemove}
                 onConfirm={confirmRemoveFolder}
                 onCancel={cancelRemoveFolder}
+            />
+
+            <ChangeIconModal
+                show={showChangeIconModal}
+                folderName={iconChangeFolder.name}
+                currentIcon={iconChangeFolder.currentIcon}
+                onConfirm={handleConfirmChangeIcon}
+                onCancel={handleCancelChangeIcon}
             />
 
             {modals.showSettings && <Settings onClose={handleCloseSettings} onLibraryChanged={handleLibraryChanged} />}
