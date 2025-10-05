@@ -100,9 +100,13 @@ export default function YouTubeStyleVideoPlayer({
     formatTime,
     resetControlsTimeout,
 }: YouTubeStyleVideoPlayerProps) {
-    const currentIndex = playlistVideos.findIndex((v) => v.file_path === video.file_path);
+    const sortedVideos = [...playlistVideos].sort((a, b) => a.file_path.localeCompare(b.file_path));
+    const sortedCurrentIndex = sortedVideos.findIndex((v) => v.file_path === video.file_path);
+
     const nextVideos =
-        currentIndex !== -1 ? playlistVideos.slice(currentIndex + 1, currentIndex + 7) : playlistVideos.slice(0, 6);
+        sortedCurrentIndex !== -1
+            ? sortedVideos.slice(sortedCurrentIndex + 1, sortedCurrentIndex + 7)
+            : sortedVideos.slice(0, 6);
 
     const lastVolumeRef = useRef(volume || 1);
     if (volume > 0) lastVolumeRef.current = volume;
