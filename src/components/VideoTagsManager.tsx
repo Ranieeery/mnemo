@@ -53,8 +53,12 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({ video, onTag
     const handleRemoveTag = async (tagId: number) => {
         if (!video.id) return;
 
+        console.log("VideoTagsManager: Removing tag", { videoId: video.id, tagId });
+
         try {
             await removeTagFromVideo(video.id, tagId);
+
+            console.log("VideoTagsManager: Tag removed, reloading tags...");
 
             await loadTags();
 
@@ -115,7 +119,14 @@ export const VideoTagsManager: React.FC<VideoTagsManagerProps> = ({ video, onTag
                             >
                                 {tag.name}
                                 <button
-                                    onClick={() => handleRemoveTag(tag.id)}
+                                    onClick={() => {
+                                        console.log("Removing tag - UI click:", {
+                                            tagId: tag.id,
+                                            tagName: tag.name,
+                                            videoId: video.id,
+                                        });
+                                        handleRemoveTag(tag.id);
+                                    }}
                                     className="ml-1 hover:text-red-300 transition-colors"
                                     title="Remove tag"
                                 >

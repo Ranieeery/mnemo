@@ -15,6 +15,7 @@ import {
 } from "../database";
 import { formatDuration } from "../utils/videoUtils";
 import ConfirmResetAllModal from "./Modals/ConfirmResetAllModal";
+import TagManagementModal from "./Modals/TagManagementModal";
 
 interface LibraryStats {
     totalVideos: number;
@@ -45,6 +46,7 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
     const [showResetAllConfirm, setShowResetAllConfirm] = useState(false);
     const [isDebugging, setIsDebugging] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [showTagManagementModal, setShowTagManagementModal] = useState(false);
 
     useEffect(() => {
         loadStats();
@@ -53,7 +55,9 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                if (showImportConfirm) {
+                if (showTagManagementModal) {
+                    setShowTagManagementModal(false);
+                } else if (showImportConfirm) {
                     setShowImportConfirm(false);
                 } else if (showResetAllConfirm) {
                     setShowResetAllConfirm(false);
@@ -65,7 +69,7 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
 
         document.addEventListener("keydown", handleEscape);
         return () => document.removeEventListener("keydown", handleEscape);
-    }, [onClose, showImportConfirm, showResetAllConfirm]);
+    }, [onClose, showImportConfirm, showResetAllConfirm, showTagManagementModal]);
 
     const loadStats = async () => {
         try {
@@ -486,6 +490,34 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
                                 )}
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-gray-300 mb-4">Tag Management</h3>
+                    <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
+                            <div>
+                                <h4 className="font-medium text-gray-200">Manage Tags</h4>
+                                <p className="text-sm text-gray-400">
+                                    View, delete, or remove tags from all videos ({stats.totalTags} tags)
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowTagManagementModal(true)}
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors flex items-center space-x-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                                    />
+                                </svg>
+                                <span>Manage Tags</span>
+                            </button>
+                        </div>
 
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-gray-800/70 border border-gray-700/60 rounded-xl backdrop-blur">
                             <div>
@@ -577,6 +609,12 @@ export function Settings({ onClose, onLibraryChanged }: SettingsProps) {
                 show={showResetAllConfirm}
                 onConfirm={handleConfirmResetAll}
                 onCancel={handleCancelResetAll}
+            />
+
+            <TagManagementModal
+                show={showTagManagementModal}
+                onClose={() => setShowTagManagementModal(false)}
+                onTagsChanged={loadStats}
             />
         </div>
     );

@@ -816,11 +816,17 @@ export async function addTagToVideo(videoId: number, tagName: string): Promise<v
 export async function removeTagFromVideo(videoId: number, tagId: number): Promise<void> {
     const database = await getDatabase();
 
+    console.log("removeTagFromVideo called with:", { videoId, tagId });
+
     await database.execute("DELETE FROM video_tags WHERE video_id = $1 AND tag_id = $2", [videoId, tagId]);
+
+    console.log("Tag removed successfully");
 }
 
 export async function getVideoTags(videoId: number): Promise<Tag[]> {
     const database = await getDatabase();
+
+    console.log("getVideoTags called for videoId:", videoId);
 
     const result = (await database.select(
         `SELECT t.* FROM tags t
@@ -829,6 +835,8 @@ export async function getVideoTags(videoId: number): Promise<Tag[]> {
      ORDER BY t.name`,
         [videoId]
     )) as Tag[];
+
+    console.log("getVideoTags result:", result);
 
     return result;
 }
@@ -956,6 +964,42 @@ export async function cleanupUnusedTags(): Promise<void> {
        SELECT DISTINCT tag_id FROM video_tags
      )`
     );
+}
+
+export async function deleteTag(tagId: number): Promise<void> {
+    const database = await getDatabase();
+
+    await database.execute(`DELETE FROM video_tags WHERE tag_id = $1`, [tagId]);
+
+    await database.execute(`DELETE FROM tags WHERE id = $1`, [tagId]);
+}
+
+export async function removeTagFromAllVideos(tagId: number): Promise<number> {
+    const database = await getDatabase();
+
+    const result = (await database.select(`SELECT COUNT(*) as count FROM video_tags WHERE tag_id = $1`, [
+        tagId,
+    ])) as any[];
+
+    const count = result[0]?.count || 0;
+
+    await database.execute(`DELETE FROM video_tags WHERE tag_id = $1`, [tagId]);
+
+    return count;
+}
+
+export async function deleteAllTags(): Promise<number> {
+    const database = await getDatabase();
+
+    const result = (await database.select(`SELECT COUNT(*) as count FROM tags`)) as any[];
+
+    const count = result[0]?.count || 0;
+
+    await database.execute(`DELETE FROM video_tags`);
+
+    await database.execute(`DELETE FROM tags`);
+
+    return count;
 }
 
 export interface LibraryExport {

@@ -618,7 +618,6 @@ function App() {
 
             alert(`Removed tags from ${removedCount} video(s)!`);
 
-            // Reload videos if we're currently viewing this folder
             if (navigationState.currentPath) {
                 loadDirectoryContents(navigationState.currentPath);
             }
