@@ -92,7 +92,7 @@ export default function DirectoryView({
                         {stats.isFullyWatched && stats.totalVideos > 0 && (
                             <div
                                 className="flex items-center gap-1.5 text-green-500"
-                                title="Todos os vídeos assistidos"
+                                title="All videos watched"
                             >
                                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                     <path

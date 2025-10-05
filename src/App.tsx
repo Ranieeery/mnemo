@@ -470,7 +470,7 @@ function App() {
             }
         } catch (error) {
             console.error("Error marking all as watched:", error);
-            alert("Erro ao marcar vídeos como assistidos");
+            alert("Error marking videos as watched");
         }
     };
 
@@ -505,7 +505,7 @@ function App() {
             }
         } catch (error) {
             console.error("Error marking all as unwatched:", error);
-            alert("Erro ao desmarcar vídeos como assistidos");
+            alert("Error unmarking videos as watched");
         }
     };
 
@@ -543,10 +543,10 @@ function App() {
             handleCloseLibraryFolderContextMenu();
             await videoProcessingActions.processVideosInBackground(libraryFolderContextMenu.folderPath);
             await videoLibraryActions.loadHomePageData();
-            alert("Pasta da biblioteca sincronizada com sucesso!");
+            alert("Library folder synchronized successfully!");
         } catch (error) {
             console.error("Error syncing library folder:", error);
-            alert("Erro ao sincronizar pasta da biblioteca");
+            alert("Error synchronizing library folder");
         }
     };
 

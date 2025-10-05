@@ -181,9 +181,9 @@ export function VideoLibraryProvider({ children }: VideoLibraryProviderProps) {
             await loadLibraryFolders();
             await loadHomePageData();
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Falha ao inicializar biblioteca";
+            const errorMessage = error instanceof Error ? error.message : "Failed to initialize library";
             dispatch({ type: "SET_ERROR", payload: errorMessage });
-            console.error("Erro ao inicializar biblioteca:", error);
+            console.error("Error initializing library:", error);
         } finally {
             dispatch({ type: "SET_LOADING", payload: false });
         }

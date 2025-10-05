@@ -37,12 +37,12 @@ const ConfirmMarkAllWatchedModal: React.FC<ConfirmMarkAllWatchedModalProps> = ({
     const isWatchMode = mode === "watch";
     const watchedVideos = totalVideos - unwatchedVideos;
     const iconColor = isWatchMode ? "text-blue-400" : "text-orange-400";
-    const title = isWatchMode ? "Marcar Tudo como Visto" : "Desmarcar Tudo como Visto";
+    const title = isWatchMode ? "Mark All as Watched" : "Mark All as Unwatched";
     const description = isWatchMode
-        ? `Deseja marcar todos os vídeos da pasta "${folderName}" como assistidos?`
-        : `Deseja desmarcar todos os vídeos assistidos da pasta "${folderName}"?`;
+        ? `Do you want to mark all videos in the folder "${folderName}" as watched?`
+        : `Do you want to unmark all watched videos in the folder "${folderName}"?`;
     const affectedCount = isWatchMode ? unwatchedVideos : watchedVideos;
-    const affectedLabel = isWatchMode ? "Serão marcados" : "Serão desmarcados";
+    const affectedLabel = isWatchMode ? "Will be marked" : "Will be unmarked";
     const confirmButtonColor = isWatchMode ? "bg-blue-600 hover:bg-blue-700" : "bg-orange-600 hover:bg-orange-700";
 
     return (
@@ -74,11 +74,11 @@ const ConfirmMarkAllWatchedModal: React.FC<ConfirmMarkAllWatchedModalProps> = ({
                         <p className="text-gray-300 mb-2">{description}</p>
                         <div className="bg-gray-900 rounded-md p-3 mt-3">
                             <div className="flex justify-between text-sm mb-1">
-                                <span className="text-gray-400">Total de vídeos:</span>
-                                <span className="text-gray-200 font-medium">{totalVideos}</span>
+                                <span className="text-gray-400">Total videos:</span>
+                                <span className="text-white font-medium">{totalVideos}</span>
                             </div>
-                            <div className="flex justify-between text-sm mb-1">
-                                <span className="text-gray-400">{isWatchMode ? "Não assistidos" : "Assistidos"}:</span>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400">{isWatchMode ? "Unwatched" : "Watched"}:</span>
                                 <span className={`font-medium ${isWatchMode ? "text-orange-400" : "text-green-400"}`}>
                                     {isWatchMode ? unwatchedVideos : watchedVideos}
                                 </span>
@@ -96,7 +96,7 @@ const ConfirmMarkAllWatchedModal: React.FC<ConfirmMarkAllWatchedModalProps> = ({
                         onClick={onCancel}
                         className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors font-medium"
                     >
-                        Cancelar
+                        Cancel
                     </button>
                     <button
                         onClick={onConfirm}
@@ -117,7 +117,7 @@ const ConfirmMarkAllWatchedModal: React.FC<ConfirmMarkAllWatchedModalProps> = ({
                                 />
                             )}
                         </svg>
-                        Confirmar
+                        Confirm
                     </button>
                 </div>
             </div>

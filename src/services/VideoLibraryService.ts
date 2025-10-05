@@ -50,8 +50,8 @@ export class VideoLibraryService {
         try {
             return await getLibraryFolders();
         } catch (error) {
-            console.error("Erro ao carregar pastas da biblioteca:", error);
-            throw new Error("Falha ao carregar pastas da biblioteca");
+            console.error("Error loading library folders:", error);
+            throw new Error("Failed to load library folders");
         }
     }
 
@@ -59,8 +59,8 @@ export class VideoLibraryService {
         try {
             await saveLibraryFolder(folderPath);
         } catch (error) {
-            console.error("Erro ao adicionar pasta da biblioteca:", error);
-            throw new Error("Falha ao adicionar pasta da biblioteca");
+            console.error("Error adding library folder:", error);
+            throw new Error("Failed to add library folder");
         }
     }
 
@@ -68,8 +68,8 @@ export class VideoLibraryService {
         try {
             await dbRemoveLibraryFolder(folderPath);
         } catch (error) {
-            console.error("Erro ao remover pasta da biblioteca:", error);
-            throw new Error("Falha ao remover pasta da biblioteca");
+            console.error("Error removing library folder:", error);
+            throw new Error("Failed to remove library folder");
         }
     }
 
@@ -137,8 +137,8 @@ export class VideoLibraryService {
 
         const percentage = this.calculateWatchPercentage(video.watch_progress_seconds || 0, video.duration_seconds);
 
-        if (percentage >= 90) return "Assistido";
-        if (percentage > 5) return `${Math.round(percentage)}% assistido`;
+        if (percentage >= 90) return "Watched";
+        if (percentage > 5) return `${Math.round(percentage)}% watched`;
         return "Not watched";
     }
 }
