@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { ProcessedVideo, FolderStats } from "../../types/video";
 import { formatDuration } from "../../utils/videoUtils";
 import { DirEntry } from "../../contexts/NavigationContext";
 import { useFolderStats } from "../../hooks/useFolderStats";
 import { getFolderStats } from "../../database";
+import ConfirmOpenFileModal from "../Modals/ConfirmOpenFileModal";
 
 interface DirectoryViewProps {
     loading: boolean;
@@ -37,6 +39,32 @@ export default function DirectoryView({
 }: DirectoryViewProps) {
     const { stats } = useFolderStats(currentPath);
     const [folderStats, setFolderStats] = useState<Map<string, FolderStats>>(new Map());
+    const [showOpenFileModal, setShowOpenFileModal] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<{ path: string; name: string } | null>(null);
+
+    const handleNonVideoFileClick = async (filePath: string, fileName: string) => {
+        setSelectedFile({ path: filePath, name: fileName });
+        setShowOpenFileModal(true);
+    };
+
+    const handleConfirmOpenFile = async () => {
+        if (!selectedFile) return;
+
+        try {
+            await openPath(selectedFile.path);
+        } catch (error) {
+            console.error("Error opening file:", error);
+            alert(`Failed to open file: ${error}`);
+        } finally {
+            setShowOpenFileModal(false);
+            setSelectedFile(null);
+        }
+    };
+
+    const handleCancelOpenFile = () => {
+        setShowOpenFileModal(false);
+        setSelectedFile(null);
+    };
 
     const normalizePath = (p: string) =>
         p
@@ -133,7 +161,13 @@ export default function DirectoryView({
                             return (
                                 <div
                                     key={index}
-                                    onClick={() => item.is_dir && onNavigateToDirectory(item.path)}
+                                    onClick={() => {
+                                        if (item.is_dir) {
+                                            onNavigateToDirectory(item.path);
+                                        } else if (!item.is_video) {
+                                            handleNonVideoFileClick(item.path, item.name);
+                                        }
+                                    }}
                                     onContextMenu={(e) => {
                                         if (item.is_dir && onFolderContextMenu) {
                                             e.preventDefault();
@@ -145,7 +179,9 @@ export default function DirectoryView({
                                             ? isFullyWatched
                                                 ? "cursor-pointer border-green-500 hover:bg-green-900 hover:bg-opacity-10"
                                                 : "cursor-pointer hover:bg-gray-800 hover:border-gray-600 border-gray-700"
-                                            : "cursor-default border-gray-700"
+                                            : item.is_video
+                                              ? "cursor-default border-gray-700"
+                                              : "cursor-pointer hover:bg-gray-800 hover:border-gray-600 border-gray-700"
                                     }`}
                                 >
                                     <div className="flex items-center space-x-3">
@@ -315,6 +351,14 @@ export default function DirectoryView({
                     <div className="text-gray-400">This folder is empty</div>
                 </div>
             )}
+
+            <ConfirmOpenFileModal
+                show={showOpenFileModal}
+                fileName={selectedFile?.name || ""}
+                filePath={selectedFile?.path || ""}
+                onConfirm={handleConfirmOpenFile}
+                onCancel={handleCancelOpenFile}
+            />
         </div>
     );
 }
