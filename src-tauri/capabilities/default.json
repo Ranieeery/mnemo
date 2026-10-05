@@ -1,32 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "The main window: app commands, plus the native dialogs to pick library folders and backup files.",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "opener:default",
-    {
-      "identifier": "opener:allow-open-path",
-      "allow": [
-        {
-          "path": "**"
-        }
-      ]
-    },
-    "dialog:default",
-    "dialog:allow-open",
-    "dialog:allow-save",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
-    "sql:default",
-    "sql:allow-load",
-    "sql:allow-close",
-    "sql:allow-execute",
-    "sql:allow-select",
-    "core:path:default",
-    "core:event:default",
-    "core:app:default",
-    "core:image:default"
-  ]
+  "permissions": ["core:default", "dialog:allow-open", "dialog:allow-save"]
 }

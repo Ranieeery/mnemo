@@ -1,0 +1,142 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import type { FolderContents } from "../../shared/ipc/bindings";
+import { entryFixture, folderContentsFixture, libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
+import { callsOf, commandError, mockCommands } from "../../shared/test/ipc";
+import { renderScreen } from "../../shared/test/render";
+import { FolderPage } from "./components/FolderPage";
+
+const SHOW = "D:\\Videos\\Show";
+
+function contents(overrides: Partial<FolderContents> = {}): FolderContents {
+    return folderContentsFixture({
+        path: SHOW,
+        subfolders: [
+            { name: "Season 1", path: `${SHOW}\\Season 1`, stats: { totalVideos: 10, watchedVideos: 10 } },
+            { name: "Season 2", path: `${SHOW}\\Season 2`, stats: { totalVideos: 8, watchedVideos: 2 } },
+        ],
+        groups: [
+            {
+                folderPath: SHOW,
+                relativePath: "",
+                entries: [
+                    entryFixture(videoFixture({ id: 1, title: "Trailer", filePath: `${SHOW}\\Trailer.mkv` })),
+                    { path: `${SHOW}\\Extra.mp4`, name: "Extra.mp4", video: null },
+                ],
+            },
+        ],
+        otherFiles: [{ name: "cover.jpg", path: `${SHOW}\\cover.jpg` }],
+        ...overrides,
+    });
+}
+
+function mockFolder(folderContents: FolderContents, extra: Record<string, unknown> = {}) {
+    return mockCommands({
+        list_library_folders: [libraryFolderFixture()],
+        browse_folder: folderContents,
+        get_folder_summary: { totalVideos: 19, watchedVideos: 12, taggedVideos: 3 },
+        media_tools_status: { ffmpeg: true, ffprobe: true },
+        process_folder: { processed: 0, skipped: 19, failed: 0 },
+        ...extra,
+    });
+}
+
+describe("FolderPage", () => {
+    it("shows the path, progress, subfolders, videos and other files", async () => {
+        mockFolder(contents());
+        renderScreen(<FolderPage path={SHOW} />);
+
+        expect(await screen.findByRole("heading", { name: "Show", level: 1 })).toBeInTheDocument();
+        const path = screen.getByRole("navigation", { name: "Folder path" });
+        expect(await within(path).findByRole("link", { name: "Videos" })).toBeInTheDocument();
+        expect(await screen.findByText("19 videos, 12 watched")).toBeInTheDocument();
+
+        expect(screen.getByRole("link", { name: /Season 1/ })).toHaveTextContent("10 of 10 watched");
+        expect(screen.getByLabelText("Fully watched")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Trailer" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Extra" })).toHaveTextContent("Not processed");
+        expect(screen.getByRole("button", { name: "cover.jpg" })).toBeInTheDocument();
+    });
+
+    it("reads new videos of the folder in the background when opened", async () => {
+        const calls = mockFolder(contents());
+        renderScreen(<FolderPage path={SHOW} />);
+        await waitFor(() =>
+            expect(callsOf(calls, "process_folder")).toEqual([expect.objectContaining({ path: SHOW })])
+        );
+    });
+
+    it("does not try to read videos without ffmpeg", async () => {
+        const calls = mockFolder(contents(), { media_tools_status: { ffmpeg: false, ffprobe: true } });
+        renderScreen(<FolderPage path={SHOW} />);
+        await screen.findByRole("button", { name: "Trailer" });
+        expect(callsOf(calls, "process_folder")).toEqual([]);
+    });
+
+    it("groups the whole tree in continuous view and switches views", async () => {
+        const calls = mockFolder(
+            contents({
+                viewMode: { mode: "continuous", definedAt: SHOW },
+                groups: [
+                    { folderPath: SHOW, relativePath: "", entries: [] },
+                    {
+                        folderPath: `${SHOW}\\Season 1`,
+                        relativePath: "Season 1",
+                        entries: [entryFixture(videoFixture({ id: 5, title: "Pilot" }))],
+                    },
+                ],
+            }),
+            { set_folder_view_mode: null }
+        );
+        const { user } = renderScreen(<FolderPage path={SHOW} />);
+
+        expect(await screen.findByRole("link", { name: "Season 1" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Pilot" })).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Continuous" }));
+        await user.click(await screen.findByRole("menuitemradio", { name: /Folders/ }));
+        expect(callsOf(calls, "set_folder_view_mode")).toEqual([{ path: SHOW, mode: "folders" }]);
+    });
+
+    it("marks every video of the folder as watched after confirmation", async () => {
+        const calls = mockFolder(contents(), { set_folder_watched: 7 });
+        const { user } = renderScreen(<FolderPage path={SHOW} />);
+
+        await user.click(await screen.findByRole("button", { name: "Folder actions" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Mark all as watched" }));
+        const dialog = await screen.findByRole("alertdialog", { name: "Mark 7 videos as watched?" });
+        await user.click(within(dialog).getByRole("button", { name: "Mark as watched" }));
+
+        expect(await screen.findByText("Marked 7 videos as watched")).toBeInTheDocument();
+        expect(callsOf(calls, "set_folder_watched")).toEqual([{ path: SHOW, watched: true }]);
+    });
+
+    it("adds a tag to every video of the folder", async () => {
+        const calls = mockFolder(contents(), { add_tag_to_folder: 19 });
+        const { user } = renderScreen(<FolderPage path={SHOW} />);
+
+        await user.click(await screen.findByRole("button", { name: "Folder actions" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Add tag to all videos" }));
+        await user.type(await screen.findByRole("textbox", { name: "Tag" }), "Anime{Enter}");
+
+        expect(await screen.findByText('Tagged 19 videos with "anime"')).toBeInTheDocument();
+        expect(callsOf(calls, "add_tag_to_folder")).toEqual([{ path: SHOW, name: "Anime" }]);
+    });
+
+    it("explains when the folder is outside the library", async () => {
+        mockFolder(contents(), {
+            browse_folder: () => {
+                throw commandError("invalidInput", "D:\\Elsewhere is not inside a library folder");
+            },
+        });
+        renderScreen(<FolderPage path={"D:\\Elsewhere"} />);
+        expect(await screen.findByRole("heading", { name: "This folder is not in your library" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Go to home" })).toBeInTheDocument();
+    });
+
+    it("says so when the folder is empty", async () => {
+        mockFolder(folderContentsFixture({ path: SHOW }));
+        renderScreen(<FolderPage path={SHOW} />);
+        expect(await screen.findByRole("heading", { name: "This folder is empty" })).toBeInTheDocument();
+    });
+});

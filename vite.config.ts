@@ -10,6 +10,19 @@ export default defineConfig({
 
     // Keep Rust compiler errors visible in the terminal.
     clearScreen: false,
+    build: {
+        rolldownOptions: {
+            output: {
+                // Dependencies change less often than the app; keeping them apart keeps every chunk small.
+                codeSplitting: {
+                    groups: [
+                        { name: "react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 2 },
+                        { name: "vendor", test: /node_modules/, priority: 1 },
+                    ],
+                },
+            },
+        },
+    },
     server: {
         // Tauri expects a fixed port and fails if it is taken.
         port: 1420,

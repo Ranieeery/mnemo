@@ -1,14 +1,22 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { queryClient } from "../shared/ipc/queryClient";
 import { Toaster, TooltipProvider } from "../shared/ui";
+import { DialogHost } from "./DialogHost";
+import { useHistoryShortcuts } from "./navigation/useHistoryNavigation";
 
 export function RootLayout() {
+    useHistoryShortcuts();
     return (
-        <TooltipProvider delayDuration={400} skipDelayDuration={200}>
-            <Outlet />
-            <Toaster />
-            {import.meta.env.DEV && <DevCatalogShortcut />}
-        </TooltipProvider>
+        <QueryClientProvider client={queryClient}>
+            <TooltipProvider delayDuration={400} skipDelayDuration={200}>
+                <Outlet />
+                <DialogHost />
+                <Toaster />
+                {import.meta.env.DEV && <DevCatalogShortcut />}
+            </TooltipProvider>
+        </QueryClientProvider>
     );
 }
 

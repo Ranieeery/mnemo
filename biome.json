@@ -6,21 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": [
-      "**",
-      "!src/shared/ipc/bindings.ts",
-      "!src/main.tsx",
-      "!src/App.tsx",
-      "!src/database.ts",
-      "!src/index.css",
-      "!src/components",
-      "!src/contexts",
-      "!src/hooks",
-      "!src/services",
-      "!src/styles",
-      "!src/types",
-      "!src/utils"
-    ]
+    "includes": ["**", "!src/shared/ipc/bindings.ts"]
   },
   "formatter": {
     "indentStyle": "space",

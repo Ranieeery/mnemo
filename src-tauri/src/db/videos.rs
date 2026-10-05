@@ -93,7 +93,7 @@ pub fn in_folder(connection: &Connection, folder: &str, recursive: bool) -> AppR
                AND instr(substr(v.file_path, ?3), '/') = 0 AND instr(substr(v.file_path, ?3), '\\') = 0
              ORDER BY v.file_path"
         );
-        let first_child_char = bounds.prefix_chars() + 1;
+        let first_child_char = bounds.prefix_chars() as i64 + 1;
         query_videos(connection, &sql, params![bounds.lower, bounds.upper, first_child_char])
     }
 }

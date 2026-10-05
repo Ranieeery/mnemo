@@ -4,25 +4,52 @@ import {
     createRoute,
     createRouter,
     lazyRouteComponent,
-    type RouteComponent,
     type RouterHistory,
 } from "@tanstack/react-router";
+import { AppShell } from "./layout/AppShell";
 import { RootLayout } from "./RootLayout";
+import { FolderRoute } from "./routes/FolderRoute";
+import { HomeRoute } from "./routes/HomeRoute";
+import { validateFolderSearch, validateHomeSearch, validateWatchSearch } from "./routes/searchParams";
 
 function NotFound() {
     return null;
 }
 
 /**
- * Builds the app router. `home` is the screen mounted at "/"; until the new UI replaces it, the legacy app is passed
- * in by the entry point so this module never imports legacy code.
- *
- * Hash history keeps routing independent from how Tauri serves files, and the catalog route only has a component in
- * development builds (the import disappears from production bundles).
+ * Builds the app router. Browsing screens share the shell (sidebar and top bar); the player takes the whole window.
+ * The player and settings load on demand. The design system catalog only exists in development builds: the inline
+ * `import.meta.env.DEV` check lets Vite drop its import from production bundles. Hash history keeps routing
+ * independent from how Tauri serves files.
  */
-export function createAppRouter(home: RouteComponent, history: RouterHistory = createHashHistory()) {
+export function createAppRouter(history: RouterHistory = createHashHistory()) {
     const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFound });
-    const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: home });
+
+    const shellRoute = createRoute({ getParentRoute: () => rootRoute, id: "shell", component: AppShell });
+    const homeRoute = createRoute({
+        getParentRoute: () => shellRoute,
+        path: "/",
+        validateSearch: validateHomeSearch,
+        component: HomeRoute,
+    });
+    const folderRoute = createRoute({
+        getParentRoute: () => shellRoute,
+        path: "/folder",
+        validateSearch: validateFolderSearch,
+        component: FolderRoute,
+    });
+    const settingsRoute = createRoute({
+        getParentRoute: () => shellRoute,
+        path: "/settings",
+        component: lazyRouteComponent(() => import("./routes/SettingsRoute"), "SettingsRoute"),
+    });
+
+    const watchRoute = createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/watch",
+        validateSearch: validateWatchSearch,
+        component: lazyRouteComponent(() => import("./routes/WatchRoute"), "WatchRoute"),
+    });
     const catalogRoute = createRoute({
         getParentRoute: () => rootRoute,
         path: "/dev/catalog",
@@ -32,7 +59,11 @@ export function createAppRouter(home: RouteComponent, history: RouterHistory = c
     });
 
     return createRouter({
-        routeTree: rootRoute.addChildren([homeRoute, catalogRoute]),
+        routeTree: rootRoute.addChildren([
+            shellRoute.addChildren([homeRoute, folderRoute, settingsRoute]),
+            watchRoute,
+            catalogRoute,
+        ]),
         history,
         defaultPreload: "intent",
     });
