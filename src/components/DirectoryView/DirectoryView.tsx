@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { ProcessedVideo, FolderStats } from "../../types/video";
-import { formatDuration } from "../../utils/videoUtils";
+import { formatDuration } from "../../shared/lib/formatDuration";
 import { DirEntry } from "../../contexts/NavigationContext";
 import { useFolderStats } from "../../hooks/useFolderStats";
 import { getFolderStats } from "../../database";

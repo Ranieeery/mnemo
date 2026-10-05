@@ -1,16 +1,13 @@
-import React from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import ReactDOM from "react-dom/client";
-import App from "./App";
 import "./index.css";
+import App from "./App";
+import { mountApp } from "./app/mountApp";
 import ErrorBoundary from "./components/ErrorBoundary/ErrorBoundary";
-import { VideoLibraryProvider } from "./contexts/VideoLibraryContext";
 import { NavigationProvider } from "./contexts/NavigationContext";
+import { VideoLibraryProvider } from "./contexts/VideoLibraryContext";
 
-const rootEl = document.getElementById("root") as HTMLElement;
-
-ReactDOM.createRoot(rootEl).render(
-    <React.StrictMode>
+// Legacy entry point: mounts the new app shell with the legacy screens as its home route until phase 5.
+function LegacyRoot() {
+    return (
         <ErrorBoundary>
             <VideoLibraryProvider>
                 <NavigationProvider>
@@ -18,12 +15,7 @@ ReactDOM.createRoot(rootEl).render(
                 </NavigationProvider>
             </VideoLibraryProvider>
         </ErrorBoundary>
-    </React.StrictMode>
-);
+    );
+}
 
-const win = getCurrentWindow();
-win.show().catch(() => {});
-requestAnimationFrame(() => {
-    const root = document.getElementById("root");
-    if (root) root.style.opacity = "1";
-});
+mountApp(LegacyRoot);

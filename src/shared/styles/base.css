@@ -1,0 +1,32 @@
+@layer base {
+    :root {
+        color-scheme: dark;
+        font-family: var(--font-sans);
+        font-optical-sizing: auto;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+    }
+
+    body {
+        background-color: var(--color-background);
+        color: var(--color-text);
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--color-focus-ring);
+        outline-offset: 2px;
+    }
+
+    ::selection {
+        background-color: var(--color-accent);
+        color: var(--color-accent-foreground);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --duration-fast: 0ms;
+        --duration-base: 0ms;
+        --duration-slow: 0ms;
+    }
+}

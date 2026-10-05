@@ -15,7 +15,6 @@ import {
 } from "./database";
 import { checkVideoToolsAvailable } from "./services/videoProcessor";
 import { ProcessedVideo } from "./types/video";
-import { VideoLibraryService } from "./services/VideoLibraryService";
 import { getVideosInDirectoryOrderedByWatchStatus } from "./database";
 import { Settings } from "./components/Settings";
 import ProcessingProgressBar from "./components/Progress/ProcessingProgressBar";
@@ -46,13 +45,8 @@ import { useContextMenu } from "./hooks/useContextMenu";
 import { useVideoLibrary } from "./contexts/VideoLibraryContext";
 import { useNavigation as useNavigationContext } from "./contexts/NavigationContext";
 import "./styles/player.css";
-
-const naturalSort = (a: string, b: string): number => {
-    return a.localeCompare(b, undefined, {
-        numeric: true,
-        sensitivity: "base",
-    });
-};
+import { formatDuration } from "./shared/lib/formatDuration";
+import { naturalCompare } from "./shared/lib/naturalCompare";
 
 function App() {
     const { state: videoLibraryState, actions: videoLibraryActions } = useVideoLibrary();
@@ -258,7 +252,7 @@ function App() {
         try {
             videoLibraryActions.setLoading(true);
 
-            const processedVideos = await VideoLibraryService.getVideosInDirectory(path);
+            const processedVideos = await getVideosInDirectoryOrderedByWatchStatus(path);
             videoLibraryActions.setProcessedVideos(processedVideos);
 
             const directoryContents: any[] = await invoke("read_directory", { path });
@@ -448,12 +442,6 @@ function App() {
     const contextMenuHook = useContextMenu({
         onOpenVideoDetails: handleOpenVideoDetails,
     });
-
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, "0")}`;
-    };
 
     const playNextVideo = async () => {
         await modals.playNextVideo();
@@ -828,7 +816,7 @@ function App() {
                             onContextMenu={contextMenuHook.handleContextMenu}
                             onNavigateToDirectory={navigateToDirectory}
                             onFolderContextMenu={handleFolderContextMenu}
-                            naturalSort={naturalSort}
+                            naturalSort={naturalCompare}
                         />
                     )}
                 </div>
@@ -946,7 +934,7 @@ function App() {
                     onPause={() => videoPlayer.setIsPlaying(false)}
                     onToggleWatchedStatus={toggleVideoWatchedStatus}
                     onOpenProperties={handleOpenVideoDetails}
-                    formatTime={formatTime}
+                    formatTime={formatDuration}
                     resetControlsTimeout={videoPlayer.resetControlsTimeout}
                 />
             )}

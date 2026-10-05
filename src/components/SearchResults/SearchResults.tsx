@@ -1,7 +1,7 @@
 import React from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { ProcessedVideo } from "../../types/video";
-import { formatDuration } from "../../utils/videoUtils";
+import { formatDuration } from "../../shared/lib/formatDuration";
 
 interface SearchResultsProps {
     isSearching: boolean;

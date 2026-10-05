@@ -2,6 +2,7 @@ import Database from "@tauri-apps/plugin-sql";
 import { ProcessedVideo, FolderStats } from "./types/video";
 import { isVideoFile } from "./utils/videoUtils";
 import { invoke } from "@tauri-apps/api/core";
+import { formatDuration } from "./shared/lib/formatDuration";
 
 let db: Database | null = null;
 
@@ -942,17 +943,6 @@ export async function searchVideosByTags(tagNames: string[]): Promise<ProcessedV
         duration: video.duration_seconds ? formatDuration(video.duration_seconds) : "00:00",
         size: 0,
     }));
-}
-
-function formatDuration(seconds: number): string {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
-    }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
 export async function cleanupUnusedTags(): Promise<void> {

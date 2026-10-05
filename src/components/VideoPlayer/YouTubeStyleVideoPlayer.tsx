@@ -1,7 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { ProcessedVideo } from "../../types/video";
-import { formatDuration } from "../../utils/videoUtils";
+import { formatDuration } from "../../shared/lib/formatDuration";
 
 interface YouTubeStyleVideoPlayerProps {
     video: ProcessedVideo;
