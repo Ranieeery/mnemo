@@ -12,6 +12,8 @@ export const commands = {
 	/**  Removes a library folder with its videos and thumbnails. Returns how many videos were removed. */
 	removeLibraryFolder: (path: string) => typedError<number, IpcError>(__TAURI_INVOKE("remove_library_folder", { path })),
 	setLibraryFolderIcon: (path: string, icon: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_library_folder_icon", { path, icon })),
+	/**  Folder icons chosen most recently, newest first, offered first by the icon picker. */
+	recentFolderIcons: () => typedError<string[], IpcError>(__TAURI_INVOKE("recent_folder_icons")),
 	/**  Sets how a folder lists its videos; `None` makes it inherit from its parent again. */
 	setFolderViewMode: (path: string, mode: 
 /**  Only the folder's own videos, mirroring the disk. The playlist is the folder itself. */

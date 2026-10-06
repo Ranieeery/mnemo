@@ -23,12 +23,13 @@ export {
 } from "./DropdownMenu";
 export { EmptyState } from "./EmptyState";
 export { ErrorState } from "./ErrorState";
-export { FOLDER_ICONS, FolderIcon, type FolderIconName, isFolderIconName } from "./FolderIcon";
+export { FolderIcon, loadAllIcons, SUGGESTED_FOLDER_ICONS } from "./FolderIcon";
 export { IconButton } from "./IconButton";
 export { Input } from "./Input";
 export { Kbd } from "./Kbd";
 export { Progress } from "./Progress";
-export { ScrollContainer } from "./ScrollContainer";
+export { ScrollContainer, scrollBehavior } from "./ScrollContainer";
+export { ScrollToTopButton } from "./ScrollToTopButton";
 export { SearchInput } from "./SearchInput";
 export { Skeleton } from "./Skeleton";
 export { Slider } from "./Slider";

@@ -58,6 +58,21 @@ describe("FolderPage", () => {
         expect(screen.getByRole("button", { name: "cover.jpg" })).toBeInTheDocument();
     });
 
+    it("points to the other files from the header and jumps to them", async () => {
+        mockFolder(contents());
+        const { user } = renderScreen(<FolderPage path={SHOW} />);
+
+        await user.click(await screen.findByRole("button", { name: "1 other file" }));
+        expect(screen.getByRole("heading", { name: "Other files" })).toHaveFocus();
+    });
+
+    it("does not point to other files when there are none", async () => {
+        mockFolder(contents({ otherFiles: [] }));
+        renderScreen(<FolderPage path={SHOW} />);
+        await screen.findByRole("button", { name: "Trailer" });
+        expect(screen.queryByRole("button", { name: /other file/ })).not.toBeInTheDocument();
+    });
+
     it("reads new videos of the folder in the background when opened", async () => {
         const calls = mockFolder(contents());
         renderScreen(<FolderPage path={SHOW} />);

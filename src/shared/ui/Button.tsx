@@ -22,6 +22,8 @@ const sizeClasses: Record<ButtonSize, string> = {
 export function buttonClasses(variant: ButtonVariant = "secondary", size: ButtonSize = "md", className?: string) {
     return cx(
         "inline-flex select-none items-center justify-center whitespace-nowrap rounded-control font-medium",
+        // Icons match the spinner that replaces them while loading; lucide draws 24px by default.
+        "[&_svg]:size-4 [&_svg]:shrink-0",
         "transition-colors duration-(--duration-fast) ease-standard",
         "disabled:pointer-events-none disabled:opacity-50",
         variantClasses[variant],

@@ -21,6 +21,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             library::add_library_folder,
             library::remove_library_folder,
             library::set_library_folder_icon,
+            library::recent_folder_icons,
             library::set_folder_view_mode,
             library::browse_folder,
             library::get_folder_summary,

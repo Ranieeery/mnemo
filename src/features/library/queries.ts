@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { open } from "@tauri-apps/plugin-dialog";
 import { commands, type LibraryFolder } from "../../shared/ipc/bindings";
 import { call, errorMessage } from "../../shared/ipc/client";
@@ -47,6 +47,14 @@ export function useRemoveLibraryFolder() {
         onError: (error) => {
             toast({ title: "Could not remove the folder", description: errorMessage(error), tone: "danger" });
         },
+    });
+}
+
+/** Icons chosen most recently, newest first; saving an icon adds it (and refreshes this through the library key). */
+export function useRecentFolderIcons() {
+    return useQuery({
+        queryKey: queryKeys.recentFolderIcons(),
+        queryFn: () => call(commands.recentFolderIcons()),
     });
 }
 

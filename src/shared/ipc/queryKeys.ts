@@ -6,6 +6,7 @@
 export const queryKeys = {
     library: ["library"] as const,
     libraryFolders: () => ["library", "folders"] as const,
+    recentFolderIcons: () => ["library", "recent-folder-icons"] as const,
     home: (limit: number) => ["library", "home", limit] as const,
     folder: (path: string) => ["library", "folder", path] as const,
     folderSummary: (path: string) => ["library", "folder-summary", path] as const,

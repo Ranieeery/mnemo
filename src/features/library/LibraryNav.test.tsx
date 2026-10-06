@@ -1,9 +1,12 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { UserEvent } from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { libraryFolderFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
+import { loadAllIcons } from "../../shared/ui";
 import { LibraryNav } from "./components/LibraryNav";
+import { MAIN_TAB_LIMIT } from "./lib/iconPicker";
 
 const series = libraryFolderFixture({ id: 1, path: "D:\\Series", name: "Series", customIcon: "tv" });
 const movies = libraryFolderFixture({ id: 2, path: "D:\\Movies", name: "Movies" });
@@ -47,17 +50,64 @@ describe("LibraryNav", () => {
         await waitFor(() => expect(callsOf(calls, "process_folder")).toHaveLength(1));
     });
 
-    it("changes the icon of a folder", async () => {
-        const calls = mockCommands({ list_library_folders: [movies], set_library_folder_icon: null });
-        const { user } = renderScreen(<LibraryNav currentPath={undefined} />);
-
+    async function openIconDialog(recent: string[] = []) {
+        const calls = mockCommands({
+            list_library_folders: [movies],
+            recent_folder_icons: recent,
+            set_library_folder_icon: null,
+        });
+        const rendered = renderScreen(<LibraryNav currentPath={undefined} />);
         fireEvent.contextMenu(await screen.findByRole("link", { name: "Movies" }));
         fireEvent.click(await screen.findByRole("menuitem", { name: "Change icon" }));
+        return { calls, ...rendered, dialog: await screen.findByRole("dialog", { name: "Icon for Movies" }) };
+    }
+
+    async function openAllIcons(user: UserEvent, dialog: HTMLElement) {
+        // In tests React only retries a suspended render inside act().
+        await act(async () => {
+            await user.click(within(dialog).getByRole("tab", { name: "All icons" }));
+            await loadAllIcons();
+        });
+        return within(dialog).findByRole("searchbox", { name: "Search icons" });
+    }
+
+    it("changes the icon of a folder", async () => {
+        const { calls, user } = await openIconDialog();
         await user.click(await screen.findByRole("radio", { name: "popcorn" }));
         await user.click(screen.getByRole("button", { name: "Save icon" }));
 
         await waitFor(() =>
             expect(callsOf(calls, "set_library_folder_icon")).toEqual([{ path: "D:\\Movies", icon: "popcorn" }])
         );
+    });
+
+    it("offers recently used icons first and keeps the first tab short", async () => {
+        const { dialog } = await openIconDialog(["zodiac-pisces", "film"]);
+        const recent = await within(dialog).findByRole("radiogroup", { name: "Recently used" });
+        expect(
+            within(recent)
+                .getAllByRole("radio")
+                .map((radio) => radio.getAttribute("aria-label"))
+        ).toEqual(["zodiac pisces", "film"]);
+        const suggested = within(dialog).getByRole("radiogroup", { name: "Suggested" });
+        expect(within(suggested).queryByRole("radio", { name: "film" })).not.toBeInTheDocument();
+        expect(within(dialog).getAllByRole("radio")).toHaveLength(MAIN_TAB_LIMIT);
+    });
+
+    it("searches every icon and saves one outside the suggestions", async () => {
+        const { calls, user, dialog } = await openIconDialog();
+        await user.type(await openAllIcons(user, dialog), "zodiac pis");
+        await user.click(within(dialog).getByRole("radio", { name: "zodiac pisces" }));
+        await user.click(screen.getByRole("button", { name: "Save icon" }));
+
+        await waitFor(() =>
+            expect(callsOf(calls, "set_library_folder_icon")).toEqual([{ path: "D:\\Movies", icon: "zodiac-pisces" }])
+        );
+    });
+
+    it("explains when no icon matches the search", async () => {
+        const { user, dialog } = await openIconDialog();
+        await user.type(await openAllIcons(user, dialog), "qqqq");
+        expect(within(dialog).getByText(/No icon is called “qqqq”/)).toBeInTheDocument();
     });
 });

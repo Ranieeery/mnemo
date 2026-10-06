@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::db::{Db, folders, videos};
+use crate::db::{Db, folders, settings, videos};
 use crate::domain::folder_view::{FolderViewMode, ResolvedViewMode, resolve_view_mode};
 use crate::domain::media::display_name;
 use crate::domain::models::{
@@ -55,6 +55,25 @@ pub async fn remove_folder(db: &Db, thumbnails_dir: &Path, path: String) -> AppR
     let count = removed_thumbnails.len() as i64;
     tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &removed_thumbnails)).await?;
     Ok(count)
+}
+
+/// Sets the icon of a library folder (`None` restores the default) and remembers it for the icon picker.
+pub async fn set_folder_icon(db: &Db, path: String, icon: Option<String>) -> AppResult<()> {
+    db.call(move |connection| {
+        let transaction = connection.transaction()?;
+        folders::set_icon(&transaction, &path, icon.as_deref())?;
+        if let Some(icon) = &icon {
+            settings::remember_folder_icon(&transaction, icon)?;
+        }
+        transaction.commit()?;
+        Ok(())
+    })
+    .await
+}
+
+/// Folder icons chosen most recently, newest first.
+pub async fn recent_folder_icons(db: &Db) -> AppResult<Vec<String>> {
+    db.call(|connection| settings::recent_folder_icons(connection)).await
 }
 
 pub async fn set_view_mode(db: &Db, path: String, mode: Option<FolderViewMode>) -> AppResult<()> {
@@ -292,6 +311,30 @@ mod tests {
 
     fn entry_names(entries: &[VideoEntry]) -> Vec<&str> {
         entries.iter().map(|entry| entry.name.as_str()).collect()
+    }
+
+    #[tokio::test]
+    async fn setting_a_folder_icon_remembers_it_unless_it_is_the_default() {
+        let fixture = Fixture::new().await;
+        set_folder_icon(&fixture.db, fixture.path(&[]), Some("film".into()))
+            .await
+            .unwrap();
+        set_folder_icon(&fixture.db, fixture.path(&[]), None).await.unwrap();
+
+        let folders = fixture.db.call(|connection| folders::list(connection)).await.unwrap();
+        assert_eq!(folders[0].custom_icon, None);
+        assert_eq!(recent_folder_icons(&fixture.db).await.unwrap(), ["film"]);
+    }
+
+    #[tokio::test]
+    async fn an_unknown_folder_keeps_the_recent_icons_unchanged() {
+        let fixture = Fixture::new().await;
+        assert!(
+            set_folder_icon(&fixture.db, fixture.path(&["Missing"]), Some("film".into()))
+                .await
+                .is_err()
+        );
+        assert!(recent_folder_icons(&fixture.db).await.unwrap().is_empty());
     }
 
     #[tokio::test]

@@ -1,7 +1,7 @@
 import { Outlet, useRouterState, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { MediaToolsNotice, ProcessingBar } from "../../features/library";
-import { ScrollContainer } from "../../shared/ui";
+import { ScrollContainer, ScrollToTopButton } from "../../shared/ui";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -19,6 +19,7 @@ export function AppShell() {
                     <main className="animate-appear">
                         <Outlet />
                     </main>
+                    <ScrollToTopButton />
                 </ScrollContainer>
             </div>
         </div>

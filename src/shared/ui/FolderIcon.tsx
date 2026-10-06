@@ -43,10 +43,14 @@ import {
     Video,
     Zap,
 } from "lucide-react";
+import { Suspense, use } from "react";
 import { cx } from "../lib/cx";
 
-/** Icons a library folder can use, stored by name in `library_folders.custom_icon`. */
-export const FOLDER_ICONS = {
+/**
+ * Icons suggested for library folders, always available. A folder can use any other lucide icon too; every icon is
+ * stored by its lucide name in `library_folders.custom_icon`.
+ */
+const SUGGESTED_ICONS = {
     film: Film,
     clapperboard: Clapperboard,
     popcorn: Popcorn,
@@ -90,10 +94,21 @@ export const FOLDER_ICONS = {
     cat: Cat,
 } satisfies Record<string, LucideIcon>;
 
-export type FolderIconName = keyof typeof FOLDER_ICONS;
+export const SUGGESTED_FOLDER_ICONS: readonly string[] = Object.keys(SUGGESTED_ICONS);
 
-export function isFolderIconName(value: string | null): value is FolderIconName {
-    return value !== null && Object.hasOwn(FOLDER_ICONS, value);
+function isSuggested(name: string): name is keyof typeof SUGGESTED_ICONS {
+    return Object.hasOwn(SUGGESTED_ICONS, name);
+}
+
+/** Shaped like a lucide icon name. Rules out emojis saved by Mnemo 1.x, so they never load every icon. */
+const ICON_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+let allIcons: Promise<ReadonlyMap<string, LucideIcon>> | undefined;
+
+/** Every lucide icon by name. Loaded once, on demand, because the set is several hundred KB. */
+export function loadAllIcons(): Promise<ReadonlyMap<string, LucideIcon>> {
+    allIcons ??= import("./allIcons").then((module) => module.ALL_ICONS);
+    return allIcons;
 }
 
 type FolderIconProps = {
@@ -103,6 +118,22 @@ type FolderIconProps = {
 };
 
 export function FolderIcon({ name, className }: FolderIconProps) {
-    const Icon = isFolderIconName(name) ? FOLDER_ICONS[name] : Folder;
-    return <Icon className={cx("size-4 shrink-0", className)} aria-hidden />;
+    const classes = cx("size-4 shrink-0", className);
+    if (name !== null && isSuggested(name)) {
+        const Icon = SUGGESTED_ICONS[name];
+        return <Icon className={classes} aria-hidden />;
+    }
+    if (name !== null && ICON_NAME.test(name)) {
+        return (
+            <Suspense fallback={<Folder className={classes} aria-hidden />}>
+                <AnyIcon name={name} className={classes} />
+            </Suspense>
+        );
+    }
+    return <Folder className={classes} aria-hidden />;
+}
+
+function AnyIcon({ name, className }: { name: string; className: string }) {
+    const Icon = use(loadAllIcons()).get(name) ?? Folder;
+    return <Icon className={className} aria-hidden />;
 }

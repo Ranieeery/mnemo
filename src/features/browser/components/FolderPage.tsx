@@ -1,17 +1,19 @@
 import { Link } from "@tanstack/react-router";
+import { ArrowDown, File } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { errorMessage, isErrorKind } from "../../../shared/ipc/client";
 import { useLibraryFolders, useMediaTools } from "../../../shared/ipc/queries";
 import { baseName } from "../../../shared/lib/paths";
+import { plural } from "../../../shared/lib/plural";
 import { processFolder } from "../../../shared/stores/processing";
-import { buttonClasses, ErrorState, Skeleton } from "../../../shared/ui";
+import { Button, buttonClasses, ErrorState, Skeleton, scrollBehavior } from "../../../shared/ui";
 import { VideoGridSkeleton } from "../../../shared/video";
 import { breadcrumbs } from "../lib/breadcrumbs";
 import { useFolderContents, useFolderSummary } from "../queries";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { useFolderActionDialogs } from "./FolderActionDialog";
 import { FolderActionsDropdown } from "./FolderActionMenus";
-import { FolderContentsView } from "./FolderContentsView";
+import { FolderContentsView, OTHER_FILES_HEADING_ID } from "./FolderContentsView";
 import { ViewModeMenu } from "./ViewModeMenu";
 
 type FolderPageProps = {
@@ -28,6 +30,8 @@ export function FolderPage({ path, content }: FolderPageProps) {
     const actions = useFolderActionDialogs();
     const toolsReady = tools.data?.ffmpeg === true && tools.data.ffprobe;
     const name = baseName(path);
+    // Other files are listed after every video, so the header says they exist (not over search results).
+    const otherFiles = content ? 0 : (contents.data?.otherFiles.length ?? 0);
 
     // Like the legacy app, opening a folder reads its new videos in the background (once per session).
     useEffect(() => {
@@ -45,13 +49,22 @@ export function FolderPage({ path, content }: FolderPageProps) {
                         <h1 className="truncate text-display font-semibold text-text" title={path}>
                             {name}
                         </h1>
-                        {summary.data ? (
-                            <p className="text-body text-text-muted tabular-nums">
-                                {summary.data.totalVideos} videos, {summary.data.watchedVideos} watched
-                            </p>
-                        ) : (
-                            <Skeleton className="h-5 w-40" />
-                        )}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {summary.data ? (
+                                <p className="text-body text-text-muted tabular-nums">
+                                    {summary.data.totalVideos} videos, {summary.data.watchedVideos} watched
+                                </p>
+                            ) : (
+                                <Skeleton className="h-5 w-40" />
+                            )}
+                            {otherFiles > 0 && (
+                                <Button variant="secondary" size="sm" icon={<File />} onClick={jumpToOtherFiles}>
+                                    {plural(otherFiles, "other file")}
+                                    {/* The arrow says the button jumps further down the page. */}
+                                    <ArrowDown aria-hidden className="text-text-muted" />
+                                </Button>
+                            )}
+                        </div>
                     </div>
                     {contents.data && (
                         <div className="flex items-center gap-2">
@@ -66,6 +79,12 @@ export function FolderPage({ path, content }: FolderPageProps) {
             {actions.dialog}
         </div>
     );
+}
+
+function jumpToOtherFiles() {
+    const heading = document.getElementById(OTHER_FILES_HEADING_ID);
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
 }
 
 type FolderBodyProps = {

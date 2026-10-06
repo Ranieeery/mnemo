@@ -1,8 +1,20 @@
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
-import { cx } from "../../../shared/lib/cx";
-import { Button, Dialog, FOLDER_ICONS, FolderIcon, type FolderIconName, isFolderIconName } from "../../../shared/ui";
-import { useSetFolderIcon } from "../queries";
+import {
+    Button,
+    Dialog,
+    FolderIcon,
+    Skeleton,
+    SUGGESTED_FOLDER_ICONS,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "../../../shared/ui";
+import { mainTabIcons } from "../lib/iconPicker";
+import { useRecentFolderIcons, useSetFolderIcon } from "../queries";
+import { AllIconsPanel } from "./AllIconsPanel";
+import { IconOption } from "./IconOption";
 
 type ChangeIconDialogProps = {
     folder: LibraryFolder;
@@ -10,17 +22,28 @@ type ChangeIconDialogProps = {
     onOpenChange: (open: boolean) => void;
 };
 
-const iconNames = Object.keys(FOLDER_ICONS).filter(isFolderIconName);
-
 export function ChangeIconDialog({ folder, open, onOpenChange }: ChangeIconDialogProps) {
     const setIcon = useSetFolderIcon();
-    const [selected, setSelected] = useState<FolderIconName | null>(
-        isFolderIconName(folder.customIcon) ? folder.customIcon : null
-    );
+    const recentIcons = useRecentFolderIcons();
+    const [selected, setSelected] = useState<string | null>(folder.customIcon);
+    const tab = mainTabIcons(recentIcons.data ?? [], SUGGESTED_FOLDER_ICONS);
 
-    const save = (icon: FolderIconName | null) => {
+    const save = (icon: string | null) => {
         setIcon.mutate({ folder, icon }, { onSuccess: () => onOpenChange(false) });
     };
+
+    const grid = (label: string, names: readonly string[]) => (
+        <section className="flex flex-col gap-2">
+            <h3 className="text-small font-medium text-text-muted">{label}</h3>
+            <div role="radiogroup" aria-label={label} className="grid grid-cols-8 gap-1">
+                {names.map((name) => (
+                    <IconOption key={name} name={name} selected={selected === name} onSelect={setSelected}>
+                        <FolderIcon name={name} />
+                    </IconOption>
+                ))}
+            </div>
+        </section>
+    );
 
     return (
         <Dialog
@@ -39,26 +62,21 @@ export function ChangeIconDialog({ folder, open, onOpenChange }: ChangeIconDialo
                 </>
             }
         >
-            <div role="radiogroup" aria-label="Icons" className="grid grid-cols-8 gap-1 pb-2">
-                {iconNames.map((name) => (
-                    // biome-ignore lint/a11y/useSemanticElements: a grid of icon buttons reads better than radio inputs.
-                    <button
-                        key={name}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected === name}
-                        aria-label={name.replace(/-\d+$/, "").replace(/-/g, " ")}
-                        onClick={() => setSelected(name)}
-                        className={cx(
-                            "flex aspect-square items-center justify-center rounded-control text-text-muted",
-                            "transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-hover hover:text-text",
-                            selected === name && "bg-surface-hover text-text ring-2 ring-accent"
-                        )}
-                    >
-                        <FolderIcon name={name} className="size-5" />
-                    </button>
-                ))}
-            </div>
+            <Tabs defaultValue="suggested" className="pb-2">
+                <TabsList>
+                    <TabsTrigger value="suggested">Suggested</TabsTrigger>
+                    <TabsTrigger value="all">All icons</TabsTrigger>
+                </TabsList>
+                <TabsContent value="suggested" className="flex flex-col gap-4">
+                    {tab.recent.length > 0 && grid("Recently used", tab.recent)}
+                    {grid("Suggested", tab.suggested)}
+                </TabsContent>
+                <TabsContent value="all">
+                    <Suspense fallback={<Skeleton className="h-82 w-full" />}>
+                        <AllIconsPanel selected={selected} onSelect={setSelected} />
+                    </Suspense>
+                </TabsContent>
+            </Tabs>
         </Dialog>
     );
 }

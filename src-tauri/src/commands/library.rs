@@ -31,10 +31,14 @@ pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> 
 #[tauri::command]
 #[specta::specta]
 pub async fn set_library_folder_icon(state: State<'_, AppState>, path: String, icon: Option<String>) -> AppResult<()> {
-    state
-        .db
-        .call(move |connection| crate::db::folders::set_icon(connection, &path, icon.as_deref()))
-        .await
+    library::set_folder_icon(&state.db, path, icon).await
+}
+
+/// Folder icons chosen most recently, newest first, offered first by the icon picker.
+#[tauri::command]
+#[specta::specta]
+pub async fn recent_folder_icons(state: State<'_, AppState>) -> AppResult<Vec<String>> {
+    library::recent_folder_icons(&state.db).await
 }
 
 /// Sets how a folder lists its videos; `None` makes it inherit from its parent again.

@@ -12,8 +12,16 @@ type FolderContentsViewProps = {
     onFolderAction: (action: FolderAction, target: FolderTarget, summary: FolderSummary) => void;
 };
 
-function SectionTitle({ children }: { children: string }) {
-    return <h2 className="text-title font-semibold text-text">{children}</h2>;
+/** The "Other files" heading, which the folder header links to. */
+export const OTHER_FILES_HEADING_ID = "other-files";
+
+function SectionTitle({ children, id }: { children: string; id?: string }) {
+    return (
+        // Focusable from script only, so jumping to a section moves keyboard focus there too.
+        <h2 id={id} tabIndex={id ? -1 : undefined} className="scroll-mt-6 text-title font-semibold text-text">
+            {children}
+        </h2>
+    );
 }
 
 export function FolderContentsView({ contents, onFolderAction }: FolderContentsViewProps) {
@@ -66,7 +74,7 @@ export function FolderContentsView({ contents, onFolderAction }: FolderContentsV
 
             {otherFiles.length > 0 && (
                 <section className="flex flex-col gap-3">
-                    <SectionTitle>Other files</SectionTitle>
+                    <SectionTitle id={OTHER_FILES_HEADING_ID}>Other files</SectionTitle>
                     <ul className="flex flex-col">
                         {otherFiles.map((file) => (
                             <li key={file.path}>

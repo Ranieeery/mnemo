@@ -190,7 +190,7 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interação: `Button`, `IconButton`, `Input`,
 `Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu`, `ContextMenu`, `Tooltip`, `Toast`, `Progress`,
 `Skeleton`, `Card`, `Tabs`, `Slider` (`compact` para volume), `Switch`, `Badge`/`Tag`, `EmptyState`, `ErrorState`, `Kbd`,
-`Spinner`, `FolderIcon`.
+`Spinner`, `FolderIcon`, `ScrollToTopButton`.
 `toast()` pode ser chamado fora do React. Features compõem esses primitivos; não recriam botões, modais ou menus.
 
 Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` alterna entre ele e o app, ou abra
@@ -209,7 +209,9 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 ## Performance
 
 - Listas e grades longas virtualizadas; thumbnails lazy com dimensões fixas.
-- Code splitting por rota (player e settings sob demanda) e chunks separados para `react` e `vendor`.
+- Code splitting por rota (player e settings sob demanda) e chunks separados para `react` e `vendor`. O conjunto
+  completo de ícones do lucide (~600 kB) é um chunk lazy (`shared/ui/allIcons`, via `loadAllIcons`) e fica fora do
+  `vendor`.
 - Consultas limitadas no backend; nada de carregar a biblioteca inteira para filtrar no frontend.
 - Seletores no Zustand, query keys estáveis, memoização apenas onde medida.
 - Operações pesadas fora da thread principal do Rust (`spawn_blocking` para SQLite e I/O síncrono).
@@ -224,7 +226,8 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   backend. Testar comportamento, não implementação. Setup em `shared/test/setup.ts` (jest-dom, polyfills do Radix,
   stub de `<video>`, limpeza dos singletons). Helpers: `renderWithUi`, `renderScreen` (roteador, cache novo e
   providers), `mockCommands`/`callsOf` (comandos não mockados falham), fixtures e `app/testApp.tsx` (app inteiro).
-  Em JSX, caminhos do Windows vão entre chaves (`path={"D:\\Videos"}`): atributos com aspas não processam escapes.
+  Componentes que suspendem (como `FolderIcon` com um ícone fora da lista curada) só re-renderizam dentro de
+  `act()` nos testes. Em JSX, caminhos do Windows vão entre chaves (`path={"D:\\Videos"}`): atributos com aspas não processam escapes.
 - Atalhos do player e da navegação, retomada e gravação de progresso têm testes.
 
 ## Convenções de código
@@ -239,14 +242,17 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 
 ### Biblioteca e navegação
 - Pastas raiz adicionadas pelo diálogo nativo; navegação pela hierarquia real de subpastas, com breadcrumbs.
+- Arquivos que não são vídeo aparecem no fim da pasta ("Other files"); o cabeçalho avisa quantos são e leva até eles.
+- Botão de voltar ao topo nas telas com rolagem, depois de rolar uma tela.
 - Modo de exibição por pasta: `folders` (padrão; só os filhos diretos) ou `continuous` (todos os vídeos da árvore
   agrupados por subpasta). Herdado pelas subpastas até ser sobrescrito; no modo contínuo, a playlist cobre a pasta
   onde o modo foi definido.
 - Histórico estilo navegador: voltar/avançar, `Alt+←/→` e botões laterais do mouse (botão 3 fecha o player, botão 4
   reabre o último vídeo).
 - Ordenação natural (`Ep 2` antes de `Ep 10`), definida no backend e usada em tudo.
-- Ícones personalizados para pastas da biblioteca, de um conjunto curado do lucide (`shared/ui/FolderIcon`); o nome
-  do ícone é salvo em `custom_icon`. Emojis salvos pela 1.x aparecem como o ícone padrão de pasta.
+- Ícones personalizados para pastas da biblioteca: qualquer ícone do lucide, salvo pelo nome em `custom_icon`. O
+  seletor tem a aba "Suggested" (até 40: os 8 últimos usados, guardados em `app_settings`, e uma lista curada) e
+  "All icons" (todos, com busca). Emojis salvos pela 1.x aparecem como o ícone padrão de pasta.
 - Estatísticas por pasta: total, assistidos e percentual de progresso.
 
 ### Processamento de mídia

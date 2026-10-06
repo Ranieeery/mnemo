@@ -20,6 +20,11 @@ export function ScrollContainer({ className, children }: ScrollContainerProps) {
     );
 }
 
+/** Smooth scrolling, unless the user asked the system to reduce motion. */
+export function scrollBehavior(): ScrollBehavior {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
 export function useScrollElement(): RefObject<HTMLDivElement | null> {
     const ref = useContext(ScrollElementContext);
     if (!ref) {

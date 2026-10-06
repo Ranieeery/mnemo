@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useState } from "react";
 import type { FolderSummary } from "../../../shared/ipc/bindings";
+import { plural } from "../../../shared/lib/plural";
 import { Button, ConfirmDialog, Dialog, Input } from "../../../shared/ui";
 import { useAddTagToFolder, useRemoveFolderTags, useSetFolderWatched } from "../queries";
 import { FolderPropertiesDialog } from "./FolderPropertiesDialog";
@@ -27,10 +28,6 @@ export function useFolderActionDialogs() {
 }
 
 type FolderActionDialogProps = PendingAction & { onClose: () => void };
-
-function plural(count: number, noun: string) {
-    return `${count} ${count === 1 ? noun : `${noun}s`}`;
-}
 
 function FolderActionDialog({ action, target, summary, onClose }: FolderActionDialogProps) {
     const setWatched = useSetFolderWatched();
