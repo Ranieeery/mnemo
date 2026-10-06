@@ -15,6 +15,9 @@ use crate::domain::player::{
     MAX_PLAYBACK_SPEED, MAX_UP_NEXT_WIDTH, MIN_PLAYBACK_SPEED, MIN_UP_NEXT_WIDTH, PLAYBACK_SPEED_STEP,
 };
 use crate::domain::shortcuts::{KeyboardShortcuts, MAX_KEYS_PER_SHORTCUT, RESERVED_SHORTCUT_KEYS};
+use crate::domain::subtitle_style::{
+    MAX_SUBTITLE_POSITION, MAX_SUBTITLE_SIZE, MIN_SUBTITLE_SIZE, SUBTITLE_SIZE_STEP, SubtitleStyle,
+};
 use crate::domain::watch::{
     DEFAULT_WATCHED_THRESHOLD, MAX_WATCHED_THRESHOLD, MIN_WATCHED_THRESHOLD, WATCHED_THRESHOLD_STEP,
 };
@@ -65,6 +68,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             settings::update_player_preferences,
             settings::get_keyboard_shortcuts,
             settings::update_keyboard_shortcuts,
+            settings::get_subtitle_style,
+            settings::update_subtitle_style,
             settings::get_library_stats,
             settings::export_library,
             settings::import_library,
@@ -87,6 +92,11 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("DEFAULT_KEYBOARD_SHORTCUTS", KeyboardShortcuts::default())
         .constant("RESERVED_SHORTCUT_KEYS", RESERVED_SHORTCUT_KEYS)
         .constant("MAX_KEYS_PER_SHORTCUT", MAX_KEYS_PER_SHORTCUT)
+        .constant("DEFAULT_SUBTITLE_STYLE", SubtitleStyle::default())
+        .constant("MIN_SUBTITLE_SIZE", MIN_SUBTITLE_SIZE)
+        .constant("MAX_SUBTITLE_SIZE", MAX_SUBTITLE_SIZE)
+        .constant("SUBTITLE_SIZE_STEP", SUBTITLE_SIZE_STEP)
+        .constant("MAX_SUBTITLE_POSITION", MAX_SUBTITLE_POSITION)
         // Every integer crossing IPC is a row id, a count or a byte size, all far below 2^53, so JavaScript numbers
         // represent them exactly.
         .dangerously_cast_bigints_to_number()

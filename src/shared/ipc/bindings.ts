@@ -111,6 +111,10 @@ export const commands = {
 	getKeyboardShortcuts: () => typedError<KeyboardShortcuts, IpcError>(__TAURI_INVOKE("get_keyboard_shortcuts")),
 	/**  Stores the keyboard shortcuts; rejects malformed, reserved or repeated keys and more than two keys per action. */
 	updateKeyboardShortcuts: (shortcuts: KeyboardShortcuts) => typedError<KeyboardShortcuts, IpcError>(__TAURI_INVOKE("update_keyboard_shortcuts", { shortcuts })),
+	/**  How subtitles look in the player. */
+	getSubtitleStyle: () => typedError<SubtitleStyle, IpcError>(__TAURI_INVOKE("get_subtitle_style")),
+	/**  Stores how subtitles look; rejects sizes, opacities and positions out of range. */
+	updateSubtitleStyle: (style: SubtitleStyle) => typedError<SubtitleStyle, IpcError>(__TAURI_INVOKE("update_subtitle_style", { style })),
 	getLibraryStats: () => typedError<LibraryStats, IpcError>(__TAURI_INVOKE("get_library_stats")),
 	/**  Writes the whole library to a JSON file chosen in the native save dialog. */
 	exportLibrary: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("export_library", { path })),
@@ -130,17 +134,25 @@ export const DEFAULT_KEYBOARD_SHORTCUTS = {"fullscreen":["F"],"historyBack":["Al
 
 export const DEFAULT_PLAYER_PREFERENCES = {"muted":false,"speed":1.0,"subtitlesEnabled":true,"theater":false,"upNextWidth":null,"volume":1.0} as const;
 
+export const DEFAULT_SUBTITLE_STYLE = {"background":true,"backgroundOpacity":78,"color":"white","edge":"shadow","font":"app","position":6,"size":100} as const;
+
 export const DEFAULT_WATCHED_THRESHOLD = 0.9 as const;
 
 export const MAX_KEYS_PER_SHORTCUT = 2 as const;
 
 export const MAX_PLAYBACK_SPEED = 2.0 as const;
 
+export const MAX_SUBTITLE_POSITION = 40 as const;
+
+export const MAX_SUBTITLE_SIZE = 200 as const;
+
 export const MAX_UP_NEXT_WIDTH = 800 as const;
 
 export const MAX_WATCHED_THRESHOLD = 1.0 as const;
 
 export const MIN_PLAYBACK_SPEED = 0.25 as const;
+
+export const MIN_SUBTITLE_SIZE = 50 as const;
 
 export const MIN_UP_NEXT_WIDTH = 240 as const;
 
@@ -149,6 +161,8 @@ export const MIN_WATCHED_THRESHOLD = 0.5 as const;
 export const PLAYBACK_SPEED_STEP = 0.25 as const;
 
 export const RESERVED_SHORTCUT_KEYS = ["Escape","?","Tab","Shift+Tab","Enter"] as const;
+
+export const SUBTITLE_SIZE_STEP = 10 as const;
 
 export const WATCHED_THRESHOLD_STEP = 0.05 as const;
 
@@ -366,12 +380,35 @@ export type SubfolderEntry = {
 	stats: FolderStats,
 };
 
+export type SubtitleColor = "white" | "yellow" | "green" | "cyan" | "magenta";
+
+/**  What keeps the text readable over bright scenes when there is no background. */
+export type SubtitleEdge = "none" | "shadow" | "outline";
+
 export type SubtitleFile = {
 	format: SubtitleFormat,
 	content: string,
 };
 
+/**  Generic families only: the system picks the actual font, so nothing has to be bundled. */
+export type SubtitleFont = 
+/**  The app's own font (Inter). */
+"app" | "sans" | "serif" | "mono";
+
 export type SubtitleFormat = "srt" | "vtt" | "sub" | "ass";
+
+export type SubtitleStyle = {
+	/**  Percent of the default size, in steps of 10. */
+	size: number,
+	color: SubtitleColor,
+	background: boolean,
+	/**  Percent, from transparent (0) to solid (100). */
+	backgroundOpacity: number,
+	edge: SubtitleEdge,
+	/**  Percent of the video's height between its bottom and the subtitles. */
+	position: number,
+	font: SubtitleFont,
+};
 
 export type SubtitleTrack = {
 	/**  Position among the file's subtitle streams (ffmpeg's `0:s:<index>`). */

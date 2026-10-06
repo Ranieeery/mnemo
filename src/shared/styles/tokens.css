@@ -42,6 +42,8 @@
     /* Behind the video picture, so letterboxing is true black. */
     --color-backdrop: #000000;
     --color-scrim: rgb(0 0 0 / 0.78);
+    /* The bright scene behind the subtitle preview in Settings, to check readability over light footage. */
+    --color-preview-bright: #d6d9de;
 
     /* Type: one family; hierarchy comes from size and weight. Desktop density, so the body is 14px. */
     --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
@@ -139,4 +141,26 @@
             transform: translateX(250%);
         }
     }
+}
+
+/*
+ * Subtitle styling. The player picks these by name at runtime (`var(--color-subtitle-${color})`), so Tailwind never
+ * sees them in the source and would drop them from the build; `static` keeps every one of them.
+ */
+@theme static {
+    /* Text colors chosen in Settings: light tones that stay readable over a dark background or an edge. */
+    --color-subtitle-white: #ffffff;
+    --color-subtitle-yellow: #ffe14d;
+    --color-subtitle-green: #7ef29a;
+    --color-subtitle-cyan: #67e8f9;
+    --color-subtitle-magenta: #f0abfc;
+    /* Edges that keep the text readable over bright scenes when it has no background. */
+    --subtitle-edge-shadow: 0 0.05em 0.1em rgb(0 0 0 / 0.9), 0 0 0.3em rgb(0 0 0 / 0.6);
+    --subtitle-edge-outline:
+        -0.06em -0.06em 0 #000000, 0.06em -0.06em 0 #000000, -0.06em 0.06em 0 #000000, 0.06em 0.06em 0 #000000,
+        0 0.06em 0 #000000, 0 -0.06em 0 #000000, 0.06em 0 0 #000000, -0.06em 0 0 #000000;
+    /* Font families offered besides the app's own: the system's interface font and its serif and monospace. */
+    --font-system: system-ui, sans-serif;
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    --font-mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, "Liberation Mono", monospace;
 }

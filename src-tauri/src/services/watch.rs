@@ -3,6 +3,7 @@
 use crate::db::{Db, history, settings, watch as watch_status};
 use crate::domain::models::{AppSettings, DailyWatchTotal, HistoryCursor, HistoryPage, PlayerPreferences, Video};
 use crate::domain::shortcuts::KeyboardShortcuts;
+use crate::domain::subtitle_style::SubtitleStyle;
 use crate::error::{AppError, AppResult};
 
 /// Largest page of watch history one call returns.
@@ -81,6 +82,17 @@ pub async fn keyboard_shortcuts(db: &Db) -> AppResult<KeyboardShortcuts> {
 /// Validates and stores the keyboard shortcuts, returning what was stored.
 pub async fn update_keyboard_shortcuts(db: &Db, shortcuts: KeyboardShortcuts) -> AppResult<KeyboardShortcuts> {
     db.call(move |connection| settings::set::<settings::Shortcuts>(connection, shortcuts))
+        .await
+}
+
+pub async fn subtitle_style(db: &Db) -> AppResult<SubtitleStyle> {
+    db.call(|connection| settings::get::<settings::Subtitles>(connection))
+        .await
+}
+
+/// Validates and stores how subtitles look, returning what was stored.
+pub async fn update_subtitle_style(db: &Db, style: SubtitleStyle) -> AppResult<SubtitleStyle> {
+    db.call(move |connection| settings::set::<settings::Subtitles>(connection, style))
         .await
 }
 

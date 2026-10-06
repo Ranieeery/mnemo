@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import type { AudioTrack, Video } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
-import { useMediaTools } from "../../../shared/ipc/queries";
+import { useMediaTools, useSubtitleStyle } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { cueTextAt } from "../../../shared/lib/subtitles";
 import { Button, ErrorState, toast } from "../../../shared/ui";
-import { openInDefaultPlayer, useSetVideoThumbnail } from "../../../shared/video";
+import { openInDefaultPlayer, SubtitleLine, useSetVideoThumbnail } from "../../../shared/video";
 import { useAudioTracks } from "../hooks/useAudioTracks";
 import { usePlayback } from "../hooks/usePlayback";
 import { usePlayerShortcuts } from "../hooks/usePlayerShortcuts";
@@ -58,6 +58,7 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
     );
     const saver = useProgressSaver(video);
     const tools = useMediaTools();
+    const subtitleStyle = useSubtitleStyle();
     const setThumbnail = useSetVideoThumbnail();
     const mediaTracks = useMediaTracks(path);
     const audio = useAudioTracks(videoRef, mediaTracks.data?.audio ?? NO_AUDIO_TRACKS);
@@ -165,7 +166,8 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
             ref={containerRef}
             onMouseMove={reveal}
             className={cx(
-                "relative flex items-center justify-center overflow-hidden bg-backdrop",
+                // A size container: subtitles scale with the video.
+                "@container relative flex items-center justify-center overflow-hidden bg-backdrop",
                 fullscreen.isFullscreen ? "size-full" : cx("aspect-video w-full", stageHeight(theater)),
                 !visible && "cursor-none"
             )}
@@ -203,18 +205,7 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
                     </ErrorState>
                 </div>
             )}
-            {subtitle && (
-                <div
-                    className={cx(
-                        "pointer-events-none absolute inset-x-0 flex justify-center px-8 transition-[bottom] duration-(--duration-base) ease-standard",
-                        visible ? "bottom-28" : "bottom-10"
-                    )}
-                >
-                    <p className="max-w-3xl rounded-control bg-scrim px-3 py-1.5 text-center text-title whitespace-pre-line text-text">
-                        {subtitle}
-                    </p>
-                </div>
-            )}
+            {subtitle && <SubtitleLine text={subtitle} style={subtitleStyle} aboveControls={visible} />}
             {flash && (
                 <div key={flash.id} className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <span className="animate-pop-in rounded-card bg-scrim px-4 py-2 text-title font-semibold text-text tabular-nums">

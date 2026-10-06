@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ShortcutKeys } from "../lib/keyboard";
-import { commands, DEFAULT_KEYBOARD_SHORTCUTS } from "./bindings";
+import { commands, DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_SUBTITLE_STYLE, type SubtitleStyle } from "./bindings";
 import { call } from "./client";
 import { queryKeys } from "./queryKeys";
 
@@ -34,6 +34,20 @@ export function useKeyboardShortcutsQuery() {
     return useQuery({
         queryKey: queryKeys.keyboardShortcuts(),
         queryFn: () => call(commands.getKeyboardShortcuts()),
+        staleTime: Number.POSITIVE_INFINITY,
+    });
+}
+
+/** How subtitles look, read by the player and Settings. The default look applies until it loads or if it cannot. */
+export function useSubtitleStyle(): SubtitleStyle {
+    return useSubtitleStyleQuery().data ?? DEFAULT_SUBTITLE_STYLE;
+}
+
+/** The subtitle style query itself, for screens that show its loading and error states. */
+export function useSubtitleStyleQuery() {
+    return useQuery({
+        queryKey: queryKeys.subtitleStyle(),
+        queryFn: () => call(commands.getSubtitleStyle()),
         staleTime: Number.POSITIVE_INFINITY,
     });
 }

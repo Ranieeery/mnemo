@@ -1,4 +1,5 @@
-import { ExternalLink, Subtitles } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { ExternalLink, Palette, Subtitles } from "lucide-react";
 import { useKeyboardShortcuts } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { shortcutHint } from "../../../shared/lib/keyboard";
@@ -29,6 +30,7 @@ export function SubtitlesMenu({ path, subtitles, enabled }: SubtitlesMenuProps) 
     const { tracks, tracksStatus, hasFile, active, extracting, available } = subtitles;
     const hasImageTracks = tracks?.some((track) => !track.isText) ?? false;
     const shortcuts = useKeyboardShortcuts();
+    const navigate = useNavigate();
 
     if (!available && tracksStatus !== "loading" && !hasImageTracks) {
         return <IconButton label="No subtitles for this video" icon={<Subtitles />} variant="overlay" disabled />;
@@ -82,6 +84,13 @@ export function SubtitlesMenu({ path, subtitles, enabled }: SubtitlesMenuProps) 
                 {tracksStatus === "error" && (
                     <DropdownMenuItem disabled>Could not read the subtitles inside the file</DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    icon={<Palette />}
+                    onSelect={() => void navigate({ to: "/settings", search: { tab: "playback" } })}
+                >
+                    Subtitle style…
+                </DropdownMenuItem>
                 {hasImageTracks && (
                     <>
                         <DropdownMenuSeparator />

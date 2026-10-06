@@ -4,7 +4,9 @@ import {
     type AudioTrack,
     DEFAULT_KEYBOARD_SHORTCUTS,
     DEFAULT_PLAYER_PREFERENCES,
+    DEFAULT_SUBTITLE_STYLE,
     type PlayerPreferences,
+    type SubtitleStyle,
     type SubtitleTrack,
     type Video,
     type VideoEntry,
@@ -36,6 +38,7 @@ type Options = {
     audio?: AudioTrack[];
     /** The configured keyboard shortcuts. */
     shortcuts?: ShortcutKeys;
+    subtitleStyle?: SubtitleStyle;
     extractFails?: boolean;
 };
 
@@ -48,6 +51,7 @@ function renderPlayer({
     tracks = [],
     audio = [],
     shortcuts = DEFAULT_KEYBOARD_SHORTCUTS,
+    subtitleStyle = DEFAULT_SUBTITLE_STYLE,
     extractFails = false,
 }: Options = {}) {
     const path = video?.filePath ?? `${SHOW}\\Raw.mkv`;
@@ -72,6 +76,7 @@ function renderPlayer({
         update_player_preferences: ({ preferences: saved }: Record<string, unknown>) => saved,
         open_externally: null,
         get_keyboard_shortcuts: shortcuts,
+        get_subtitle_style: subtitleStyle,
         list_media_tracks: { audio, subtitles: tracks },
         extract_subtitle: ({ index }: Record<string, unknown>) => {
             if (extractFails) {
@@ -261,6 +266,28 @@ describe("PlayerPage", () => {
         expect(await screen.findByText("Could not load the subtitles")).toBeInTheDocument();
         expect(screen.getByText("ffmpeg failed: invalid data")).toBeInTheDocument();
         expect(await screen.findByText("Hello there")).toBeInTheDocument();
+    });
+
+    it("draws subtitles in the saved style", async () => {
+        renderPlayer({
+            subtitle: true,
+            subtitleStyle: { ...DEFAULT_SUBTITLE_STYLE, color: "cyan", background: false, font: "mono", position: 20 },
+        });
+        await playingAt(1);
+        const line = await screen.findByText("Hello there");
+        expect(line).toHaveStyle({ color: "var(--color-subtitle-cyan)", fontFamily: "var(--font-mono)" });
+        expect(line.style.backgroundColor).toBe("transparent");
+        // Paused, the controls show, so the line sits above them.
+        expect(line.parentElement?.style.bottom).toBe("calc(20% + 4.5rem)");
+    });
+
+    it("leads from the subtitles menu to the subtitle style settings", async () => {
+        const { user, router } = renderPlayer({ subtitle: true });
+        await playingAt(1);
+        await user.click(await screen.findByRole("button", { name: "Subtitles" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Subtitle style…" }));
+        await waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
+        expect(router.state.location.search).toEqual({ tab: "playback" });
     });
 
     it("turns subtitles off from the menu", async () => {

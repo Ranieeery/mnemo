@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use crate::domain::models::{AppSettings, PlayerPreferences};
 use crate::domain::player::{validate_speed, validate_up_next_width, validate_volume};
 use crate::domain::shortcuts::{KeyboardShortcuts, repair_shortcuts, validate_shortcuts};
+use crate::domain::subtitle_style::{SubtitleStyle, repair_subtitle_style, validate_subtitle_style};
 use crate::domain::watch::{DEFAULT_WATCHED_THRESHOLD, validate_threshold};
 use crate::error::{AppError, AppResult};
 
@@ -35,13 +36,21 @@ pub trait Setting {
     }
 }
 
-/// Fields missing from a stored object (added by a later version) take their default.
+/// Starts from the default and takes each stored field that still reads as its type, so fields missing from the
+/// stored object (added by a later version) or unreadable ones (an enum value that no longer exists) keep their
+/// default without losing the others.
 fn merge_onto_default<T: Serialize + DeserializeOwned>(default: T, stored: serde_json::Value) -> Option<T> {
     let serde_json::Value::Object(fields) = stored else {
         return None;
     };
     let mut merged = serde_json::to_value(default).ok()?;
-    merged.as_object_mut()?.extend(fields);
+    for (key, value) in fields {
+        let mut candidate = merged.clone();
+        candidate.as_object_mut()?.insert(key, value);
+        if serde_json::from_value::<T>(candidate.clone()).is_ok() {
+            merged = candidate;
+        }
+    }
     serde_json::from_value(merged).ok()
 }
 
@@ -165,6 +174,31 @@ impl Setting for Shortcuts {
 
     fn repair(shortcuts: KeyboardShortcuts) -> Option<KeyboardShortcuts> {
         Some(repair_shortcuts(shortcuts))
+    }
+}
+
+/// How subtitles look in the player.
+pub struct Subtitles;
+
+impl Setting for Subtitles {
+    const KEY: &'static str = "subtitle_style";
+    type Value = SubtitleStyle;
+
+    fn default_value() -> SubtitleStyle {
+        SubtitleStyle::default()
+    }
+
+    fn decode(stored: serde_json::Value) -> Option<SubtitleStyle> {
+        merge_onto_default(SubtitleStyle::default(), stored)
+    }
+
+    fn validate(style: SubtitleStyle) -> AppResult<SubtitleStyle> {
+        validate_subtitle_style(&style)?;
+        Ok(style)
+    }
+
+    fn repair(style: SubtitleStyle) -> Option<SubtitleStyle> {
+        Some(repair_subtitle_style(style))
     }
 }
 
@@ -320,6 +354,32 @@ mod tests {
             Err(AppError::InvalidInput(_))
         ));
         assert_eq!(set::<Shortcuts>(&connection, shortcuts.clone()).unwrap(), shortcuts);
+    }
+
+    #[test]
+    fn subtitle_style_keeps_readable_fields_and_repairs_the_rest() {
+        use crate::domain::subtitle_style::{SubtitleColor, SubtitleFont};
+
+        let connection = test_support::connection();
+        assert_eq!(get::<Subtitles>(&connection).unwrap(), SubtitleStyle::default());
+        // A color that does not exist and a size out of range: only those fall back.
+        store_raw(
+            &connection,
+            "subtitle_style",
+            r#"{"size":900,"color":"orange","background":false,"font":"serif"}"#,
+        );
+        let style = get::<Subtitles>(&connection).unwrap();
+        assert_eq!(style.size, 100);
+        assert_eq!(style.color, SubtitleColor::White);
+        assert!(!style.background);
+        assert_eq!(style.font, SubtitleFont::Serif);
+
+        let big = SubtitleStyle { size: 150, ..style };
+        assert_eq!(set::<Subtitles>(&connection, big).unwrap(), big);
+        assert!(matches!(
+            set::<Subtitles>(&connection, SubtitleStyle { size: 15, ..style }),
+            Err(AppError::InvalidInput(_))
+        ));
     }
 
     #[test]

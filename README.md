@@ -42,6 +42,7 @@ thumbnails, tags and watch progress in a local SQLite database.
   `.ass`) or embedded in it (text tracks of MKV and MP4), switching between audio tracks where the system's webview
   can play them, speeds from 0.25× to 2×, an "Up next" list and a countdown to the next video, plus keyboard and
   mouse shortcuts. Volume, speed, subtitles and theater mode are remembered between sessions.
+- **Subtitle style:** size, color, background and its opacity, outline, position and font, with a live preview.
 - **Custom thumbnails:** use the frame on screen as a video's thumbnail, or go back to the automatic one.
 - **Watch status:** videos count as watched at 90% by default (adjustable from 50% to 100%) or when they end; mark
   videos or whole folders as watched or unwatched.

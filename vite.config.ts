@@ -46,6 +46,8 @@ export default defineConfig({
         include: ["src/**/*.test.{ts,tsx}"],
         environment: "jsdom",
         setupFiles: ["src/shared/test/setup.ts"],
+        // Vitest skips CSS by default; the token file is read as text by a test that checks the build keeps them.
+        css: { include: [/tokens\.css/] },
         // Prebundled, lucide loads as one module instead of ~1900, which keeps the tests that load every icon fast.
         deps: { optimizer: { client: { enabled: true, include: ["lucide-react"] } } },
     },

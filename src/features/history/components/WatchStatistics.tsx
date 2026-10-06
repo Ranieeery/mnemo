@@ -1,7 +1,7 @@
 import { ChartColumn } from "lucide-react";
 import { useState } from "react";
 import { errorMessage } from "../../../shared/ipc/client";
-import { Button, EmptyState, ErrorState, Skeleton } from "../../../shared/ui";
+import { ChoiceGroup, EmptyState, ErrorState, Skeleton } from "../../../shared/ui";
 import {
     CHART_DAYS,
     CHART_WEEKS,
@@ -63,20 +63,15 @@ export function WatchStatistics() {
                     </h2>
                     <p className="text-small text-text-muted">The length of the videos you finished each day.</p>
                 </div>
-                <fieldset className="flex gap-1">
-                    <legend className="sr-only">Group by</legend>
-                    {(["days", "weeks"] as const).map((option) => (
-                        <Button
-                            key={option}
-                            size="sm"
-                            variant={grouping === option ? "secondary" : "ghost"}
-                            aria-pressed={grouping === option}
-                            onClick={() => setGrouping(option)}
-                        >
-                            {option === "days" ? "Days" : "Weeks"}
-                        </Button>
-                    ))}
-                </fieldset>
+                <ChoiceGroup
+                    label="Group by"
+                    value={grouping}
+                    options={[
+                        { value: "days", label: "Days" },
+                        { value: "weeks", label: "Weeks" },
+                    ]}
+                    onChange={setGrouping}
+                />
             </div>
             <p className="text-body text-text-muted">
                 <span className="text-heading font-semibold text-text tabular-nums">{formatWatchTime(seconds)}</span> in

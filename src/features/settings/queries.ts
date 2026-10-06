@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type AppSettings, commands } from "../../shared/ipc/bindings";
+import { type AppSettings, commands, type HomeData, type SubtitleStyle } from "../../shared/ipc/bindings";
 import { call, errorMessage } from "../../shared/ipc/client";
 import { queryKeys } from "../../shared/ipc/queryKeys";
 import { toast } from "../../shared/ui";
@@ -85,4 +85,48 @@ export function useCleanOrphanedVideos() {
         "Could not clean up",
         (count) => toast({ title: `Removed ${count} orphaned videos`, tone: "success" })
     );
+}
+
+/**
+ * Saves how subtitles look. The player and the preview change at once (the shared query is updated first) and go
+ * back if the backend refuses the style.
+ */
+export function useSaveSubtitleStyle() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (style: SubtitleStyle) => call(commands.updateSubtitleStyle(style)),
+        onMutate: async (style) => {
+            await queryClient.cancelQueries({ queryKey: queryKeys.subtitleStyle() });
+            const previous = queryClient.getQueryData<SubtitleStyle>(queryKeys.subtitleStyle());
+            queryClient.setQueryData(queryKeys.subtitleStyle(), style);
+            return { previous };
+        },
+        onSuccess: (saved) => queryClient.setQueryData(queryKeys.subtitleStyle(), saved),
+        onError: (error, _style, context) => {
+            queryClient.setQueryData(queryKeys.subtitleStyle(), context?.previous);
+            toast({ title: "Could not save the subtitle style", description: errorMessage(error), tone: "danger" });
+        },
+    });
+}
+
+/** A few videos are enough to find one with a thumbnail. */
+const SAMPLE_FRAME_LIMIT = 4;
+
+function firstThumbnail(home: HomeData): string | null {
+    const videos = [
+        ...home.continueWatching,
+        ...home.recentlyWatched,
+        ...home.suggestions,
+        ...home.folderPreviews.flatMap((preview) => preview.videos),
+    ];
+    return videos.find((video) => video.thumbnailPath !== null)?.thumbnailPath ?? null;
+}
+
+/** A thumbnail from the library to preview subtitles over real footage; `null` when there is none yet. */
+export function useSampleFrame() {
+    return useQuery({
+        queryKey: queryKeys.home(SAMPLE_FRAME_LIMIT),
+        queryFn: () => call(commands.getHome(SAMPLE_FRAME_LIMIT)),
+        select: firstThumbnail,
+    });
 }

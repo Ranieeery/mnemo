@@ -4,6 +4,7 @@ use tauri::{AppHandle, State};
 
 use crate::domain::models::{AppSettings, DatabaseInfo, ImportSummary, LibraryStats, PlayerPreferences, Video};
 use crate::domain::shortcuts::KeyboardShortcuts;
+use crate::domain::subtitle_style::SubtitleStyle;
 use crate::error::AppResult;
 use crate::services::{asset_scope, backup, maintenance, watch};
 use crate::state::AppState;
@@ -51,6 +52,20 @@ pub async fn update_keyboard_shortcuts(
     shortcuts: KeyboardShortcuts,
 ) -> AppResult<KeyboardShortcuts> {
     watch::update_keyboard_shortcuts(&state.db, shortcuts).await
+}
+
+/// How subtitles look in the player.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_subtitle_style(state: State<'_, AppState>) -> AppResult<SubtitleStyle> {
+    watch::subtitle_style(&state.db).await
+}
+
+/// Stores how subtitles look; rejects sizes, opacities and positions out of range.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_subtitle_style(state: State<'_, AppState>, style: SubtitleStyle) -> AppResult<SubtitleStyle> {
+    watch::update_subtitle_style(&state.db, style).await
 }
 
 #[tauri::command]

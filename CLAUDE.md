@@ -153,7 +153,9 @@ src/
   tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
   `settings::set::<S>`. Valores ilegíveis viram o padrão (com log), nunca erro. Settings: `watched_threshold`,
   `recent_folder_icons`, `player_preferences` (campos ausentes recebem o padrão; campos inválidos, um a um),
-  `keyboard_shortcuts` (ações ausentes recebem o padrão; teclas inválidas são descartadas ação por ação).
+  `keyboard_shortcuts` (ações ausentes recebem o padrão; teclas inválidas são descartadas ação por ação),
+  `subtitle_style`. A leitura toma cada campo salvo que ainda é válido para o tipo (`merge_onto_default`), então um
+  campo ilegível volta ao padrão sem perder os outros.
 - **Migrações versionadas** (`rusqlite_migration`, em `db/migrations.rs`). A `1` é um baseline compatível com bancos
   das versões 1.x (adiciona colunas que versões antigas criavam depois); a `2` limpa órfãos, normaliza `is_watched`
   gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`.
@@ -202,13 +204,16 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
   `animate-appear|disappear|pop-in|pop-out|slide-in|pulse-soft|indeterminate|spin`. Com `prefers-reduced-motion` as
   durações vão a zero; animações em loop usam `motion-reduce:animate-none`.
 - Tema escuro por padrão; um tema claro só precisa redefinir as variáveis de cor.
+- O Tailwind só mantém no build as variáveis do `@theme` que aparecem por nome no código. Variáveis montadas em
+  tempo de execução (ex.: `var(--color-subtitle-${cor})`) ficam num bloco `@theme static`, e um teste confere que
+  estão lá.
 
 ### Componentes
 
 Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interação: `Button`, `IconButton`, `Input`,
 `Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu`, `ContextMenu`, `Tooltip`, `Toast`, `Progress`,
 `Skeleton`, `Card`, `Tabs`, `Slider` (`compact` para volume), `Switch`, `Badge`/`Tag`, `EmptyState`, `ErrorState`, `Kbd`,
-`Spinner`, `FolderIcon`, `ScrollToTopButton`.
+`Spinner`, `FolderIcon`, `ScrollToTopButton`, `ChoiceGroup` (poucas opções exclusivas em botões, ex.: Days/Weeks).
 `toast()` pode ser chamado fora do React. Features compõem esses primitivos; não recriam botões, modais ou menus.
 
 Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` alterna entre ele e o app, ou abra
@@ -307,6 +312,15 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   (ex.: MKV só com E-AC3 no Windows), o vídeo toca mudo sem erro: um aviso fixo sobre o vídeo (`NoSoundNotice`,
   também em tela cheia) explica e oferece abrir no player externo (pausando o do app) ou dispensar, mesmo com uma
   faixa só. Validado no Windows com AAC+AAC (MP4 e MKV), AC3+AAC e E-AC3+E-AC3; macOS e Linux não foram testados.
+- Estilo das legendas (Settings → Playback → Subtitles, com prévia centralizada sobre fundo metade escuro e metade
+  claro por padrão, escuro, claro ou uma thumbnail da biblioteca, e texto de exemplo editável que não é salvo; atalho
+  "Subtitle style…" no menu de legendas): tamanho 50–200% (relativo à largura do vídeo, `cqw`, então cresce em tela cheia),
+  cor (amostras: branco, amarelo, verde, ciano, magenta, nos tokens `--color-subtitle-*`), fundo e sua opacidade,
+  contorno (nenhum, sombra, contorno), posição (0–40% da altura a partir da base, mais o espaço dos controles quando
+  visíveis) e fonte (a do app ou as famílias genéricas do sistema: sans, serif, mono; nada embutido). Setting tipado
+  `subtitle_style` (`domain/subtitle_style.rs`); `shared/lib/subtitleStyle.ts` gera o CSS e `shared/video/SubtitleLine`
+  desenha a linha no player e na prévia. Os padrões reproduzem o visual anterior. Estilos próprios de ASS são
+  ignorados.
 - Playlist ("Up next") e diálogo "Up next" com contagem regressiva de 5s ao terminar, na mesma ordem. A coluna
   acompanha a janela (~¼ da largura, 256–448 px) até o usuário arrastar a borda ou usar `←`/`→` nela (240–800 px,
   no máximo metade da janela); duplo clique volta ao automático. A largura fica nas preferências do player.

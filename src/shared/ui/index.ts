@@ -1,6 +1,7 @@
 export { Badge, Tag } from "./Badge";
 export { Button, buttonClasses } from "./Button";
 export { Card } from "./Card";
+export { ChoiceGroup } from "./ChoiceGroup";
 export { ConfirmDialog } from "./ConfirmDialog";
 export {
     ContextMenu,

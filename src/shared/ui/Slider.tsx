@@ -15,6 +15,7 @@ type SliderProps = {
     valueText?: string;
     /** `compact` is a thinner track with a smaller thumb, for secondary controls like volume. */
     size?: "regular" | "compact";
+    disabled?: boolean;
     /** Must set the width (e.g. `w-full`, `w-48`): the slider has no intrinsic size. */
     className?: string;
 };
@@ -29,6 +30,7 @@ export function Slider({
     label,
     valueText,
     size = "regular",
+    disabled = false,
     className,
 }: SliderProps) {
     const compact = size === "compact";
@@ -40,7 +42,11 @@ export function Slider({
             min={min}
             max={max}
             step={step}
-            className={cx("relative flex h-5 touch-none select-none items-center", className)}
+            disabled={disabled}
+            className={cx(
+                "relative flex h-5 touch-none select-none items-center data-[disabled]:opacity-40",
+                className
+            )}
         >
             <Primitive.Track
                 className={cx("relative grow overflow-hidden rounded-full bg-surface-hover", compact ? "h-0.5" : "h-1")}

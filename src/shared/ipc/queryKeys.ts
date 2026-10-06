@@ -27,5 +27,6 @@ export const queryKeys = {
     settings: () => ["settings"] as const,
     playerPreferences: () => ["player-preferences"] as const,
     keyboardShortcuts: () => ["keyboard-shortcuts"] as const,
+    subtitleStyle: () => ["subtitle-style"] as const,
     mediaTools: () => ["media-tools"] as const,
 };

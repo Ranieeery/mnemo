@@ -1,5 +1,6 @@
 export { entryTitle, toEntry, watchedFraction } from "./entry";
 export { replaceVideo } from "./replaceVideo";
+export { SubtitleLine } from "./SubtitleLine";
 export {
     openInDefaultPlayer,
     showInFileManager,
