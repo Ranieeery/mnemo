@@ -1,7 +1,11 @@
+import { useRef } from "react";
 import type { VideoEntry } from "../../../shared/ipc/bindings";
+import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { ScrollContainer, VirtualList } from "../../../shared/ui";
 import { entryTitle, VideoThumbnail, watchedFraction } from "../../../shared/video";
+import { usePlayerStore } from "../store";
+import { UpNextResizeHandle } from "./UpNextResizeHandle";
 
 type UpNextPanelProps = {
     /** Videos after the current one, in playback order. */
@@ -12,6 +16,8 @@ type UpNextPanelProps = {
 };
 
 export function UpNextPanel({ entries, onSelect, scrollsWithPage = false }: UpNextPanelProps) {
+    const panelRef = useRef<HTMLElement>(null);
+    const width = usePlayerStore((state) => state.upNextWidth);
     const list = entries.length > 0 && (
         <VirtualList
             items={entries}
@@ -27,7 +33,7 @@ export function UpNextPanel({ entries, onSelect, scrollsWithPage = false }: UpNe
                         thumbnailPath={entry.video?.thumbnailPath ?? null}
                         progress={entry.video ? watchedFraction(entry.video) : 0}
                         watched={entry.video?.isWatched}
-                        className="w-28 shrink-0 rounded-control"
+                        className="w-2/5 max-w-48 shrink-0 rounded-control"
                     />
                     <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="line-clamp-2 text-small font-medium text-text">{entryTitle(entry)}</span>
@@ -44,9 +50,16 @@ export function UpNextPanel({ entries, onSelect, scrollsWithPage = false }: UpNe
 
     return (
         <aside
+            ref={panelRef}
             aria-labelledby="up-next-heading"
-            className="flex w-80 shrink-0 flex-col border-l border-border bg-surface"
+            // Follows the window until the user drags its edge; never more than half the window either way.
+            style={width === null ? undefined : { width }}
+            className={cx(
+                "relative flex max-w-[50vw] min-w-60 shrink-0 flex-col border-l border-border bg-surface",
+                width === null && "w-[clamp(16rem,25vw,28rem)]"
+            )}
         >
+            <UpNextResizeHandle panelRef={panelRef} width={width} />
             <header className="flex items-baseline justify-between gap-2 border-b border-border px-4 py-3">
                 <h2 id="up-next-heading" className="text-body font-semibold text-text">
                     Up next

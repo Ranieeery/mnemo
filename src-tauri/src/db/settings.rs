@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::domain::models::{AppSettings, PlayerPreferences};
-use crate::domain::player::{validate_speed, validate_volume};
+use crate::domain::player::{validate_speed, validate_up_next_width, validate_volume};
 use crate::domain::shortcuts::{KeyboardShortcuts, repair_shortcuts, validate_shortcuts};
 use crate::domain::watch::{DEFAULT_WATCHED_THRESHOLD, validate_threshold};
 use crate::error::{AppError, AppResult};
@@ -126,6 +126,7 @@ impl Setting for Player {
     fn validate(preferences: PlayerPreferences) -> AppResult<PlayerPreferences> {
         validate_volume(preferences.volume)?;
         validate_speed(preferences.speed)?;
+        validate_up_next_width(preferences.up_next_width)?;
         Ok(preferences)
     }
 
@@ -135,6 +136,7 @@ impl Setting for Player {
         Some(PlayerPreferences {
             volume: validate_volume(preferences.volume).unwrap_or(defaults.volume),
             speed: validate_speed(preferences.speed).unwrap_or(defaults.speed),
+            up_next_width: validate_up_next_width(preferences.up_next_width).unwrap_or(defaults.up_next_width),
             ..preferences
         })
     }
@@ -287,6 +289,7 @@ mod tests {
             speed: 1.25,
             subtitles_enabled: false,
             theater: true,
+            up_next_width: Some(420),
         };
         assert_eq!(set::<Player>(&connection, preferences.clone()).unwrap(), preferences);
         assert_eq!(get::<Player>(&connection).unwrap(), preferences);
@@ -322,11 +325,11 @@ mod tests {
     #[test]
     fn repairs_stored_player_preferences_field_by_field() {
         let connection = test_support::connection();
-        // An out-of-range speed and a missing field: the rest is kept.
+        // An out-of-range speed and width, and missing fields: the rest is kept.
         store_raw(
             &connection,
             "player_preferences",
-            r#"{"volume":0.3,"muted":true,"speed":9,"subtitlesEnabled":false}"#,
+            r#"{"volume":0.3,"muted":true,"speed":9,"subtitlesEnabled":false,"upNextWidth":5000}"#,
         );
         assert_eq!(
             get::<Player>(&connection).unwrap(),
@@ -336,6 +339,7 @@ mod tests {
                 speed: 1.0,
                 subtitles_enabled: false,
                 theater: false,
+                up_next_width: None,
             }
         );
     }

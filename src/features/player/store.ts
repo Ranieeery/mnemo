@@ -2,7 +2,9 @@ import { create } from "zustand";
 import {
     DEFAULT_PLAYER_PREFERENCES,
     MAX_PLAYBACK_SPEED,
+    MAX_UP_NEXT_WIDTH,
     MIN_PLAYBACK_SPEED,
+    MIN_UP_NEXT_WIDTH,
     PLAYBACK_SPEED_STEP,
     type PlayerPreferences,
 } from "../../shared/ipc/bindings";
@@ -23,8 +25,15 @@ export const usePlayerStore = create<PlayerState>(() => ({ ...DEFAULT_PLAYER_PRE
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /** The part of the state that is saved. */
-export function preferencesOf({ volume, muted, speed, subtitlesEnabled, theater }: PlayerState): PlayerPreferences {
-    return { volume, muted, speed, subtitlesEnabled, theater };
+export function preferencesOf({
+    volume,
+    muted,
+    speed,
+    subtitlesEnabled,
+    theater,
+    upNextWidth,
+}: PlayerState): PlayerPreferences {
+    return { volume, muted, speed, subtitlesEnabled, theater, upNextWidth };
 }
 
 export const playerPreferences = {
@@ -59,6 +68,12 @@ export const playerPreferences = {
     },
     toggleSubtitles() {
         usePlayerStore.setState((state) => ({ subtitlesEnabled: !state.subtitlesEnabled }));
+    },
+    /** A width in pixels (kept within the allowed range), or `null` to follow the window again. */
+    setUpNextWidth(width: number | null) {
+        usePlayerStore.setState({
+            upNextWidth: width === null ? null : Math.round(clamp(width, MIN_UP_NEXT_WIDTH, MAX_UP_NEXT_WIDTH)),
+        });
     },
     toggleTheater() {
         usePlayerStore.setState((state) => ({ theater: !state.theater }));

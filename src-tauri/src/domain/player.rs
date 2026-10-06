@@ -6,6 +6,10 @@ pub const MIN_PLAYBACK_SPEED: f64 = 0.25;
 pub const MAX_PLAYBACK_SPEED: f64 = 2.0;
 pub const PLAYBACK_SPEED_STEP: f64 = 0.25;
 
+/// Narrowest and widest the "Up next" column can be dragged, in pixels.
+pub const MIN_UP_NEXT_WIDTH: i64 = 240;
+pub const MAX_UP_NEXT_WIDTH: i64 = 800;
+
 /// A volume between silent (0) and full (1).
 pub fn validate_volume(volume: f64) -> Result<f64, AppError> {
     if (0.0..=1.0).contains(&volume) {
@@ -14,6 +18,18 @@ pub fn validate_volume(volume: f64) -> Result<f64, AppError> {
         Err(AppError::InvalidInput(format!(
             "volume must be between 0 and 1, not {volume}"
         )))
+    }
+}
+
+/// A chosen "Up next" width inside the allowed range (`None`, automatic, is always fine).
+pub fn validate_up_next_width(width: Option<i64>) -> Result<Option<i64>, AppError> {
+    match width {
+        Some(pixels) if !(MIN_UP_NEXT_WIDTH..=MAX_UP_NEXT_WIDTH).contains(&pixels) => {
+            Err(AppError::InvalidInput(format!(
+                "the Up next width must be between {MIN_UP_NEXT_WIDTH} and {MAX_UP_NEXT_WIDTH} pixels, not {pixels}"
+            )))
+        }
+        _ => Ok(width),
     }
 }
 
@@ -42,6 +58,16 @@ mod tests {
         }
         for volume in [-0.1, 1.01, f64::NAN, f64::INFINITY] {
             assert!(validate_volume(volume).is_err(), "{volume}");
+        }
+    }
+
+    #[test]
+    fn accepts_up_next_widths_in_range_or_automatic() {
+        for width in [None, Some(240), Some(512), Some(800)] {
+            assert_eq!(validate_up_next_width(width).ok(), Some(width));
+        }
+        for width in [Some(0), Some(239), Some(801)] {
+            assert!(validate_up_next_width(width).is_err(), "{width:?}");
         }
     }
 

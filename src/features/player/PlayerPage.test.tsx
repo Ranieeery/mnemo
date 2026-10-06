@@ -1,4 +1,4 @@
-import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     type AudioTrack,
@@ -456,7 +456,14 @@ describe("PlayerPage", () => {
     it("starts with the preferences saved last time", async () => {
         renderPlayer({
             subtitle: true,
-            preferences: { volume: 0.4, muted: true, speed: 1.5, subtitlesEnabled: false, theater: true },
+            preferences: {
+                volume: 0.4,
+                muted: true,
+                speed: 1.5,
+                subtitlesEnabled: false,
+                theater: true,
+                upNextWidth: 360,
+            },
         });
         const element = await videoElement();
         expect(element).toMatchObject({ volume: 0.4, muted: true, playbackRate: 1.5 });
@@ -467,6 +474,53 @@ describe("PlayerPage", () => {
         // Subtitles were left off: the file's cue is not shown.
         expect(screen.queryByText("Hello there")).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "true");
+        expect(screen.getByRole("complementary", { name: "Up next" })).toHaveStyle({ width: "360px" });
+    });
+
+    describe("Up next width", () => {
+        it("follows the window until its edge is moved, with the keyboard or the pointer", async () => {
+            const { user } = renderPlayer({ preferences: { ...DEFAULT_PLAYER_PREFERENCES, upNextWidth: 320 } });
+            const element = await playingAt(60);
+            const panel = screen.getByRole("complementary", { name: "Up next" });
+            const edge = screen.getByRole("separator", { name: "Resize Up next" });
+            expect(edge).toHaveAttribute("aria-valuenow", "320");
+
+            // Left widens the column; the player's own arrow keys (seek) are not triggered.
+            edge.focus();
+            await user.keyboard("{ArrowLeft}{ArrowLeft}");
+            expect(panel).toHaveStyle({ width: "352px" });
+            await user.keyboard("{ArrowRight}");
+            expect(panel).toHaveStyle({ width: "336px" });
+            expect(element.currentTime).toBe(60);
+
+            fireEvent.pointerDown(edge, { clientX: 1000 });
+            fireEvent.pointerMove(window, { clientX: 900 });
+            fireEvent.pointerUp(window);
+            expect(panel).toHaveStyle({ width: "436px" });
+            expect(usePlayerStore.getState().upNextWidth).toBe(436);
+        });
+
+        it("stays between its limits and never takes more than half the window", async () => {
+            renderPlayer({ preferences: { ...DEFAULT_PLAYER_PREFERENCES, upNextWidth: 300 } });
+            await videoElement();
+            const edge = screen.getByRole("separator", { name: "Resize Up next" });
+            const panel = screen.getByRole("complementary", { name: "Up next" });
+
+            fireEvent.pointerDown(edge, { clientX: 500 });
+            fireEvent.pointerMove(window, { clientX: 900 });
+            expect(panel).toHaveStyle({ width: "240px" });
+            fireEvent.pointerMove(window, { clientX: -2000 });
+            fireEvent.pointerUp(window);
+            expect(panel).toHaveStyle({ width: `${Math.min(800, window.innerWidth / 2)}px` });
+        });
+
+        it("goes back to the automatic width on double-click", async () => {
+            const { user } = renderPlayer({ preferences: { ...DEFAULT_PLAYER_PREFERENCES, upNextWidth: 500 } });
+            await videoElement();
+            await user.dblClick(screen.getByRole("separator", { name: "Resize Up next" }));
+            expect(usePlayerStore.getState().upNextWidth).toBeNull();
+            expect(screen.getByRole("complementary", { name: "Up next" }).style.width).toBe("");
+        });
     });
 
     it("saves a burst of changes once, after a short pause", async () => {

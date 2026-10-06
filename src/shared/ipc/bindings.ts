@@ -128,7 +128,7 @@ export const commands = {
 /* Constants */
 export const DEFAULT_KEYBOARD_SHORTCUTS = {"fullscreen":["F"],"historyBack":["Alt+ArrowLeft"],"historyForward":["Alt+ArrowRight"],"mute":["M"],"playPause":["Space","K"],"seekBack10":["J"],"seekBack5":["ArrowLeft"],"seekForward10":["L"],"seekForward5":["ArrowRight"],"speedDown":["["],"speedReset":["Backspace"],"speedUp":["]"],"subtitles":["C"],"theater":["T"],"volumeDown":["ArrowDown"],"volumeUp":["ArrowUp"]} as const;
 
-export const DEFAULT_PLAYER_PREFERENCES = {"muted":false,"speed":1.0,"subtitlesEnabled":true,"theater":false,"volume":1.0} as const;
+export const DEFAULT_PLAYER_PREFERENCES = {"muted":false,"speed":1.0,"subtitlesEnabled":true,"theater":false,"upNextWidth":null,"volume":1.0} as const;
 
 export const DEFAULT_WATCHED_THRESHOLD = 0.9 as const;
 
@@ -136,9 +136,13 @@ export const MAX_KEYS_PER_SHORTCUT = 2 as const;
 
 export const MAX_PLAYBACK_SPEED = 2.0 as const;
 
+export const MAX_UP_NEXT_WIDTH = 800 as const;
+
 export const MAX_WATCHED_THRESHOLD = 1.0 as const;
 
 export const MIN_PLAYBACK_SPEED = 0.25 as const;
+
+export const MIN_UP_NEXT_WIDTH = 240 as const;
 
 export const MIN_WATCHED_THRESHOLD = 0.5 as const;
 
@@ -324,6 +328,8 @@ export type PlayerPreferences = {
 	speed: number,
 	subtitlesEnabled: boolean,
 	theater: boolean,
+	/**  Width of the "Up next" column in pixels, set by dragging its edge; `None` lets it follow the window. */
+	upNextWidth: number | null,
 };
 
 /**  Progress of a background media processing job, streamed to the frontend through a channel. */

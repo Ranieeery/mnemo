@@ -13,7 +13,8 @@ const samePreferences = (a: PlayerPreferences, b: PlayerPreferences) =>
     a.muted === b.muted &&
     a.speed === b.speed &&
     a.subtitlesEnabled === b.subtitlesEnabled &&
-    a.theater === b.theater;
+    a.theater === b.theater &&
+    a.upNextWidth === b.upNextWidth;
 
 /**
  * Loads the saved player preferences into the store (once per session) and saves later changes. Returns whether

@@ -11,7 +11,9 @@ mod videos;
 use tauri_specta::{Builder, collect_commands};
 
 use crate::domain::models::PlayerPreferences;
-use crate::domain::player::{MAX_PLAYBACK_SPEED, MIN_PLAYBACK_SPEED, PLAYBACK_SPEED_STEP};
+use crate::domain::player::{
+    MAX_PLAYBACK_SPEED, MAX_UP_NEXT_WIDTH, MIN_PLAYBACK_SPEED, MIN_UP_NEXT_WIDTH, PLAYBACK_SPEED_STEP,
+};
 use crate::domain::shortcuts::{KeyboardShortcuts, MAX_KEYS_PER_SHORTCUT, RESERVED_SHORTCUT_KEYS};
 use crate::domain::watch::{
     DEFAULT_WATCHED_THRESHOLD, MAX_WATCHED_THRESHOLD, MIN_WATCHED_THRESHOLD, WATCHED_THRESHOLD_STEP,
@@ -79,6 +81,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("MIN_PLAYBACK_SPEED", MIN_PLAYBACK_SPEED)
         .constant("MAX_PLAYBACK_SPEED", MAX_PLAYBACK_SPEED)
         .constant("PLAYBACK_SPEED_STEP", PLAYBACK_SPEED_STEP)
+        .constant("MIN_UP_NEXT_WIDTH", MIN_UP_NEXT_WIDTH)
+        .constant("MAX_UP_NEXT_WIDTH", MAX_UP_NEXT_WIDTH)
         .constant("DEFAULT_PLAYER_PREFERENCES", PlayerPreferences::default())
         .constant("DEFAULT_KEYBOARD_SHORTCUTS", KeyboardShortcuts::default())
         .constant("RESERVED_SHORTCUT_KEYS", RESERVED_SHORTCUT_KEYS)

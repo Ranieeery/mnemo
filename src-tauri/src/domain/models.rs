@@ -263,6 +263,8 @@ pub struct PlayerPreferences {
     pub speed: f64,
     pub subtitles_enabled: bool,
     pub theater: bool,
+    /// Width of the "Up next" column in pixels, set by dragging its edge; `None` lets it follow the window.
+    pub up_next_width: Option<i64>,
 }
 
 impl Default for PlayerPreferences {
@@ -273,6 +275,7 @@ impl Default for PlayerPreferences {
             speed: 1.0,
             subtitles_enabled: true,
             theater: false,
+            up_next_width: None,
         }
     }
 }

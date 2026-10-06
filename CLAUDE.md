@@ -125,10 +125,10 @@ src/
   as telas; no player, voltar fecha e avançar reabre o último vídeo.
 - Dados: tudo o que deriva da biblioteca fica sob a query key `["library"]`; mutações invalidam esse prefixo.
   "Marcar como assistido" é otimista com rollback (`shared/video/replaceVideo` atualiza o vídeo em qualquer cache).
-- Player (`features/player`): volume, mudo, velocidade, legendas e modo teatro são preferências entre sessões
-  (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e salvas 400 ms após
-  a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada 5 s e ao pausar,
-  fechar e terminar.
+- Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências
+  entre sessões (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e
+  salvas 400 ms após a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada
+  5 s e ao pausar, fechar e terminar.
 
 ### Princípios
 
@@ -307,7 +307,9 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   (ex.: MKV só com E-AC3 no Windows), o vídeo toca mudo sem erro: um aviso fixo sobre o vídeo (`NoSoundNotice`,
   também em tela cheia) explica e oferece abrir no player externo (pausando o do app) ou dispensar, mesmo com uma
   faixa só. Validado no Windows com AAC+AAC (MP4 e MKV), AC3+AAC e E-AC3+E-AC3; macOS e Linux não foram testados.
-- Playlist ("Up next") e diálogo "Up next" com contagem regressiva de 5s ao terminar, na mesma ordem.
+- Playlist ("Up next") e diálogo "Up next" com contagem regressiva de 5s ao terminar, na mesma ordem. A coluna
+  acompanha a janela (~¼ da largura, 256–448 px) até o usuário arrastar a borda ou usar `←`/`→` nela (240–800 px,
+  no máximo metade da janela); duplo clique volta ao automático. A largura fica nas preferências do player.
 - Retomada do ponto onde parou.
 - Atalhos padrão (configuráveis, ver "Atalhos de teclado"): `Espaço`/`K` play/pause · `J`/`L` ±10s · `←`/`→` ±5s ·
   `↑`/`↓` volume ±5% · `[`/`]` velocidade ±0.25× · `Backspace` volta para 1× · `F` tela cheia · `T` modo teatro ·
