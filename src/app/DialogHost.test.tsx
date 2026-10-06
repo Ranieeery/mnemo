@@ -47,6 +47,27 @@ describe("video details dialog", () => {
         expect(callsOf(calls, "remove_tag_from_video")).toEqual([{ videoId: 9, tagId: 1 }]);
     });
 
+    it("restores the automatic thumbnail", async () => {
+        const video = videoFixture({ id: 9, thumbnailPath: "chosen.jpg" });
+        const calls = mockCommands({
+            get_video_tags: [],
+            list_tags: [],
+            media_tools_status: { ffmpeg: true, ffprobe: true },
+            set_video_thumbnail: { ...video, thumbnailPath: "automatic.jpg" },
+        });
+        const { user } = renderScreen(<DialogHost />);
+        act(() => openVideoDetails(video));
+
+        const dialog = await screen.findByRole("dialog", { name: "Video details" });
+        // The thumbnail is decorative (empty alt), so it is found by tag rather than role.
+        expect(dialog.querySelector("img")).toHaveAttribute("src", expect.stringContaining("chosen.jpg"));
+        await user.click(within(dialog).getByRole("button", { name: "Restore default thumbnail" }));
+
+        expect(await screen.findByText("Restored the automatic thumbnail")).toBeInTheDocument();
+        expect(callsOf(calls, "set_video_thumbnail")).toEqual([{ id: 9, positionSeconds: null }]);
+        expect(dialog.querySelector("img")).toHaveAttribute("src", expect.stringContaining("automatic.jpg"));
+    });
+
     it("does not save an empty title", async () => {
         mockCommands({ get_video_tags: [], list_tags: [] });
         const { user } = renderScreen(<DialogHost />);

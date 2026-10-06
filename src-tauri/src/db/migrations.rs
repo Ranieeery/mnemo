@@ -98,10 +98,15 @@ CREATE TABLE folder_settings (
 );
 "#;
 
+/// Version 2.1: the history screen pages and sums the watch history by date.
+const WATCH_HISTORY_DATE_INDEX: &str =
+    "CREATE INDEX IF NOT EXISTS idx_watch_history_watched_at ON watch_history (watched_at);";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
         M::up(INDEXES_CLEANUP_AND_SETTINGS),
+        M::up(WATCH_HISTORY_DATE_INDEX),
     ])
 }
 
@@ -245,7 +250,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 2);
+        assert_eq!(user_version(&connection), 3);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -269,7 +274,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 2);
+        assert_eq!(user_version(&connection), 3);
         for table in [
             "videos",
             "tags",
@@ -284,10 +289,25 @@ mod tests {
     }
 
     #[test]
+    fn indexes_the_watch_history_by_date() {
+        let mut connection = legacy_database(true);
+        run(&mut connection).unwrap();
+        let indexed: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_watch_history_watched_at'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(indexed, 1);
+        assert_legacy_data_preserved(&connection);
+    }
+
+    #[test]
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 2);
+        assert_eq!(user_version(&connection), 3);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -357,7 +377,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 2);
+        assert_eq!(user_version(&connection), 3);
         assert_legacy_data_preserved(&connection);
     }
 

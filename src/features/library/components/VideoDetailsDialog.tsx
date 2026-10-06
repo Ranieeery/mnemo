@@ -2,10 +2,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { commands, type Video } from "../../../shared/ipc/bindings";
 import { call, errorMessage } from "../../../shared/ipc/client";
+import { useMediaTools } from "../../../shared/ipc/queries";
 import { queryKeys } from "../../../shared/ipc/queryKeys";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { Button, Dialog, Input, Textarea, toast } from "../../../shared/ui";
-import { replaceVideo } from "../../../shared/video";
+import { replaceVideo, useSetVideoThumbnail, VideoThumbnail } from "../../../shared/video";
 
 type VideoDetailsDialogProps = {
     video: Video;
@@ -46,6 +47,10 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
     const [description, setDescription] = useState(video.description);
     const changed = title !== video.title || description !== video.description;
     const titleError = title.trim() ? undefined : "The title cannot be empty.";
+    const tools = useMediaTools();
+    const setThumbnail = useSetVideoThumbnail();
+    // The dialog keeps the video it was opened with; the thumbnail follows the restore below.
+    const [thumbnailPath, setThumbnailPath] = useState(video.thumbnailPath);
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -78,6 +83,27 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
             }
         >
             <div className="flex flex-col gap-6 pb-2">
+                <div className="flex items-center gap-4">
+                    <VideoThumbnail thumbnailPath={thumbnailPath} className="w-48 shrink-0" />
+                    <div className="flex flex-col items-start gap-2">
+                        <p className="text-small text-text-muted">
+                            To use another frame, pause the video where you want and choose “Use frame as thumbnail”.
+                        </p>
+                        <Button
+                            size="sm"
+                            loading={setThumbnail.isPending}
+                            disabled={tools.data?.ffmpeg === false}
+                            onClick={() =>
+                                setThumbnail.mutate(
+                                    { video, positionSeconds: null },
+                                    { onSuccess: (updated) => setThumbnailPath(updated.thumbnailPath) }
+                                )
+                            }
+                        >
+                            Restore default thumbnail
+                        </Button>
+                    </div>
+                </div>
                 <form id="video-details-form" onSubmit={submit} className="flex flex-col gap-4">
                     <Input
                         label="Title"

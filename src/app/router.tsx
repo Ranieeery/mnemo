@@ -10,7 +10,12 @@ import { AppShell } from "./layout/AppShell";
 import { RootLayout } from "./RootLayout";
 import { FolderRoute } from "./routes/FolderRoute";
 import { HomeRoute } from "./routes/HomeRoute";
-import { validateFolderSearch, validateHomeSearch, validateWatchSearch } from "./routes/searchParams";
+import {
+    validateFolderSearch,
+    validateHomeSearch,
+    validateSettingsSearch,
+    validateWatchSearch,
+} from "./routes/searchParams";
 
 function NotFound() {
     return null;
@@ -38,9 +43,15 @@ export function createAppRouter(history: RouterHistory = createHashHistory()) {
         validateSearch: validateFolderSearch,
         component: FolderRoute,
     });
+    const historyRoute = createRoute({
+        getParentRoute: () => shellRoute,
+        path: "/history",
+        component: lazyRouteComponent(() => import("./routes/HistoryRoute"), "HistoryRoute"),
+    });
     const settingsRoute = createRoute({
         getParentRoute: () => shellRoute,
         path: "/settings",
+        validateSearch: validateSettingsSearch,
         component: lazyRouteComponent(() => import("./routes/SettingsRoute"), "SettingsRoute"),
     });
 
@@ -60,7 +71,7 @@ export function createAppRouter(history: RouterHistory = createHashHistory()) {
 
     return createRouter({
         routeTree: rootRoute.addChildren([
-            shellRoute.addChildren([homeRoute, folderRoute, settingsRoute]),
+            shellRoute.addChildren([homeRoute, folderRoute, historyRoute, settingsRoute]),
             watchRoute,
             catalogRoute,
         ]),

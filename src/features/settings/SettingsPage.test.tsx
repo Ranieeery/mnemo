@@ -1,9 +1,10 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
-import { SettingsPage } from "./components/SettingsPage";
+import { SettingsPage, type SettingsTab } from "./components/SettingsPage";
 
 function mockSettings(extra: Record<string, unknown> = {}) {
     return mockCommands({
@@ -27,8 +28,22 @@ function mockSettings(extra: Record<string, unknown> = {}) {
     });
 }
 
+/** Settings with its tab kept in state, as the route keeps it in the URL. */
+function Settings() {
+    const [tab, setTab] = useState<SettingsTab>("library");
+    return (
+        <SettingsPage
+            tab={tab}
+            onTabChange={setTab}
+            foldersPanel={<p>Folders panel</p>}
+            shortcuts={<p>Shortcut list</p>}
+            tagManager={<p>Tag manager</p>}
+        />
+    );
+}
+
 function renderSettings() {
-    return renderScreen(<SettingsPage foldersPanel={<p>Folders panel</p>} tagManager={<p>Tag manager</p>} />);
+    return renderScreen(<Settings />);
 }
 
 describe("SettingsPage", () => {

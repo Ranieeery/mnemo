@@ -10,6 +10,7 @@ type MediaState = {
     muted: boolean;
     playbackRate: number;
     defaultPlaybackRate: number;
+    readyState: number;
 };
 
 const states = new WeakMap<HTMLMediaElement, MediaState>();
@@ -25,6 +26,7 @@ function stateOf(element: HTMLMediaElement): MediaState {
             muted: false,
             playbackRate: 1,
             defaultPlaybackRate: 1,
+            readyState: HTMLMediaElement.HAVE_NOTHING,
         };
         states.set(element, state);
     }
@@ -56,6 +58,12 @@ export function installMediaElementStub() {
             configurable: true,
             get(this: HTMLMediaElement) {
                 return stateOf(this).paused;
+            },
+        },
+        readyState: {
+            configurable: true,
+            get(this: HTMLMediaElement) {
+                return stateOf(this).readyState;
             },
         },
         duration: {
@@ -91,6 +99,7 @@ export function installMediaElementStub() {
 /** Simulates the browser reading the file header. */
 export function loadMetadata(element: HTMLMediaElement, durationSeconds: number) {
     stateOf(element).duration = durationSeconds;
+    stateOf(element).readyState = HTMLMediaElement.HAVE_METADATA;
     emit(element, "durationchange");
     emit(element, "loadedmetadata");
 }

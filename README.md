@@ -5,7 +5,7 @@
 <h1 align="center">Mnemo: Local Video Library</h1>
 
 <p align="center">
-  <strong>Version 2.0.0</strong> - Desktop application for managing and watching your local video collection
+  <strong>Version 2.1.0</strong> - Desktop application for managing and watching your local video collection
 </p>
 
 <p align="center">
@@ -32,14 +32,20 @@ thumbnails, tags and watch progress in a local SQLite database.
 
 - **Folder-based library:** add folders and browse their real hierarchy, with breadcrumbs, per-folder progress and
   custom icons for library folders.
+- **Sort and filter:** sort a folder's videos by name, duration or date added, and show only unwatched, in-progress
+  or watched ones.
 - **Two ways to view a folder:** *Folders* shows only what is directly inside it; *Continuous* lists every video below
   it grouped by subfolder, and playback continues from one subfolder to the next (great for courses). Subfolders
   inherit the choice until you change it.
 - **Home:** continue watching, suggestions, recently watched and a preview of each library folder.
-- **Built-in player:** resumes where you stopped, external subtitles (`.srt`, `.vtt`, `.sub`, `.ass`), speeds from
-  0.25× to 2×, an "Up next" list and a countdown to the next video, plus keyboard and mouse shortcuts.
+- **Built-in player:** resumes where you stopped, subtitles from a file next to the video (`.srt`, `.vtt`, `.sub`,
+  `.ass`) or embedded in it (text tracks of MKV and MP4), switching between audio tracks where the system's webview
+  can play them, speeds from 0.25× to 2×, an "Up next" list and a countdown to the next video, plus keyboard and
+  mouse shortcuts. Volume, speed, subtitles and theater mode are remembered between sessions.
+- **Custom thumbnails:** use the frame on screen as a video's thumbnail, or go back to the automatic one.
 - **Watch status:** videos count as watched at 90% by default (adjustable from 50% to 100%) or when they end; mark
   videos or whole folders as watched or unwatched.
+- **History:** the videos you watched, by day, and your watched time per day or week.
 - **Tags:** tag videos individually or a whole folder at once, search by tag, and clean up tags in Settings.
 - **Search:** search the library by title, description and tag, or search file names on disk inside a folder,
   including videos not read yet.
@@ -49,12 +55,16 @@ thumbnails, tags and watch progress in a local SQLite database.
 
 ## Shortcuts
 
+Press `?` anywhere (or the keyboard button in the top bar or the player) to see every shortcut. Player and
+back/forward keys can be changed in Settings → Shortcuts; the tables below show the defaults.
+
 ### Anywhere
 
 | Keys | Action |
 |---|---|
 | `Alt+←` / mouse back button | Go back (closes the player) |
 | `Alt+→` / mouse forward button | Go forward (reopens the last video) |
+| `?` | Show the keyboard shortcuts |
 | `Esc` in the search field | Clear the search |
 
 ### Player

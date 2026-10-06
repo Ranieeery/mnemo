@@ -37,7 +37,7 @@ export { Spinner } from "./Spinner";
 export { Switch } from "./Switch";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { Textarea } from "./Textarea";
-export { Toaster, toast } from "./Toast";
+export { resetToasts, Toaster, toast } from "./Toast";
 export { Tooltip, TooltipProvider } from "./Tooltip";
 export { useColumns } from "./useColumns";
 export { VirtualList } from "./VirtualList";

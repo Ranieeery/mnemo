@@ -1,13 +1,16 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, Keyboard } from "lucide-react";
+import { useCallback, useState } from "react";
 import type { VideoEntry } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
 import { cx } from "../../../shared/lib/cx";
 import { baseName, parentPath } from "../../../shared/lib/paths";
+import { openShortcutsHelp } from "../../../shared/stores/dialogs";
 import { ErrorState, IconButton, ScrollContainer, Skeleton } from "../../../shared/ui";
-import { usePlaylist, useSubtitleCues, useVideoRecord } from "../queries";
-import { playerPreferences, usePlayerStore } from "../store";
+import { usePreferencesSession } from "../hooks/usePreferencesSession";
+import { useSubtitles } from "../hooks/useSubtitles";
+import { usePlaylist, useVideoRecord } from "../queries";
+import { usePlayerStore } from "../store";
 import { NextVideoDialog } from "./NextVideoDialog";
 import { UpNextPanel } from "./UpNextPanel";
 import { VideoInfo } from "./VideoInfo";
@@ -18,14 +21,10 @@ export function PlayerPage({ path }: { path: string }) {
     const navigate = useNavigate();
     const record = useVideoRecord(path);
     const playlist = usePlaylist(path);
-    const cues = useSubtitleCues(path);
+    const subtitles = useSubtitles(path);
     const [nextPrompt, setNextPrompt] = useState<VideoEntry | null>(null);
     const theater = usePlayerStore((state) => state.theater);
-
-    // The route remounts this page for every video (keyed by path).
-    useEffect(() => {
-        playerPreferences.startVideo();
-    }, []);
+    const preferencesReady = usePreferencesSession();
 
     const entries = playlist.data ?? [];
     const position = entries.findIndex((entry) => entry.path === path);
@@ -43,10 +42,7 @@ export function PlayerPage({ path }: { path: string }) {
 
     /** Moving within the playlist replaces the entry, so "back" still returns to the folder. */
     const play = useCallback(
-        (entry: VideoEntry) => {
-            playerPreferences.continueWithNext();
-            void navigate({ to: "/watch", search: { path: entry.path }, replace: true });
-        },
+        (entry: VideoEntry) => void navigate({ to: "/watch", search: { path: entry.path }, replace: true }),
         [navigate]
     );
 
@@ -60,12 +56,13 @@ export function PlayerPage({ path }: { path: string }) {
         <div className="flex h-screen flex-col bg-background text-text">
             <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
                 <IconButton label="Close player" shortcut="Esc" icon={<ArrowLeft />} onClick={close} />
-                <span className="min-w-0 truncate text-lead font-medium">{title}</span>
+                <span className="min-w-0 flex-1 truncate text-lead font-medium">{title}</span>
+                <IconButton label="Keyboard shortcuts" shortcut="?" icon={<Keyboard />} onClick={openShortcutsHelp} />
             </header>
             {/* Both layouts keep the video at the same place in the tree, so switching never reloads it. */}
             <div className="flex min-h-0 flex-1">
                 <ScrollContainer className="min-w-0 flex-1">
-                    {record.isPending && (
+                    {(record.isPending || (record.isSuccess && !preferencesReady)) && (
                         <Skeleton className={cx("aspect-video w-full rounded-none", stageHeight(theater))} />
                     )}
                     {record.isError && (
@@ -75,13 +72,13 @@ export function PlayerPage({ path }: { path: string }) {
                             onRetry={() => record.refetch()}
                         />
                     )}
-                    {/* Wait for the record so playback can resume from the saved position. */}
-                    {record.isSuccess && (
+                    {/* Wait for the record (to resume from the saved position) and the saved volume and speed. */}
+                    {record.isSuccess && preferencesReady && (
                         <VideoStage
                             key={path}
                             path={path}
                             video={record.data}
-                            cues={cues.data ?? []}
+                            subtitles={subtitles}
                             onEnded={handleEnded}
                             onClose={close}
                         />

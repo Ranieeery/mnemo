@@ -215,10 +215,111 @@ pub struct SubtitleFile {
     pub content: String,
 }
 
+/// The audio and subtitle streams inside a video file, in file order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaTracks {
+    pub audio: Vec<AudioTrack>,
+    pub subtitles: Vec<SubtitleTrack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioTrack {
+    /// Position among the file's audio streams (ffmpeg's `0:a:<index>`).
+    pub index: i64,
+    /// ISO 639 code from the file, when it has one other than "undetermined".
+    pub language: Option<String>,
+    pub title: Option<String>,
+    pub codec: String,
+    pub channels: Option<i64>,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleTrack {
+    /// Position among the file's subtitle streams (ffmpeg's `0:s:<index>`).
+    pub index: i64,
+    pub language: Option<String>,
+    pub title: Option<String>,
+    pub codec: String,
+    pub is_default: bool,
+    pub is_forced: bool,
+    /// Text subtitles can be extracted and shown; image ones (PGS, VobSub, DVB) cannot without OCR.
+    pub is_text: bool,
+}
+
+/// How the built-in player was left: kept between sessions and used for every video. Fields missing from a stored
+/// value take their default (see `db::settings::Player`), so fields can be added later without a migration.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerPreferences {
+    /// From 0 (silent) to 1 (full).
+    #[specta(type = Number)]
+    pub volume: f64,
+    pub muted: bool,
+    #[specta(type = Number)]
+    pub speed: f64,
+    pub subtitles_enabled: bool,
+    pub theater: bool,
+}
+
+impl Default for PlayerPreferences {
+    fn default() -> Self {
+        Self {
+            volume: 1.0,
+            muted: false,
+            speed: 1.0,
+            subtitles_enabled: true,
+            theater: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportSummary {
     pub folders: i64,
     pub videos: i64,
     pub tags: i64,
+}
+
+/// Where a page of the watch history ends; pass it back to get the next (older) page. `watched_at` is the stored
+/// timestamp, so treat the cursor as opaque.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryCursor {
+    pub watched_at: String,
+    pub video_id: i64,
+}
+
+/// A video that became watched on a given day.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEntry {
+    pub video: Video,
+    /// Local date, `YYYY-MM-DD`.
+    pub day: String,
+    /// When it first became watched that day, ISO 8601 in UTC.
+    pub watched_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryPage {
+    /// Newest first.
+    pub entries: Vec<HistoryEntry>,
+    pub next_cursor: Option<HistoryCursor>,
+}
+
+/// How much was watched on one local day: the videos that became watched and their total length.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyWatchTotal {
+    /// Local date, `YYYY-MM-DD`.
+    pub day: String,
+    pub videos: i64,
+    #[specta(type = Number)]
+    pub seconds: f64,
 }

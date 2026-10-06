@@ -1,59 +1,191 @@
-use rusqlite::{Connection, OptionalExtension, params};
+//! Typed access to `app_settings`: each setting declares its key, value type, default and validation, and is stored
+//! as JSON. Values written before this module existed (a bare number, a JSON array) are valid JSON already.
 
-use crate::domain::models::AppSettings;
+use rusqlite::{Connection, OptionalExtension, params};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
+use crate::domain::models::{AppSettings, PlayerPreferences};
+use crate::domain::player::{validate_speed, validate_volume};
+use crate::domain::shortcuts::{KeyboardShortcuts, repair_shortcuts, validate_shortcuts};
 use crate::domain::watch::{DEFAULT_WATCHED_THRESHOLD, validate_threshold};
 use crate::error::{AppError, AppResult};
 
-const WATCHED_THRESHOLD_KEY: &str = "watched_threshold";
-const RECENT_FOLDER_ICONS_KEY: &str = "recent_folder_icons";
-/// How many recently chosen folder icons the icon picker offers first.
-const RECENT_FOLDER_ICONS_LIMIT: usize = 8;
+/// A value kept in `app_settings` under a fixed key.
+pub trait Setting {
+    const KEY: &'static str;
+    type Value: Serialize + DeserializeOwned;
 
-fn stored(connection: &Connection, key: &str) -> AppResult<Option<String>> {
-    Ok(connection
-        .query_row("SELECT value FROM app_settings WHERE key = ?1", [key], |row| row.get(0))
-        .optional()?)
+    fn default_value() -> Self::Value;
+
+    /// Reads the stored JSON, or gives up (the default is used).
+    fn decode(stored: serde_json::Value) -> Option<Self::Value> {
+        serde_json::from_value(stored).ok()
+    }
+
+    /// Checks a value before it is stored.
+    fn validate(value: Self::Value) -> AppResult<Self::Value> {
+        Ok(value)
+    }
+
+    /// Makes a stored value usable, or gives up (the default is used). Rejects what `validate` rejects unless a
+    /// setting knows how to repair part of it.
+    fn repair(value: Self::Value) -> Option<Self::Value> {
+        Self::validate(value).ok()
+    }
 }
 
-fn store(connection: &Connection, key: &str, value: &str) -> AppResult<()> {
+/// Fields missing from a stored object (added by a later version) take their default.
+fn merge_onto_default<T: Serialize + DeserializeOwned>(default: T, stored: serde_json::Value) -> Option<T> {
+    let serde_json::Value::Object(fields) = stored else {
+        return None;
+    };
+    let mut merged = serde_json::to_value(default).ok()?;
+    merged.as_object_mut()?.extend(fields);
+    serde_json::from_value(merged).ok()
+}
+
+/// Reads a setting. Missing, unreadable or invalid stored values give the default, so a bad row never breaks a
+/// screen; they are logged.
+pub fn get<S: Setting>(connection: &Connection) -> AppResult<S::Value> {
+    let stored: Option<String> = connection
+        .query_row("SELECT value FROM app_settings WHERE key = ?1", [S::KEY], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    let Some(stored) = stored else {
+        return Ok(S::default_value());
+    };
+    let value = serde_json::from_str(&stored)
+        .ok()
+        .and_then(S::decode)
+        .and_then(S::repair);
+    Ok(value.unwrap_or_else(|| {
+        tracing::warn!(key = S::KEY, %stored, "ignoring an unreadable setting");
+        S::default_value()
+    }))
+}
+
+/// Validates and stores a setting, returning what was stored.
+pub fn set<S: Setting>(connection: &Connection, value: S::Value) -> AppResult<S::Value> {
+    let value = S::validate(value)?;
+    let json = serde_json::to_string(&value).map_err(|error| AppError::Internal(error.to_string()))?;
     connection.execute(
         "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
          ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-        params![key, value],
+        params![S::KEY, json],
     )?;
-    Ok(())
+    Ok(value)
 }
 
-/// Loads the settings, falling back to defaults for missing or unreadable values.
+pub struct WatchedThreshold;
+
+impl Setting for WatchedThreshold {
+    const KEY: &'static str = "watched_threshold";
+    type Value = f64;
+
+    fn default_value() -> f64 {
+        DEFAULT_WATCHED_THRESHOLD
+    }
+
+    fn validate(threshold: f64) -> AppResult<f64> {
+        validate_threshold(threshold)
+    }
+}
+
+/// Folder icons chosen most recently, newest first.
+pub struct RecentFolderIcons;
+
+/// How many recently chosen folder icons the icon picker offers first.
+const RECENT_FOLDER_ICONS_LIMIT: usize = 8;
+
+impl Setting for RecentFolderIcons {
+    const KEY: &'static str = "recent_folder_icons";
+    type Value = Vec<String>;
+
+    fn default_value() -> Vec<String> {
+        Vec::new()
+    }
+}
+
+/// Volume, speed, subtitles and layout of the built-in player, kept between sessions.
+pub struct Player;
+
+impl Setting for Player {
+    const KEY: &'static str = "player_preferences";
+    type Value = PlayerPreferences;
+
+    fn default_value() -> PlayerPreferences {
+        PlayerPreferences::default()
+    }
+
+    fn decode(stored: serde_json::Value) -> Option<PlayerPreferences> {
+        merge_onto_default(PlayerPreferences::default(), stored)
+    }
+
+    fn validate(preferences: PlayerPreferences) -> AppResult<PlayerPreferences> {
+        validate_volume(preferences.volume)?;
+        validate_speed(preferences.speed)?;
+        Ok(preferences)
+    }
+
+    /// A bad field falls back to its default on its own, so one odd value does not reset everything.
+    fn repair(preferences: PlayerPreferences) -> Option<PlayerPreferences> {
+        let defaults = PlayerPreferences::default();
+        Some(PlayerPreferences {
+            volume: validate_volume(preferences.volume).unwrap_or(defaults.volume),
+            speed: validate_speed(preferences.speed).unwrap_or(defaults.speed),
+            ..preferences
+        })
+    }
+}
+
+/// The configurable keyboard shortcuts.
+pub struct Shortcuts;
+
+impl Setting for Shortcuts {
+    const KEY: &'static str = "keyboard_shortcuts";
+    type Value = KeyboardShortcuts;
+
+    fn default_value() -> KeyboardShortcuts {
+        KeyboardShortcuts::default()
+    }
+
+    /// Actions missing from the stored object (added by a later version) take their default keys.
+    fn decode(stored: serde_json::Value) -> Option<KeyboardShortcuts> {
+        merge_onto_default(KeyboardShortcuts::default(), stored)
+    }
+
+    fn validate(shortcuts: KeyboardShortcuts) -> AppResult<KeyboardShortcuts> {
+        validate_shortcuts(&shortcuts)?;
+        Ok(shortcuts)
+    }
+
+    fn repair(shortcuts: KeyboardShortcuts) -> Option<KeyboardShortcuts> {
+        Some(repair_shortcuts(shortcuts))
+    }
+}
+
+/// The settings shown in Settings and included in backups.
 pub fn load(connection: &Connection) -> AppResult<AppSettings> {
-    let watched_threshold = stored(connection, WATCHED_THRESHOLD_KEY)?
-        .and_then(|value| value.parse::<f64>().ok())
-        .and_then(|value| validate_threshold(value).ok())
-        .unwrap_or(DEFAULT_WATCHED_THRESHOLD);
-    Ok(AppSettings { watched_threshold })
+    Ok(AppSettings {
+        watched_threshold: get::<WatchedThreshold>(connection)?,
+    })
 }
 
-/// Validates and stores the settings.
 pub fn save(connection: &Connection, settings: &AppSettings) -> AppResult<()> {
-    let threshold = validate_threshold(settings.watched_threshold)?;
-    store(connection, WATCHED_THRESHOLD_KEY, &threshold.to_string())
-}
-
-/// Folder icons chosen most recently, newest first. An unreadable value counts as no history.
-pub fn recent_folder_icons(connection: &Connection) -> AppResult<Vec<String>> {
-    Ok(stored(connection, RECENT_FOLDER_ICONS_KEY)?
-        .and_then(|value| serde_json::from_str(&value).ok())
-        .unwrap_or_default())
+    set::<WatchedThreshold>(connection, settings.watched_threshold)?;
+    Ok(())
 }
 
 /// Moves `icon` to the front of the recent folder icons, keeping the list short and free of duplicates.
 pub fn remember_folder_icon(connection: &Connection, icon: &str) -> AppResult<()> {
-    let mut recent = recent_folder_icons(connection)?;
+    let mut recent = get::<RecentFolderIcons>(connection)?;
     recent.retain(|existing| existing != icon);
     recent.insert(0, icon.to_owned());
     recent.truncate(RECENT_FOLDER_ICONS_LIMIT);
-    let value = serde_json::to_string(&recent).map_err(|error| AppError::Internal(error.to_string()))?;
-    store(connection, RECENT_FOLDER_ICONS_KEY, &value)
+    set::<RecentFolderIcons>(connection, recent)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -61,10 +193,21 @@ mod tests {
     use super::*;
     use crate::db::test_support;
 
+    fn store_raw(connection: &Connection, key: &str, value: &str) {
+        connection
+            .execute(
+                "INSERT INTO app_settings (key, value) VALUES (?1, ?2)",
+                params![key, value],
+            )
+            .unwrap();
+    }
+
     #[test]
     fn defaults_when_nothing_is_stored() {
         let connection = test_support::connection();
         assert_eq!(load(&connection).unwrap().watched_threshold, DEFAULT_WATCHED_THRESHOLD);
+        assert!(get::<RecentFolderIcons>(&connection).unwrap().is_empty());
+        assert_eq!(get::<Player>(&connection).unwrap(), PlayerPreferences::default());
     }
 
     #[test]
@@ -81,42 +224,119 @@ mod tests {
     }
 
     #[test]
+    fn reads_values_stored_by_earlier_2_x_versions() {
+        // 2.0 stored the threshold with `f64::to_string` and the icons as a JSON array.
+        let connection = test_support::connection();
+        store_raw(&connection, "watched_threshold", "1");
+        store_raw(&connection, "recent_folder_icons", r#"["film","tv"]"#);
+        assert_eq!(load(&connection).unwrap().watched_threshold, 1.0);
+        assert_eq!(get::<RecentFolderIcons>(&connection).unwrap(), ["film", "tv"]);
+    }
+
+    #[test]
     fn remembers_recent_folder_icons_newest_first_without_duplicates() {
         let connection = test_support::connection();
-        assert!(recent_folder_icons(&connection).unwrap().is_empty());
-
         for icon in ["film", "tv", "film"] {
             remember_folder_icon(&connection, icon).unwrap();
         }
-        assert_eq!(recent_folder_icons(&connection).unwrap(), ["film", "tv"]);
+        assert_eq!(get::<RecentFolderIcons>(&connection).unwrap(), ["film", "tv"]);
 
         for index in 0..10 {
             remember_folder_icon(&connection, &format!("icon-{index}")).unwrap();
         }
-        let recent = recent_folder_icons(&connection).unwrap();
+        let recent = get::<RecentFolderIcons>(&connection).unwrap();
         assert_eq!(recent.len(), RECENT_FOLDER_ICONS_LIMIT);
         assert_eq!(recent.first().map(String::as_str), Some("icon-9"));
     }
 
     #[test]
-    fn ignores_corrupted_recent_folder_icons() {
+    fn ignores_corrupted_values() {
         let connection = test_support::connection();
-        store(&connection, RECENT_FOLDER_ICONS_KEY, "not json").unwrap();
-        assert!(recent_folder_icons(&connection).unwrap().is_empty());
+        store_raw(&connection, "watched_threshold", "abc");
+        store_raw(&connection, "recent_folder_icons", "not json");
+        store_raw(&connection, "player_preferences", "[1, 2]");
+        assert_eq!(load(&connection).unwrap().watched_threshold, DEFAULT_WATCHED_THRESHOLD);
+        assert!(get::<RecentFolderIcons>(&connection).unwrap().is_empty());
+        assert_eq!(get::<Player>(&connection).unwrap(), PlayerPreferences::default());
+
         remember_folder_icon(&connection, "film").unwrap();
-        assert_eq!(recent_folder_icons(&connection).unwrap(), ["film"]);
+        assert_eq!(get::<RecentFolderIcons>(&connection).unwrap(), ["film"]);
     }
 
     #[test]
-    fn rejects_invalid_values_and_ignores_corrupted_ones() {
+    fn rejects_invalid_values_on_write() {
         let connection = test_support::connection();
         assert!(save(&connection, &AppSettings { watched_threshold: 0.3 }).is_err());
-        connection
-            .execute(
-                "INSERT INTO app_settings (key, value) VALUES ('watched_threshold', 'abc')",
-                [],
-            )
-            .unwrap();
-        assert_eq!(load(&connection).unwrap().watched_threshold, DEFAULT_WATCHED_THRESHOLD);
+        let loud = PlayerPreferences {
+            volume: 1.5,
+            ..PlayerPreferences::default()
+        };
+        assert!(matches!(
+            set::<Player>(&connection, loud),
+            Err(AppError::InvalidInput(_))
+        ));
+        assert_eq!(get::<Player>(&connection).unwrap(), PlayerPreferences::default());
+    }
+
+    #[test]
+    fn player_preferences_round_trip() {
+        let connection = test_support::connection();
+        let preferences = PlayerPreferences {
+            volume: 0.4,
+            muted: true,
+            speed: 1.25,
+            subtitles_enabled: false,
+            theater: true,
+        };
+        assert_eq!(set::<Player>(&connection, preferences.clone()).unwrap(), preferences);
+        assert_eq!(get::<Player>(&connection).unwrap(), preferences);
+    }
+
+    #[test]
+    fn keyboard_shortcuts_fill_missing_actions_and_repair_bad_keys() {
+        let connection = test_support::connection();
+        assert_eq!(get::<Shortcuts>(&connection).unwrap(), KeyboardShortcuts::default());
+        // Stored by an older version (no history keys) with a key that later became invalid.
+        store_raw(
+            &connection,
+            "keyboard_shortcuts",
+            r#"{"playPause":["P"],"mute":["Escape"],"theater":[]}"#,
+        );
+        let shortcuts = get::<Shortcuts>(&connection).unwrap();
+        assert_eq!(shortcuts.play_pause, ["P"]);
+        assert_eq!(shortcuts.mute, ["M"]);
+        assert!(shortcuts.theater.is_empty());
+        assert_eq!(shortcuts.history_back, ["Alt+ArrowLeft"]);
+
+        let conflicting = KeyboardShortcuts {
+            mute: vec!["P".into()],
+            ..shortcuts.clone()
+        };
+        assert!(matches!(
+            set::<Shortcuts>(&connection, conflicting),
+            Err(AppError::InvalidInput(_))
+        ));
+        assert_eq!(set::<Shortcuts>(&connection, shortcuts.clone()).unwrap(), shortcuts);
+    }
+
+    #[test]
+    fn repairs_stored_player_preferences_field_by_field() {
+        let connection = test_support::connection();
+        // An out-of-range speed and a missing field: the rest is kept.
+        store_raw(
+            &connection,
+            "player_preferences",
+            r#"{"volume":0.3,"muted":true,"speed":9,"subtitlesEnabled":false}"#,
+        );
+        assert_eq!(
+            get::<Player>(&connection).unwrap(),
+            PlayerPreferences {
+                volume: 0.3,
+                muted: true,
+                speed: 1.0,
+                subtitles_enabled: false,
+                theater: false,
+            }
+        );
     }
 }

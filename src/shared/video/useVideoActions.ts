@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { commands, type Video, type VideoEntry } from "../ipc/bindings";
 import { call, errorMessage } from "../ipc/client";
 import { queryKeys } from "../ipc/queryKeys";
+import { formatDuration } from "../lib/formatDuration";
 import { toast } from "../ui";
 import { replaceVideo } from "./replaceVideo";
 
@@ -36,6 +37,36 @@ export function useSetWatched() {
             toast({ title: "Could not update the video", description: errorMessage(error), tone: "danger" });
         },
         onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.library }),
+    });
+}
+
+/**
+ * Makes a frame of the video its thumbnail (`positionSeconds`), or restores the automatic one (`null`). ffmpeg
+ * extracts the frame, so the new image shows up once the backend answers, in every cached view.
+ */
+export function useSetVideoThumbnail() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ video, positionSeconds }: { video: Video; positionSeconds: number | null }) =>
+            call(commands.setVideoThumbnail(video.id, positionSeconds)),
+        onSuccess: async (updated, { positionSeconds }) => {
+            queryClient.setQueriesData({ queryKey: queryKeys.library }, (data: unknown) =>
+                data === undefined ? data : replaceVideo(data, updated)
+            );
+            toast(
+                positionSeconds === null
+                    ? { title: "Restored the automatic thumbnail", tone: "success" }
+                    : {
+                          title: "Thumbnail updated",
+                          description: `Frame at ${formatDuration(positionSeconds)}`,
+                          tone: "success",
+                      }
+            );
+            await queryClient.invalidateQueries({ queryKey: queryKeys.library });
+        },
+        onError: (error) => {
+            toast({ title: "Could not change the thumbnail", description: errorMessage(error), tone: "danger" });
+        },
     });
 }
 

@@ -9,20 +9,25 @@ import { processFolder } from "../../../shared/stores/processing";
 import { Button, buttonClasses, ErrorState, Skeleton, scrollBehavior } from "../../../shared/ui";
 import { VideoGridSkeleton } from "../../../shared/video";
 import { breadcrumbs } from "../lib/breadcrumbs";
+import { DEFAULT_ORDER, type VideoOrder } from "../lib/videoOrder";
 import { useFolderContents, useFolderSummary } from "../queries";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { useFolderActionDialogs } from "./FolderActionDialog";
 import { FolderActionsDropdown } from "./FolderActionMenus";
 import { FolderContentsView, OTHER_FILES_HEADING_ID } from "./FolderContentsView";
+import { VideoOrderMenus } from "./VideoOrderMenus";
 import { ViewModeMenu } from "./ViewModeMenu";
 
 type FolderPageProps = {
     path: string;
     /** Replaces the folder contents, e.g. with search results, keeping the header. */
     content?: ReactNode;
+    /** How the folder's videos are sorted and filtered; the route keeps it in the URL. */
+    order?: VideoOrder;
+    onOrderChange?: (order: VideoOrder) => void;
 };
 
-export function FolderPage({ path, content }: FolderPageProps) {
+export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange }: FolderPageProps) {
     const folders = useLibraryFolders();
     const contents = useFolderContents(path);
     const summary = useFolderSummary(path);
@@ -32,6 +37,7 @@ export function FolderPage({ path, content }: FolderPageProps) {
     const name = baseName(path);
     // Other files are listed after every video, so the header says they exist (not over search results).
     const otherFiles = content ? 0 : (contents.data?.otherFiles.length ?? 0);
+    const hasVideos = contents.data?.groups.some((group) => group.entries.length > 0) ?? false;
 
     // Like the legacy app, opening a folder reads its new videos in the background (once per session).
     useEffect(() => {
@@ -67,7 +73,10 @@ export function FolderPage({ path, content }: FolderPageProps) {
                         </div>
                     </div>
                     {contents.data && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            {!content && hasVideos && onOrderChange && (
+                                <VideoOrderMenus order={order} onChange={onOrderChange} />
+                            )}
                             <ViewModeMenu path={path} viewMode={contents.data.viewMode} />
                             <FolderActionsDropdown target={{ path, name }} onAction={actions.request} />
                         </div>
@@ -75,7 +84,14 @@ export function FolderPage({ path, content }: FolderPageProps) {
                 </div>
             </header>
 
-            {content ?? <FolderBody contents={contents} onFolderAction={actions.request} />}
+            {content ?? (
+                <FolderBody
+                    contents={contents}
+                    onFolderAction={actions.request}
+                    order={order}
+                    onShowAll={() => onOrderChange?.({ ...order, status: "all" })}
+                />
+            )}
             {actions.dialog}
         </div>
     );
@@ -90,9 +106,11 @@ function jumpToOtherFiles() {
 type FolderBodyProps = {
     contents: ReturnType<typeof useFolderContents>;
     onFolderAction: ReturnType<typeof useFolderActionDialogs>["request"];
+    order: VideoOrder;
+    onShowAll: () => void;
 };
 
-function FolderBody({ contents, onFolderAction }: FolderBodyProps) {
+function FolderBody({ contents, onFolderAction, order, onShowAll }: FolderBodyProps) {
     if (contents.isPending) {
         return <VideoGridSkeleton />;
     }
@@ -112,5 +130,12 @@ function FolderBody({ contents, onFolderAction }: FolderBodyProps) {
             </ErrorState>
         );
     }
-    return <FolderContentsView contents={contents.data} onFolderAction={onFolderAction} />;
+    return (
+        <FolderContentsView
+            contents={contents.data}
+            onFolderAction={onFolderAction}
+            order={order}
+            onShowAll={onShowAll}
+        />
+    );
 }

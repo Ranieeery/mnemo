@@ -1,10 +1,12 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import type { FolderContents } from "../../shared/ipc/bindings";
 import { entryFixture, folderContentsFixture, libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
 import { callsOf, commandError, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { FolderPage } from "./components/FolderPage";
+import { DEFAULT_ORDER } from "./lib/videoOrder";
 
 const SHOW = "D:\\Videos\\Show";
 
@@ -41,6 +43,34 @@ function mockFolder(folderContents: FolderContents, extra: Record<string, unknow
     });
 }
 
+/** The folder screen with its order kept in state, as the route keeps it in the URL. */
+function OrderedFolderPage() {
+    const [order, setOrder] = useState(DEFAULT_ORDER);
+    return <FolderPage path={SHOW} order={order} onOrderChange={setOrder} />;
+}
+
+function orderedContents() {
+    return contents({
+        groups: [
+            {
+                folderPath: SHOW,
+                relativePath: "",
+                entries: [
+                    entryFixture(videoFixture({ id: 1, title: "Short one", durationSeconds: 300, isWatched: true })),
+                    entryFixture(videoFixture({ id: 2, title: "Long one", durationSeconds: 3600 })),
+                    { path: `${SHOW}\\Extra.mp4`, name: "Extra.mp4", video: null },
+                ],
+            },
+        ],
+    });
+}
+
+const videoNames = () =>
+    screen
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label"))
+        .filter((label) => label === "Extra" || label?.includes(" one"));
+
 describe("FolderPage", () => {
     it("shows the path, progress, subfolders, videos and other files", async () => {
         mockFolder(contents());
@@ -71,6 +101,80 @@ describe("FolderPage", () => {
         renderScreen(<FolderPage path={SHOW} />);
         await screen.findByRole("button", { name: "Trailer" });
         expect(screen.queryByRole("button", { name: /other file/ })).not.toBeInTheDocument();
+    });
+
+    it("sorts the videos by duration, keeping unread videos last", async () => {
+        mockFolder(orderedContents());
+        const { user } = renderScreen(<OrderedFolderPage />);
+        await screen.findByRole("button", { name: "Long one" });
+        expect(videoNames()).toEqual(["Short one, watched", "Long one", "Extra"]);
+
+        // A new field sorts ascending; choosing it again (the menu stays open) reverses it.
+        await user.click(screen.getByRole("button", { name: "Sort by name, A to Z" }));
+        await user.click(await screen.findByRole("menuitemradio", { name: "Duration" }));
+        expect(screen.getByRole("menuitemradio", { name: "Duration, shortest first" })).toBeChecked();
+
+        await user.click(screen.getByRole("menuitemradio", { name: "Duration, shortest first" }));
+        expect(screen.getByRole("menuitemradio", { name: "Duration, longest first" })).toBeChecked();
+        await user.keyboard("{Escape}");
+        expect(videoNames()).toEqual(["Long one", "Short one, watched", "Extra"]);
+        expect(screen.getByRole("button", { name: "Sort by duration, longest first" })).toBeInTheDocument();
+    });
+
+    it("filters the videos by status and shows how many are hidden", async () => {
+        mockFolder(orderedContents());
+        const { user } = renderScreen(<OrderedFolderPage />);
+        await screen.findByRole("button", { name: "Long one" });
+
+        await user.click(screen.getByRole("button", { name: "Show all videos" }));
+        await user.click(await screen.findByRole("menuitemradio", { name: "Unwatched" }));
+        expect(videoNames()).toEqual(["Long one", "Extra"]);
+        expect(screen.getByRole("status")).toHaveTextContent("Showing 2 of 3 videos");
+        // Subfolders are not filtered.
+        expect(screen.getByRole("link", { name: /Season 1/ })).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Show all" }));
+        expect(videoNames()).toHaveLength(3);
+        expect(screen.queryByText(/Showing/)).not.toBeInTheDocument();
+    });
+
+    it("explains when no video matches the filter", async () => {
+        mockFolder(orderedContents());
+        const { user } = renderScreen(<OrderedFolderPage />);
+        await user.click(await screen.findByRole("button", { name: "Show all videos" }));
+        await user.click(await screen.findByRole("menuitemradio", { name: "In progress" }));
+
+        expect(screen.getByRole("heading", { name: "No videos in progress here" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /Season 2/ })).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Show all videos" }));
+        expect(await screen.findByRole("button", { name: "Long one" })).toBeInTheDocument();
+    });
+
+    it("hides the subfolder groups a filter empties in continuous view", async () => {
+        mockFolder(
+            contents({
+                viewMode: { mode: "continuous", definedAt: SHOW },
+                groups: [
+                    {
+                        folderPath: `${SHOW}\\Season 1`,
+                        relativePath: "Season 1",
+                        entries: [entryFixture(videoFixture({ id: 5, title: "Pilot", isWatched: true }))],
+                    },
+                    {
+                        folderPath: `${SHOW}\\Season 2`,
+                        relativePath: "Season 2",
+                        entries: [entryFixture(videoFixture({ id: 6, title: "Premiere" }))],
+                    },
+                ],
+            })
+        );
+        const { user } = renderScreen(<OrderedFolderPage />);
+        await user.click(await screen.findByRole("button", { name: "Show all videos" }));
+        await user.click(await screen.findByRole("menuitemradio", { name: "Watched" }));
+
+        expect(screen.getByRole("link", { name: "Season 1" })).toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Season 2" })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Pilot, watched" })).toBeInTheDocument();
     });
 
     it("reads new videos of the folder in the background when opened", async () => {
@@ -166,7 +270,9 @@ describe("FolderPage", () => {
 
     it("says so when the folder is empty", async () => {
         mockFolder(folderContentsFixture({ path: SHOW }));
-        renderScreen(<FolderPage path={SHOW} />);
+        renderScreen(<OrderedFolderPage />);
         expect(await screen.findByRole("heading", { name: "This folder is empty" })).toBeInTheDocument();
+        // Nothing to sort or filter.
+        expect(screen.queryByRole("button", { name: /^Sort by/ })).not.toBeInTheDocument();
     });
 });

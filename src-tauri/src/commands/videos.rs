@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::db::videos;
-use crate::domain::models::Video;
+use crate::domain::models::{DailyWatchTotal, HistoryCursor, HistoryPage, Video};
 use crate::error::{AppError, AppResult};
 use crate::services::watch;
 use crate::state::AppState;
@@ -59,6 +59,26 @@ pub async fn save_progress(
 #[specta::specta]
 pub async fn set_folder_watched(state: State<'_, AppState>, path: String, watched: bool) -> AppResult<i64> {
     watch::set_folder_watched(&state.db, path, watched).await
+}
+
+/// A page of the watch history (one entry per video per day), newest first. Pass the previous page's
+/// `nextCursor` to get older entries.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_watch_history(
+    state: State<'_, AppState>,
+    cursor: Option<HistoryCursor>,
+    limit: i64,
+) -> AppResult<HistoryPage> {
+    watch::history_page(&state.db, cursor, limit).await
+}
+
+/// Watched time per local day over the last `days` days (today included), oldest first; days without history are
+/// left out.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_watch_totals(state: State<'_, AppState>, days: i64) -> AppResult<Vec<DailyWatchTotal>> {
+    watch::daily_totals(&state.db, days).await
 }
 
 /// Clears the watch status of every video (tags are kept). Returns how many changed.

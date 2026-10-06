@@ -1,1 +1,1 @@
-export { SettingsPage } from "./components/SettingsPage";
+export { isSettingsTab, SettingsPage, type SettingsTab } from "./components/SettingsPage";

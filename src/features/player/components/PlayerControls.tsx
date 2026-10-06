@@ -1,4 +1,5 @@
 import {
+    ImagePlus,
     Maximize,
     Minimize,
     Pause,
@@ -6,14 +7,15 @@ import {
     RectangleHorizontal,
     RotateCcw,
     RotateCw,
-    Subtitles,
     Volume1,
     Volume2,
     VolumeX,
 } from "lucide-react";
 import { useShallow } from "zustand/shallow";
+import { useKeyboardShortcuts } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
+import { shortcutHint } from "../../../shared/lib/keyboard";
 import {
     Button,
     DropdownMenu,
@@ -24,9 +26,14 @@ import {
     DropdownMenuTrigger,
     IconButton,
     Slider,
+    Spinner,
 } from "../../../shared/ui";
+import type { AudioTracksState } from "../hooks/useAudioTracks";
 import type { PlaybackState } from "../hooks/usePlayback";
+import type { SubtitlesState } from "../hooks/useSubtitles";
 import { playerPreferences, SPEEDS, usePlayerStore } from "../store";
+import { AudioTrackMenu } from "./AudioTrackMenu";
+import { SubtitlesMenu } from "./SubtitlesMenu";
 
 type PlayerControlsProps = {
     playback: PlaybackState & {
@@ -34,19 +41,35 @@ type PlayerControlsProps = {
         seekTo: (seconds: number) => void;
         seekBy: (seconds: number) => void;
     };
-    hasSubtitles: boolean;
+    /** The video file, for handing it to the default player. */
+    path: string;
+    subtitles: SubtitlesState;
+    audio: AudioTracksState;
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
     visible: boolean;
+    /** Makes the current frame the video's thumbnail; absent for videos that are not in the library. */
+    frameCapture?: FrameCapture;
+};
+
+type FrameCapture = {
+    onCapture: () => void;
+    busy: boolean;
+    /** Why the frame cannot be captured, e.g. ffmpeg is missing. */
+    unavailable?: string;
 };
 
 export function PlayerControls({
     playback,
-    hasSubtitles,
+    path,
+    subtitles,
+    audio,
     isFullscreen,
     onToggleFullscreen,
     visible,
+    frameCapture,
 }: PlayerControlsProps) {
+    const shortcuts = useKeyboardShortcuts();
     const { volume, muted, speed, subtitlesEnabled, theater } = usePlayerStore(
         useShallow(({ volume, muted, speed, subtitlesEnabled, theater }) => ({
             volume,
@@ -79,14 +102,14 @@ export function PlayerControls({
             <div className="flex items-center gap-1">
                 <IconButton
                     label="Back 10 seconds"
-                    shortcut="J"
+                    shortcut={shortcutHint(shortcuts.seekBack10)}
                     icon={<RotateCcw />}
                     variant="overlay"
                     onClick={() => playback.seekBy(-10)}
                 />
                 <IconButton
                     label={playback.playing ? "Pause" : "Play"}
-                    shortcut="K"
+                    shortcut={shortcutHint(shortcuts.playPause)}
                     icon={playback.playing ? <Pause /> : <Play />}
                     variant="overlay"
                     size="lg"
@@ -94,7 +117,7 @@ export function PlayerControls({
                 />
                 <IconButton
                     label="Forward 10 seconds"
-                    shortcut="L"
+                    shortcut={shortcutHint(shortcuts.seekForward10)}
                     icon={<RotateCw />}
                     variant="overlay"
                     onClick={() => playback.seekBy(10)}
@@ -103,7 +126,7 @@ export function PlayerControls({
                 <div className="group/volume flex items-center">
                     <IconButton
                         label={muted ? "Unmute" : "Mute"}
-                        shortcut="M"
+                        shortcut={shortcutHint(shortcuts.mute)}
                         icon={<VolumeIcon />}
                         variant="overlay"
                         onClick={playerPreferences.toggleMute}
@@ -131,16 +154,18 @@ export function PlayerControls({
                 </span>
 
                 <div className="ml-auto flex items-center gap-1">
-                    <IconButton
-                        label={hasSubtitles ? "Subtitles" : "No subtitles for this video"}
-                        shortcut={hasSubtitles ? "C" : undefined}
-                        icon={<Subtitles />}
-                        variant="overlay"
-                        pressed={hasSubtitles ? subtitlesEnabled : undefined}
-                        className={cx(hasSubtitles && subtitlesEnabled && "bg-surface-hover/60")}
-                        disabled={!hasSubtitles}
-                        onClick={playerPreferences.toggleSubtitles}
-                    />
+                    {frameCapture && (
+                        <IconButton
+                            label={frameCapture.unavailable ?? "Use frame as thumbnail"}
+                            icon={frameCapture.busy ? <Spinner /> : <ImagePlus />}
+                            variant="overlay"
+                            aria-busy={frameCapture.busy || undefined}
+                            disabled={frameCapture.busy || frameCapture.unavailable !== undefined}
+                            onClick={frameCapture.onCapture}
+                        />
+                    )}
+                    <AudioTrackMenu path={path} audio={audio} />
+                    <SubtitlesMenu path={path} subtitles={subtitles} enabled={subtitlesEnabled} />
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -170,7 +195,7 @@ export function PlayerControls({
                     {!isFullscreen && (
                         <IconButton
                             label="Theater mode"
-                            shortcut="T"
+                            shortcut={shortcutHint(shortcuts.theater)}
                             icon={<RectangleHorizontal />}
                             variant="overlay"
                             pressed={theater}
@@ -180,7 +205,7 @@ export function PlayerControls({
                     )}
                     <IconButton
                         label={isFullscreen ? "Exit full screen" : "Full screen"}
-                        shortcut="F"
+                        shortcut={shortcutHint(shortcuts.fullscreen)}
                         icon={isFullscreen ? <Minimize /> : <Maximize />}
                         variant="overlay"
                         onClick={onToggleFullscreen}

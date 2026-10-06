@@ -186,6 +186,17 @@ pub fn update_details(connection: &Connection, id: i64, title: &str, description
     get(connection, id)
 }
 
+pub fn set_thumbnail(connection: &Connection, id: i64, thumbnail_path: &str) -> AppResult<Video> {
+    let changed = connection.execute(
+        "UPDATE videos SET thumbnail_path = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+        params![id, thumbnail_path],
+    )?;
+    if changed == 0 {
+        return Err(AppError::NotFound(format!("video {id}")));
+    }
+    get(connection, id)
+}
+
 /// Deletes every video inside `folder` (tags and history cascade) and returns their thumbnail paths.
 pub fn delete_in_folder(connection: &Connection, folder: &str) -> AppResult<Vec<String>> {
     let bounds = FolderBounds::new(folder);

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { playerPreferences, usePlayerStore } from "./store";
+import { DEFAULT_PLAYER_PREFERENCES } from "../../shared/ipc/bindings";
+import { playerPreferences, SPEEDS, usePlayerStore } from "./store";
 
 describe("player preferences", () => {
     beforeEach(() => {
-        usePlayerStore.setState({ volume: 1, muted: false, speed: 1, subtitlesEnabled: true, continuing: false });
+        usePlayerStore.setState({ ...DEFAULT_PLAYER_PREFERENCES, hydrated: false });
     });
 
     it("keeps volume between 0 and 1 in 5% steps, muting at zero", () => {
@@ -28,14 +29,17 @@ describe("player preferences", () => {
         expect(usePlayerStore.getState().speed).toBe(1.25);
     });
 
-    it("resets speed and subtitles for a new video but not for the next one in the playlist", () => {
-        playerPreferences.setSpeed(1.5);
-        playerPreferences.toggleSubtitles();
-        playerPreferences.continueWithNext();
-        playerPreferences.startVideo();
-        expect(usePlayerStore.getState()).toMatchObject({ speed: 1.5, subtitlesEnabled: false, continuing: false });
+    it("takes the saved preferences once per session", () => {
+        playerPreferences.hydrate({ ...DEFAULT_PLAYER_PREFERENCES, speed: 1.5, theater: true });
+        expect(usePlayerStore.getState()).toMatchObject({ speed: 1.5, theater: true, hydrated: true });
 
-        playerPreferences.startVideo();
-        expect(usePlayerStore.getState()).toMatchObject({ speed: 1, subtitlesEnabled: true });
+        // Later changes in the session win over a late or repeated load.
+        playerPreferences.setSpeed(2);
+        playerPreferences.hydrate(DEFAULT_PLAYER_PREFERENCES);
+        expect(usePlayerStore.getState()).toMatchObject({ speed: 2, theater: true });
+    });
+
+    it("offers every speed from 0.25x to 2x", () => {
+        expect(SPEEDS).toEqual([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
     });
 });

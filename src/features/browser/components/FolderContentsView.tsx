@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { File, FolderOpen } from "lucide-react";
+import { File, FolderOpen, ListFilter } from "lucide-react";
 import type { FolderContents, FolderSummary } from "../../../shared/ipc/bindings";
-import { EmptyState } from "../../../shared/ui";
+import { plural } from "../../../shared/lib/plural";
+import { Button, EmptyState } from "../../../shared/ui";
 import { openInDefaultPlayer, VideoGrid } from "../../../shared/video";
+import { applyOrder, type StatusFilter, type VideoOrder } from "../lib/videoOrder";
 import type { FolderAction, FolderTarget } from "./FolderActionDialog";
 import { FolderContextMenu } from "./FolderActionMenus";
 import { SubfolderCard } from "./SubfolderCard";
@@ -10,6 +12,15 @@ import { SubfolderCard } from "./SubfolderCard";
 type FolderContentsViewProps = {
     contents: FolderContents;
     onFolderAction: (action: FolderAction, target: FolderTarget, summary: FolderSummary) => void;
+    order: VideoOrder;
+    /** Clears the status filter. */
+    onShowAll: () => void;
+};
+
+const noMatchTitles: Record<Exclude<StatusFilter, "all">, string> = {
+    unwatched: "No unwatched videos here",
+    "in-progress": "No videos in progress here",
+    watched: "No watched videos here",
 };
 
 /** The "Other files" heading, which the folder header links to. */
@@ -24,11 +35,15 @@ function SectionTitle({ children, id }: { children: string; id?: string }) {
     );
 }
 
-export function FolderContentsView({ contents, onFolderAction }: FolderContentsViewProps) {
-    const { subfolders, groups, otherFiles, viewMode } = contents;
+export function FolderContentsView({ contents, onFolderAction, order, onShowAll }: FolderContentsViewProps) {
+    const { subfolders, otherFiles, viewMode } = contents;
     const continuous = viewMode.mode === "continuous";
+    const groups = applyOrder(contents.groups, order);
+    const countVideos = (list: typeof groups) => list.reduce((sum, group) => sum + group.entries.length, 0);
+    const total = countVideos(contents.groups);
+    const shown = countVideos(groups);
 
-    if (subfolders.length === 0 && groups.length === 0 && otherFiles.length === 0) {
+    if (subfolders.length === 0 && contents.groups.length === 0 && otherFiles.length === 0) {
         return (
             <EmptyState
                 icon={FolderOpen}
@@ -40,6 +55,16 @@ export function FolderContentsView({ contents, onFolderAction }: FolderContentsV
 
     return (
         <div className="flex flex-col gap-10">
+            {order.status !== "all" && (
+                <div className="-mb-6 flex items-center gap-2">
+                    <p role="status" className="text-body text-text-muted tabular-nums">
+                        Showing {shown} of {plural(total, "video")}
+                    </p>
+                    <Button variant="ghost" size="sm" onClick={onShowAll}>
+                        Show all
+                    </Button>
+                </div>
+            )}
             {subfolders.length > 0 && !continuous && (
                 <section className="flex flex-col gap-3">
                     <SectionTitle>Folders</SectionTitle>
@@ -53,6 +78,15 @@ export function FolderContentsView({ contents, onFolderAction }: FolderContentsV
                         ))}
                     </ul>
                 </section>
+            )}
+
+            {order.status !== "all" && shown === 0 && (
+                <EmptyState
+                    icon={ListFilter}
+                    title={noMatchTitles[order.status]}
+                    description="The filter hides the other videos of this folder."
+                    action={<Button onClick={onShowAll}>Show all videos</Button>}
+                />
             )}
 
             {groups.map((group) => (

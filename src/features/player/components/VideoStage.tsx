@@ -2,27 +2,32 @@ import { useQueryClient } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
-import type { Video } from "../../../shared/ipc/bindings";
+import type { AudioTrack, Video } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
+import { useMediaTools } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
-import { type Cue, cueTextAt } from "../../../shared/lib/subtitles";
+import { cueTextAt } from "../../../shared/lib/subtitles";
 import { Button, ErrorState, toast } from "../../../shared/ui";
-import { openInDefaultPlayer } from "../../../shared/video";
+import { openInDefaultPlayer, useSetVideoThumbnail } from "../../../shared/video";
+import { useAudioTracks } from "../hooks/useAudioTracks";
 import { usePlayback } from "../hooks/usePlayback";
 import { usePlayerShortcuts } from "../hooks/usePlayerShortcuts";
 import { useAutoHide, useFlash, useFullscreen } from "../hooks/useStageUi";
+import type { SubtitlesState } from "../hooks/useSubtitles";
 import { ProgressSaver, resumePosition } from "../lib/progress";
 import type { PlayerCommand } from "../lib/shortcuts";
-import { saveProgress } from "../queries";
+import { audioFormatsOf } from "../lib/tracks";
+import { saveProgress, useMediaTracks } from "../queries";
 import { playerPreferences, usePlayerStore } from "../store";
+import { NoSoundNotice } from "./NoSoundNotice";
 import { PlayerControls } from "./PlayerControls";
 
 type VideoStageProps = {
     path: string;
     /** Library record; `null` plays the file without saving progress. */
     video: Video | null;
-    cues: readonly Cue[];
+    subtitles: SubtitlesState;
     onEnded: () => void;
     onClose: () => void;
 };
@@ -32,8 +37,10 @@ export function stageHeight(theater: boolean) {
     return theater ? "max-h-[calc(100vh-3.5rem)]" : "max-h-[70vh]";
 }
 
+const NO_AUDIO_TRACKS: readonly AudioTrack[] = [];
+
 /** The video with its controls, subtitles and keyboard shortcuts. Remount it (key) for each video. */
-export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStageProps) {
+export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoStageProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const playback = usePlayback(videoRef);
@@ -50,6 +57,15 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
         }))
     );
     const saver = useProgressSaver(video);
+    const tools = useMediaTools();
+    const setThumbnail = useSetVideoThumbnail();
+    const mediaTracks = useMediaTracks(path);
+    const audio = useAudioTracks(videoRef, mediaTracks.data?.audio ?? NO_AUDIO_TRACKS);
+
+    // A file whose audio the webview cannot decode plays silently, with no error; say so, even with one track.
+    const silentFormats =
+        audio.problem === "no-playable-audio" ? audioFormatsOf(audio.tracks.map((entry) => entry.track)) : null;
+    const [noSoundDismissed, setNoSoundDismissed] = useState(false);
     const [unplayable, setUnplayable] = useState(false);
     // The record changes after every save and the callbacks may too; the element listeners read the latest ones.
     const latestVideo = useRef(video);
@@ -123,7 +139,7 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
                 playerPreferences.toggleMute();
                 return show(usePlayerStore.getState().muted ? "Muted" : "Sound on");
             case "subtitles":
-                if (cues.length === 0) {
+                if (!subtitles.available) {
                     return show("No subtitles for this video");
                 }
                 playerPreferences.toggleSubtitles();
@@ -141,7 +157,7 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
     };
     usePlayerShortcuts(runCommand);
 
-    const subtitle = subtitlesEnabled ? cueTextAt(cues, playback.currentTime) : "";
+    const subtitle = subtitlesEnabled ? cueTextAt(subtitles.cues, playback.currentTime) : "";
 
     return (
         // biome-ignore lint/a11y/noStaticElementInteractions: pointer movement only reveals the controls.
@@ -164,6 +180,17 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
                 onError={() => setUnplayable(true)}
                 className="size-full object-contain"
             />
+            {silentFormats && !noSoundDismissed && !unplayable && (
+                <NoSoundNotice
+                    formats={silentFormats}
+                    onOpenExternally={() => {
+                        // Both players would otherwise run at once.
+                        videoRef.current?.pause();
+                        void openInDefaultPlayer(path);
+                    }}
+                    onDismiss={() => setNoSoundDismissed(true)}
+                />
+            )}
             {unplayable && (
                 <div className="absolute inset-0 flex items-center justify-center bg-backdrop">
                     <ErrorState
@@ -197,10 +224,25 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
             )}
             <PlayerControls
                 playback={playback}
-                hasSubtitles={cues.length > 0}
+                path={path}
+                subtitles={subtitles}
+                audio={audio}
                 isFullscreen={fullscreen.isFullscreen}
                 onToggleFullscreen={fullscreen.toggle}
                 visible={visible || !playback.playing}
+                frameCapture={
+                    video
+                        ? {
+                              busy: setThumbnail.isPending,
+                              unavailable: tools.data?.ffmpeg === false ? "Needs ffmpeg to capture frames" : undefined,
+                              onCapture: () =>
+                                  setThumbnail.mutate({
+                                      video,
+                                      positionSeconds: videoRef.current?.currentTime ?? playback.currentTime,
+                                  }),
+                          }
+                        : undefined
+                }
             />
         </div>
     );

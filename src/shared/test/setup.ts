@@ -3,7 +3,9 @@ import { clearMocks, mockConvertFileSrc } from "@tauri-apps/api/mocks";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach } from "vitest";
 import { queryClient } from "../ipc/queryClient";
+import { resetDialogs } from "../stores/dialogs";
 import { resetProcessingSession } from "../stores/processing";
+import { resetToasts } from "../ui";
 import { installMediaElementStub } from "./media";
 
 beforeEach(() => {
@@ -16,6 +18,8 @@ afterEach(() => {
     // App-wide singletons outlive a test; start every test from a clean slate.
     queryClient.clear();
     resetProcessingSession();
+    resetToasts();
+    resetDialogs();
 });
 
 installMediaElementStub();

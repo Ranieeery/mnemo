@@ -1,5 +1,5 @@
 import { Link, useRouterState, useSearch } from "@tanstack/react-router";
-import { House, Settings } from "lucide-react";
+import { History, House, Settings } from "lucide-react";
 import { LibraryNav } from "../../features/library";
 import { cx } from "../../shared/lib/cx";
 
@@ -14,6 +14,7 @@ export function Sidebar() {
     const pathname = useRouterState({ select: (state) => state.location.pathname });
     const search = useSearch({ strict: false });
     const isHome = pathname === "/";
+    const isHistory = pathname === "/history";
     const isSettings = pathname === "/settings";
 
     return (
@@ -26,10 +27,14 @@ export function Sidebar() {
                 <img src="/logo.png" alt="" className="size-6 rounded-badge" />
                 <span className="text-title font-semibold tracking-tight text-text">Mnemo</span>
             </Link>
-            <nav aria-label="Main">
+            <nav aria-label="Main" className="flex flex-col gap-0.5">
                 <Link to="/" aria-current={isHome ? "page" : undefined} className={navLinkClasses(isHome)}>
                     <House className="size-4" aria-hidden />
                     Home
+                </Link>
+                <Link to="/history" aria-current={isHistory ? "page" : undefined} className={navLinkClasses(isHistory)}>
+                    <History className="size-4" aria-hidden />
+                    History
                 </Link>
             </nav>
             <LibraryNav currentPath={pathname === "/folder" ? search.path : undefined} />

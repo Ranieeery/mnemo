@@ -96,8 +96,8 @@ src-tauri/src/
 
 src/
 ├── app/                # entrada, router, RootLayout, layout (shell), rotas que compõem features, DialogHost
-├── features/           # um diretório por domínio: home, browser, player, search, tags, settings, library,
-│   │                   # dev-catalog (catálogo do design system, só em dev)
+├── features/           # um diretório por domínio: home, browser, player, search, tags, settings, library, history,
+│   │                   # shortcuts, dev-catalog (catálogo do design system, só em dev)
 │   └── <feature>/      # components/, hooks/, lib/, queries.ts, index.ts e testes ao lado (*.test.ts[x])
 └── shared/
     ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns
@@ -109,8 +109,9 @@ src/
     └── test/           # setup do Vitest, helpers, fixtures, stub de mídia
 ```
 
-- Rotas (`src/app/router.tsx`): `/` home (busca em `?q=`), `/folder?path=` (busca em `?q=`), `/settings` e
-  `/watch?path=` carregados sob demanda, `/dev/catalog` só em dev. Search params validados em
+- Rotas (`src/app/router.tsx`): `/` home (busca em `?q=`), `/folder?path=` (busca em `?q=`, ordem em `?sort=` e
+  filtro em `?status=`, omitidos quando estão no padrão), `/history`,
+  `/settings` (aba em `?tab=`) e `/watch?path=` carregados sob demanda, `/dev/catalog` só em dev. Search params validados em
   `app/routes/searchParams.ts`.
 - Telas e diálogos que combinam features (home + botão "Add folder", pasta + resultados de busca, detalhes do vídeo +
   editor de tags, settings + pastas + tags) são compostos em `app/`, nunca por import entre features. Cada feature
@@ -119,8 +120,10 @@ src/
   as telas; no player, voltar fecha e avançar reabre o último vídeo.
 - Dados: tudo o que deriva da biblioteca fica sob a query key `["library"]`; mutações invalidam esse prefixo.
   "Marcar como assistido" é otimista com rollback (`shared/video/replaceVideo` atualiza o vídeo em qualquer cache).
-- Player (`features/player`): o volume persiste na sessão; velocidade e legendas só passam para o próximo vídeo da
-  playlist. Progresso salvo no máximo a cada 5 s e ao pausar, fechar e terminar.
+- Player (`features/player`): volume, mudo, velocidade, legendas e modo teatro são preferências entre sessões
+  (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e salvas 400 ms após
+  a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada 5 s e ao pausar,
+  fechar e terminar.
 
 ### Princípios
 
@@ -141,9 +144,15 @@ src/
   pode mudar.
 - Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`),
   `watch_history`, `app_settings`, `folder_settings`.
+- `app_settings` é chave/valor em JSON com acesso tipado (`db/settings.rs`): cada setting implementa `Setting` (chave,
+  tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
+  `settings::set::<S>`. Valores ilegíveis viram o padrão (com log), nunca erro. Settings: `watched_threshold`,
+  `recent_folder_icons`, `player_preferences` (campos ausentes recebem o padrão; campos inválidos, um a um),
+  `keyboard_shortcuts` (ações ausentes recebem o padrão; teclas inválidas são descartadas ação por ação).
 - **Migrações versionadas** (`rusqlite_migration`, em `db/migrations.rs`). A `1` é um baseline compatível com bancos
   das versões 1.x (adiciona colunas que versões antigas criavam depois); a `2` limpa órfãos, normaliza `is_watched`
-  gravado como texto, cria índices e as tabelas de settings. `watch_progress_seconds` guarda segundos fracionários.
+  gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`.
+  `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
 - Remover vídeos ou pastas também remove as thumbnails (só dentro do diretório de thumbnails).
@@ -154,6 +163,8 @@ src/
 - `ffmpeg`/`ffprobe` são exigidos no `PATH`; sem eles o app avisa e explica como instalar.
 - Processos externos com `CREATE_NO_WINDOW` no Windows e timeout; saída do `ffprobe` lida como JSON via `serde`.
 - Thumbnails em `<appDataDir>/thumbnails/`, exibidas via asset protocol.
+- `MediaToolkit` (probe e thumbnail, usado pelo pipeline) e `TrackToolkit` (faixas e extração de legendas) abstraem
+  o ffmpeg para os testes. Comandos que entregam caminhos ao ffmpeg ou ao sistema usam `library::library_file`.
 - O pipeline processa um job por vez e envia progresso por `Channel`; a etapa por arquivo é isolada para permitir, no
   futuro, concorrência limitada e cancelamento.
 
@@ -162,6 +173,8 @@ src/
 - CSP real em `tauri.conf.json` (a `devCsp` libera scripts inline e o websocket do Vite).
 - Escopo do asset protocol vazio na config e liberado em tempo de execução só para as pastas da biblioteca e as
   thumbnails. Pastas removidas deixam de ser servidas no próximo início (a API do Tauri só amplia escopos).
+- WebView2 recebe `--enable-blink-features=AudioVideoTracks` (troca de faixa de áudio) além das flags padrão do wry
+  (`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`), que precisam continuar na lista.
 - Capability mínima: `core:default`, `dialog:allow-open`, `dialog:allow-save`. Comandos que recebem caminhos validam
   que eles estão dentro da biblioteca.
 
@@ -224,7 +237,7 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   Tauri falham com `STATUS_ENTRYPOINT_NOT_FOUND`).
 - **Frontend:** funções puras em `shared/lib` com cobertura completa; telas e hooks com Testing Library, mockando o
   backend. Testar comportamento, não implementação. Setup em `shared/test/setup.ts` (jest-dom, polyfills do Radix,
-  stub de `<video>`, limpeza dos singletons). Helpers: `renderWithUi`, `renderScreen` (roteador, cache novo e
+  stub de `<video>`, limpeza dos singletons: cache, processamento, toasts e diálogos). Helpers: `renderWithUi`, `renderScreen` (roteador, cache novo e
   providers), `mockCommands`/`callsOf` (comandos não mockados falham), fixtures e `app/testApp.tsx` (app inteiro).
   Componentes que suspendem (como `FolderIcon` com um ícone fora da lista curada) só re-renderizam dentro de
   `act()` nos testes. Em JSX, caminhos do Windows vão entre chaves (`path={"D:\\Videos"}`): atributos com aspas não processam escapes.
@@ -242,6 +255,12 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 
 ### Biblioteca e navegação
 - Pastas raiz adicionadas pelo diálogo nativo; navegação pela hierarquia real de subpastas, com breadcrumbs.
+- Ordenação dos vídeos da pasta por nome (ordem natural), duração ou data de adição (escolher um campo ordena de
+  forma crescente; escolhê-lo de novo inverte, e uma seta mostra a direção), e filtro por
+  status (unwatched, in progress, watched; não processados contam como unwatched). Feitos no frontend sobre o conteúdo
+  já carregado, com a ordem natural do backend como desempate; não processados ficam no fim por duração e data. No
+  modo contínuo valem dentro de cada grupo, e grupos vazios somem; subpastas não são afetadas. Ficam na URL
+  (`replace`, então voltar sai da pasta) e voltam ao padrão em outra pasta. A playlist do player não muda.
 - Arquivos que não são vídeo aparecem no fim da pasta ("Other files"); o cabeçalho avisa quantos são e leva até eles.
 - Botão de voltar ao topo nas telas com rolagem, depois de rolar uma tela.
 - Modo de exibição por pasta: `folders` (padrão; só os filhos diretos) ou `continuous` (todos os vídeos da árvore
@@ -265,14 +284,33 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   O número de cards se adapta à largura da tela.
 
 ### Player embutido
-- Controles com auto-hide, tela cheia, modo teatro (vídeo na largura da janela, detalhes e playlist abaixo; vale
-  para a sessão), volume, velocidade (0.25×–2×), botões ±10s, feedback visual dos atalhos.
-- Legendas externas com o mesmo nome do vídeo (`.srt`, `.vtt`, `.sub`, `.ass`).
+- Controles com auto-hide, tela cheia, modo teatro (vídeo na largura da janela, detalhes e playlist abaixo), volume,
+  velocidade (0.25×–2×), botões ±10s, feedback visual dos atalhos. Volume, mudo, velocidade, legendas e modo teatro
+  ficam salvos entre sessões e valem para todo vídeo.
+- Legendas externas com o mesmo nome do vídeo (`.srt`, `.vtt`, `.sub`, `.ass`) e legendas embutidas no arquivo
+  (MKV, MP4): o ffprobe lista as faixas (`list_media_tracks`) e o ffmpeg extrai a escolhida sob demanda
+  (`extract_subtitle`; ASS/SSA como ASS, o resto como WebVTT), com cache na sessão. Menu de legendas: Off, arquivo
+  externo e faixas embutidas; padrão: arquivo externo, depois a faixa embutida marcada como padrão, depois a primeira
+  de texto. Legendas em imagem (PGS, VobSub, DVB) aparecem desabilitadas, com atalho para o player externo. Nada é
+  extraído com as legendas desligadas.
+- Faixas de áudio: menu quando o arquivo tem duas ou mais (rótulos do ffprobe). A troca usa `audioTracks` do
+  `<video>`: no Windows o WebView2 só o expõe com a flag `AudioVideoTracks` (`additionalBrowserArgs` em
+  `tauri.conf.json`, mantendo as flags padrão do wry), no macOS o WebKit sempre. O webview omite faixas que não
+  decodifica (AC3, E-AC3, DTS no WebView2), então `matchAudioTracks` casa as listas pela ordem das faixas suportadas
+  (e pelo idioma) e marca as demais como "Format not supported here". Sem `audioTracks` ou sem casamento seguro, as
+  faixas aparecem desabilitadas com o atalho para o player externo. Quando o webview não decodifica nenhuma faixa
+  (ex.: MKV só com E-AC3 no Windows), o vídeo toca mudo sem erro: um aviso fixo sobre o vídeo (`NoSoundNotice`,
+  também em tela cheia) explica e oferece abrir no player externo (pausando o do app) ou dispensar, mesmo com uma
+  faixa só. Validado no Windows com AAC+AAC (MP4 e MKV), AC3+AAC e E-AC3+E-AC3; macOS e Linux não foram testados.
 - Playlist ("Up next") e diálogo "Up next" com contagem regressiva de 5s ao terminar, na mesma ordem.
 - Retomada do ponto onde parou.
-- Atalhos: `Espaço`/`K` play/pause · `J`/`L` ±10s · `←`/`→` ±5s · `↑`/`↓` volume ±5% · `[`/`]` velocidade ±0.25× ·
-  `Backspace` volta para 1× · `F` tela cheia · `T` modo teatro · `M` mudo · `C` legendas · `Esc` fecha o player (ou
-  sai da tela cheia).
+- Atalhos padrão (configuráveis, ver "Atalhos de teclado"): `Espaço`/`K` play/pause · `J`/`L` ±10s · `←`/`→` ±5s ·
+  `↑`/`↓` volume ±5% · `[`/`]` velocidade ±0.25× · `Backspace` volta para 1× · `F` tela cheia · `T` modo teatro ·
+  `M` mudo · `C` legendas. `Esc` (fixo) fecha o player ou sai da tela cheia.
+- Usar o frame atual como thumbnail do vídeo (botão na barra de controles). O frame é extraído pelo ffmpeg no
+  backend (`services/media/cover.rs`) no tempo enviado pelo player, não por canvas: o vídeo vem do asset protocol, que
+  deixaria o canvas bloqueado. A imagem vai para um arquivo novo e a anterior é apagada só depois de gravar no banco.
+  "Restore default thumbnail" no diálogo de detalhes volta ao frame automático. Reprocessar a pasta não sobrescreve.
 - Abrir no player externo do sistema ou revelar no gerenciador de arquivos; formatos que o webview não toca oferecem
   abrir no player externo.
 
@@ -281,7 +319,16 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 - Um vídeo vira assistido ao atingir o limiar (padrão 90%, ajustável em Settings de 50% a 100%; não retroativo) ou ao
   terminar. "Assistido" é persistente: rever do início não desmarca.
 - Reset global da visualização em Settings (as tags são mantidas).
-- `watch_history` registra cada vez que um vídeo passa a assistido.
+- `watch_history` registra cada vez que um vídeo passa a assistido (o "Mark as watched" manual também; a marcação em
+  massa por pasta, não).
+
+### Histórico
+- Tela History (sidebar, `/history`) com duas abas:
+  - **Watched videos**: linha do tempo por dia local ("Today", "Yesterday", data), mais recente primeiro, paginada
+    (50 por página, "Show older"). Clicar abre o player; o botão direito mostra o menu de vídeo.
+  - **Statistics**: tempo assistido por dia (14 dias) ou por semana (12 semanas, de segunda a domingo).
+- Uma entrada por vídeo por dia: as linhas duplicadas que a 1.x gravava a cada tick são agrupadas na consulta, nunca
+  apagadas. "Tempo assistido" é a soma da duração dos vídeos que viraram assistidos no dia (cada vídeo uma vez).
 
 ### Tags
 - Tags por vídeo no diálogo de detalhes, onde também se edita título e descrição.
@@ -292,6 +339,19 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 ### Busca
 - Na home: no banco, por título, descrição e tags.
 - Dentro de uma pasta: nos nomes de arquivo em disco, recursiva, com progresso, incluindo vídeos ainda não processados.
+
+### Atalhos de teclado
+- Configuráveis em Settings → Shortcuts (`/settings?tab=shortcuts`): as ações do player e voltar/avançar do
+  histórico, até 2 teclas cada, sem repetir tecla entre ações. Gravação pela própria tecla (`Esc` cancela); conflito
+  oferece "Use here instead"; reset por ação e "Restore all defaults" (com confirmação). Salvo na hora, com rollback.
+- Fixos: `Esc`, `?` (ajuda) e os botões laterais do mouse. Reservadas (não atribuíveis): `Esc`, `?`, `Tab`,
+  `Shift+Tab`, `Enter`.
+- `?` em qualquer tela (fora de campos de texto) ou o botão de teclado na barra superior e no player abre a ajuda com
+  as teclas atuais; dela, "Customize in Settings" leva à aba.
+- Formato: modificadores na ordem `Ctrl+Alt+Shift+Meta` e a tecla do `KeyboardEvent.key` (segue o layout; letras em
+  maiúscula, `Space`, `Plus`; `Shift` só com teclas nomeadas). Padrões, teclas reservadas e validação em
+  `domain/shortcuts.rs`, expostos pelos bindings; `shared/lib/keyboard.ts` converte eventos e formata para exibição.
+  Valores salvos inválidos são reparados ação por ação. Os tooltips mostram a tecla configurada.
 
 ### Settings e manutenção
 - Estatísticas da biblioteca, pastas da biblioteca, sincronizar tudo, exportar/importar em JSON (com confirmação).

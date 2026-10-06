@@ -35,6 +35,11 @@ const useToastStore = create<ToastStore>((set) => ({
     dismiss: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
 }));
 
+/** Removes every toast. The queue outlives a screen, so tests start each case from an empty one. */
+export function resetToasts() {
+    useToastStore.setState({ toasts: [] });
+}
+
 /** Shows feedback for an action. Usable outside React (e.g. in mutation callbacks). */
 export function toast(options: ToastOptions): number {
     return useToastStore.getState().push(options);

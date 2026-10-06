@@ -1,12 +1,7 @@
 import { useEffect, useRef } from "react";
+import { useKeyboardShortcuts } from "../../../shared/ipc/queries";
+import { isTextEntry } from "../../../shared/lib/keyboard";
 import { commandForKey, type PlayerCommand } from "../lib/shortcuts";
-
-function isEditable(target: EventTarget | null): boolean {
-    return (
-        target instanceof HTMLElement &&
-        (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-    );
-}
 
 /** A dialog or menu owns the keyboard while it is open (Escape closes it, not the player). */
 function overlayIsOpen(): boolean {
@@ -17,10 +12,12 @@ function overlayIsOpen(): boolean {
 export function usePlayerShortcuts(onCommand: (command: PlayerCommand) => void) {
     const handler = useRef(onCommand);
     handler.current = onCommand;
+    const shortcuts = useRef(useKeyboardShortcuts());
+    shortcuts.current = useKeyboardShortcuts();
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.defaultPrevented || isEditable(event.target) || overlayIsOpen()) {
+            if (event.defaultPrevented || isTextEntry(event.target) || overlayIsOpen()) {
                 return;
             }
             // A focused slider (seek, volume) handles its own arrow keys.
@@ -31,7 +28,7 @@ export function usePlayerShortcuts(onCommand: (command: PlayerCommand) => void) 
             ) {
                 return;
             }
-            const command = commandForKey(event);
+            const command = commandForKey(event, shortcuts.current);
             if (command) {
                 event.preventDefault();
                 handler.current(command);

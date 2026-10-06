@@ -10,6 +10,9 @@ mod videos;
 
 use tauri_specta::{Builder, collect_commands};
 
+use crate::domain::models::PlayerPreferences;
+use crate::domain::player::{MAX_PLAYBACK_SPEED, MIN_PLAYBACK_SPEED, PLAYBACK_SPEED_STEP};
+use crate::domain::shortcuts::{KeyboardShortcuts, MAX_KEYS_PER_SHORTCUT, RESERVED_SHORTCUT_KEYS};
 use crate::domain::watch::{
     DEFAULT_WATCHED_THRESHOLD, MAX_WATCHED_THRESHOLD, MIN_WATCHED_THRESHOLD, WATCHED_THRESHOLD_STEP,
 };
@@ -33,6 +36,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             videos::save_progress,
             videos::set_folder_watched,
             videos::reset_all_watch_status,
+            videos::list_watch_history,
+            videos::get_watch_totals,
             tags::list_tags,
             tags::create_tag,
             tags::get_video_tags,
@@ -48,9 +53,16 @@ pub fn builder() -> Builder<tauri::Wry> {
             search::search_folder,
             media::media_tools_status,
             media::process_folder,
+            media::set_video_thumbnail,
             media::find_subtitle,
+            media::list_media_tracks,
+            media::extract_subtitle,
             settings::get_settings,
             settings::update_settings,
+            settings::get_player_preferences,
+            settings::update_player_preferences,
+            settings::get_keyboard_shortcuts,
+            settings::update_keyboard_shortcuts,
             settings::get_library_stats,
             settings::export_library,
             settings::import_library,
@@ -64,6 +76,13 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("MIN_WATCHED_THRESHOLD", MIN_WATCHED_THRESHOLD)
         .constant("MAX_WATCHED_THRESHOLD", MAX_WATCHED_THRESHOLD)
         .constant("WATCHED_THRESHOLD_STEP", WATCHED_THRESHOLD_STEP)
+        .constant("MIN_PLAYBACK_SPEED", MIN_PLAYBACK_SPEED)
+        .constant("MAX_PLAYBACK_SPEED", MAX_PLAYBACK_SPEED)
+        .constant("PLAYBACK_SPEED_STEP", PLAYBACK_SPEED_STEP)
+        .constant("DEFAULT_PLAYER_PREFERENCES", PlayerPreferences::default())
+        .constant("DEFAULT_KEYBOARD_SHORTCUTS", KeyboardShortcuts::default())
+        .constant("RESERVED_SHORTCUT_KEYS", RESERVED_SHORTCUT_KEYS)
+        .constant("MAX_KEYS_PER_SHORTCUT", MAX_KEYS_PER_SHORTCUT)
         // Every integer crossing IPC is a row id, a count or a byte size, all far below 2^53, so JavaScript numbers
         // represent them exactly.
         .dangerously_cast_bigints_to_number()

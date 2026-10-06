@@ -1,7 +1,10 @@
 import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Keyboard } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useKeyboardShortcuts } from "../../shared/ipc/queries";
+import { shortcutHint } from "../../shared/lib/keyboard";
 import { baseName } from "../../shared/lib/paths";
+import { openShortcutsHelp } from "../../shared/stores/dialogs";
 import { IconButton, SearchInput } from "../../shared/ui";
 import { useHistoryNavigation } from "../navigation/useHistoryNavigation";
 
@@ -10,20 +13,28 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 export function TopBar() {
     const { canGoBack, canGoForward, back, forward } = useHistoryNavigation();
+    const shortcuts = useKeyboardShortcuts();
 
     return (
         <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
             <div className="flex items-center gap-1">
-                <IconButton label="Back" shortcut="Alt+←" icon={<ArrowLeft />} disabled={!canGoBack} onClick={back} />
+                <IconButton
+                    label="Back"
+                    shortcut={shortcutHint(shortcuts.historyBack)}
+                    icon={<ArrowLeft />}
+                    disabled={!canGoBack}
+                    onClick={back}
+                />
                 <IconButton
                     label="Forward"
-                    shortcut="Alt+→"
+                    shortcut={shortcutHint(shortcuts.historyForward)}
                     icon={<ArrowRight />}
                     disabled={!canGoForward}
                     onClick={forward}
                 />
             </div>
             <SearchField />
+            <IconButton label="Keyboard shortcuts" shortcut="?" icon={<Keyboard />} onClick={openShortcutsHelp} />
         </div>
     );
 }

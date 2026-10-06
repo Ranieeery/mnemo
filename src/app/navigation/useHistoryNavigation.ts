@@ -1,6 +1,8 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { useKeyboardShortcuts } from "../../shared/ipc/queries";
+import { comboFromEvent, hasCommandModifier, isTextEntry } from "../../shared/lib/keyboard";
 
 /** Mouse buttons 3 and 4 are the side "back" and "forward" buttons. */
 const MOUSE_BACK = 3;
@@ -40,21 +42,24 @@ export function useHistoryNavigation() {
 }
 
 /**
- * Alt+←/→ and the mouse side buttons for every screen, including the player (where "back" closes it and "forward"
- * reopens the last video). Mount once, at the root.
+ * The configured back/forward keys (Alt+←/→ by default) and the mouse side buttons for every screen, including the
+ * player (where "back" closes it and "forward" reopens the last video). Mount once, at the root.
  */
 export function useHistoryShortcuts() {
     const { back, forward } = useHistoryNavigation();
+    const { historyBack, historyForward } = useKeyboardShortcuts();
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+            const combo = comboFromEvent(event);
+            // A plain key typed in a field is text, not navigation.
+            if (combo === null || (isTextEntry(event.target) && !hasCommandModifier(combo))) {
                 return;
             }
-            if (event.key === "ArrowLeft") {
+            if (historyBack.includes(combo)) {
                 event.preventDefault();
                 back();
-            } else if (event.key === "ArrowRight") {
+            } else if (historyForward.includes(combo)) {
                 event.preventDefault();
                 forward();
             }
@@ -81,5 +86,5 @@ export function useHistoryShortcuts() {
             window.removeEventListener("mousedown", cancelSideButton);
             window.removeEventListener("mouseup", handleMouseUp);
         };
-    }, [back, forward]);
+    }, [back, forward, historyBack, historyForward]);
 }

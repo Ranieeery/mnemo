@@ -47,6 +47,19 @@ export const commands = {
 	setFolderWatched: (path: string, watched: boolean) => typedError<number, IpcError>(__TAURI_INVOKE("set_folder_watched", { path, watched })),
 	/**  Clears the watch status of every video (tags are kept). Returns how many changed. */
 	resetAllWatchStatus: () => typedError<number, IpcError>(__TAURI_INVOKE("reset_all_watch_status")),
+	/**
+	 *  A page of the watch history (one entry per video per day), newest first. Pass the previous page's
+	 *  `nextCursor` to get older entries.
+	 */
+	listWatchHistory: (cursor: {
+	watchedAt: string,
+	videoId: number,
+} | null, limit: number) => typedError<HistoryPage, IpcError>(__TAURI_INVOKE("list_watch_history", { cursor, limit })),
+	/**
+	 *  Watched time per local day over the last `days` days (today included), oldest first; days without history are
+	 *  left out.
+	 */
+	getWatchTotals: (days: number) => typedError<DailyWatchTotal[], IpcError>(__TAURI_INVOKE("get_watch_totals", { days })),
 	listTags: () => typedError<TagWithUsage[], IpcError>(__TAURI_INVOKE("list_tags")),
 	/**  Creates an unused tag (normalized). Fails with `invalidInput` when the name is empty or taken. */
 	createTag: (name: string) => typedError<Tag, IpcError>(__TAURI_INVOKE("create_tag", { name })),
@@ -75,13 +88,29 @@ export const commands = {
 	 *  a second request waits for the first.
 	 */
 	processFolder: (path: string, onEvent: Channel<ProcessingEvent>) => typedError<ProcessingSummary, IpcError>(__TAURI_INVOKE("process_folder", { path, onEvent })),
+	/**  Makes the frame at `position_seconds` the video's thumbnail, or restores the automatic one when `null`. */
+	setVideoThumbnail: (id: number, positionSeconds: number | null) => typedError<Video, IpcError>(__TAURI_INVOKE("set_video_thumbnail", { id, positionSeconds })),
 	/**  The external subtitle next to a video, if any. */
 	findSubtitle: (videoPath: string) => typedError<{
 	format: SubtitleFormat,
 	content: string,
 } | null, IpcError>(__TAURI_INVOKE("find_subtitle", { videoPath })),
+	/**  The audio and subtitle streams inside a library video. */
+	listMediaTracks: (path: string) => typedError<MediaTracks, IpcError>(__TAURI_INVOKE("list_media_tracks", { path })),
+	/**
+	 *  A text subtitle stream of a library video (`index` among its subtitle streams), converted to WebVTT. Reads the
+	 *  whole file, so it can take a few seconds on large videos.
+	 */
+	extractSubtitle: (path: string, index: number) => typedError<SubtitleFile, IpcError>(__TAURI_INVOKE("extract_subtitle", { path, index })),
 	getSettings: () => typedError<AppSettings, IpcError>(__TAURI_INVOKE("get_settings")),
 	updateSettings: (settings: AppSettings) => typedError<AppSettings, IpcError>(__TAURI_INVOKE("update_settings", { settings })),
+	/**  Volume, speed, subtitles and layout of the player, as it was last left. */
+	getPlayerPreferences: () => typedError<PlayerPreferences, IpcError>(__TAURI_INVOKE("get_player_preferences")),
+	updatePlayerPreferences: (preferences: PlayerPreferences) => typedError<PlayerPreferences, IpcError>(__TAURI_INVOKE("update_player_preferences", { preferences })),
+	/**  The keys of every configurable action, with defaults filling anything not customized. */
+	getKeyboardShortcuts: () => typedError<KeyboardShortcuts, IpcError>(__TAURI_INVOKE("get_keyboard_shortcuts")),
+	/**  Stores the keyboard shortcuts; rejects malformed, reserved or repeated keys and more than two keys per action. */
+	updateKeyboardShortcuts: (shortcuts: KeyboardShortcuts) => typedError<KeyboardShortcuts, IpcError>(__TAURI_INVOKE("update_keyboard_shortcuts", { shortcuts })),
 	getLibraryStats: () => typedError<LibraryStats, IpcError>(__TAURI_INVOKE("get_library_stats")),
 	/**  Writes the whole library to a JSON file chosen in the native save dialog. */
 	exportLibrary: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("export_library", { path })),
@@ -97,11 +126,25 @@ export const commands = {
 };
 
 /* Constants */
+export const DEFAULT_KEYBOARD_SHORTCUTS = {"fullscreen":["F"],"historyBack":["Alt+ArrowLeft"],"historyForward":["Alt+ArrowRight"],"mute":["M"],"playPause":["Space","K"],"seekBack10":["J"],"seekBack5":["ArrowLeft"],"seekForward10":["L"],"seekForward5":["ArrowRight"],"speedDown":["["],"speedReset":["Backspace"],"speedUp":["]"],"subtitles":["C"],"theater":["T"],"volumeDown":["ArrowDown"],"volumeUp":["ArrowUp"]} as const;
+
+export const DEFAULT_PLAYER_PREFERENCES = {"muted":false,"speed":1.0,"subtitlesEnabled":true,"theater":false,"volume":1.0} as const;
+
 export const DEFAULT_WATCHED_THRESHOLD = 0.9 as const;
+
+export const MAX_KEYS_PER_SHORTCUT = 2 as const;
+
+export const MAX_PLAYBACK_SPEED = 2.0 as const;
 
 export const MAX_WATCHED_THRESHOLD = 1.0 as const;
 
+export const MIN_PLAYBACK_SPEED = 0.25 as const;
+
 export const MIN_WATCHED_THRESHOLD = 0.5 as const;
+
+export const PLAYBACK_SPEED_STEP = 0.25 as const;
+
+export const RESERVED_SHORTCUT_KEYS = ["Escape","?","Tab","Shift+Tab","Enter"] as const;
 
 export const WATCHED_THRESHOLD_STEP = 0.05 as const;
 
@@ -109,6 +152,25 @@ export const WATCHED_THRESHOLD_STEP = 0.05 as const;
 /**  User-adjustable settings. */
 export type AppSettings = {
 	watchedThreshold: number,
+};
+
+export type AudioTrack = {
+	/**  Position among the file's audio streams (ffmpeg's `0:a:<index>`). */
+	index: number,
+	/**  ISO 639 code from the file, when it has one other than "undetermined". */
+	language: string | null,
+	title: string | null,
+	codec: string,
+	channels: number | null,
+	isDefault: boolean,
+};
+
+/**  How much was watched on one local day: the videos that became watched and their total length. */
+export type DailyWatchTotal = {
+	/**  Local date, `YYYY-MM-DD`. */
+	day: string,
+	videos: number,
+	seconds: number,
 };
 
 export type DatabaseInfo = {
@@ -160,6 +222,30 @@ export type FolderViewMode =
 /**  Every video in the tree, grouped by subfolder. The playlist spans the folder where the mode was set. */
 "continuous";
 
+/**
+ *  Where a page of the watch history ends; pass it back to get the next (older) page. `watched_at` is the stored
+ *  timestamp, so treat the cursor as opaque.
+ */
+export type HistoryCursor = {
+	watchedAt: string,
+	videoId: number,
+};
+
+/**  A video that became watched on a given day. */
+export type HistoryEntry = {
+	video: Video,
+	/**  Local date, `YYYY-MM-DD`. */
+	day: string,
+	/**  When it first became watched that day, ISO 8601 in UTC. */
+	watchedAt: string,
+};
+
+export type HistoryPage = {
+	/**  Newest first. */
+	entries: HistoryEntry[],
+	nextCursor: HistoryCursor | null,
+};
+
 export type HomeData = {
 	continueWatching: Video[],
 	recentlyWatched: Video[],
@@ -177,6 +263,26 @@ export type ImportSummary = {
 export type IpcError = {
 	kind: ErrorKind,
 	message: string,
+};
+
+/**  The keys of every configurable action. Empty lists are allowed: the action simply has no key. */
+export type KeyboardShortcuts = {
+	playPause: string[],
+	seekBack10: string[],
+	seekForward10: string[],
+	seekBack5: string[],
+	seekForward5: string[],
+	volumeUp: string[],
+	volumeDown: string[],
+	mute: string[],
+	speedDown: string[],
+	speedUp: string[],
+	speedReset: string[],
+	fullscreen: string[],
+	theater: string[],
+	subtitles: string[],
+	historyBack: string[],
+	historyForward: string[],
 };
 
 export type LibraryFolder = {
@@ -199,6 +305,25 @@ export type LibraryStats = {
 export type MediaToolsStatus = {
 	ffmpeg: boolean,
 	ffprobe: boolean,
+};
+
+/**  The audio and subtitle streams inside a video file, in file order. */
+export type MediaTracks = {
+	audio: AudioTrack[],
+	subtitles: SubtitleTrack[],
+};
+
+/**
+ *  How the built-in player was left: kept between sessions and used for every video. Fields missing from a stored
+ *  value take their default (see `db::settings::Player`), so fields can be added later without a migration.
+ */
+export type PlayerPreferences = {
+	/**  From 0 (silent) to 1 (full). */
+	volume: number,
+	muted: boolean,
+	speed: number,
+	subtitlesEnabled: boolean,
+	theater: boolean,
 };
 
 /**  Progress of a background media processing job, streamed to the frontend through a channel. */
@@ -241,6 +366,18 @@ export type SubtitleFile = {
 };
 
 export type SubtitleFormat = "srt" | "vtt" | "sub" | "ass";
+
+export type SubtitleTrack = {
+	/**  Position among the file's subtitle streams (ffmpeg's `0:s:<index>`). */
+	index: number,
+	language: string | null,
+	title: string | null,
+	codec: string,
+	isDefault: boolean,
+	isForced: boolean,
+	/**  Text subtitles can be extracted and shown; image ones (PGS, VobSub, DVB) cannot without OCR. */
+	isText: boolean,
+};
 
 export type Tag = {
 	id: number,

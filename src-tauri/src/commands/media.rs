@@ -3,7 +3,7 @@ use std::path::Path;
 use tauri::State;
 use tauri::ipc::Channel;
 
-use crate::domain::models::{MediaToolsStatus, ProcessingEvent, ProcessingSummary, SubtitleFile};
+use crate::domain::models::{MediaToolsStatus, MediaTracks, ProcessingEvent, ProcessingSummary, SubtitleFile, Video};
 use crate::error::AppResult;
 use crate::services::{media, subtitles};
 use crate::state::AppState;
@@ -36,6 +36,32 @@ pub async fn process_folder(
         },
     )
     .await
+}
+
+/// Makes the frame at `position_seconds` the video's thumbnail, or restores the automatic one when `null`.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_video_thumbnail(
+    state: State<'_, AppState>,
+    id: i64,
+    position_seconds: Option<f64>,
+) -> AppResult<Video> {
+    media::cover::set_video_thumbnail(&state.db, &media::Ffmpeg, &state.paths.thumbnails, id, position_seconds).await
+}
+
+/// The audio and subtitle streams inside a library video.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_media_tracks(state: State<'_, AppState>, path: String) -> AppResult<MediaTracks> {
+    media::tracks::list_tracks(&state.db, &media::Ffmpeg, path).await
+}
+
+/// A text subtitle stream of a library video (`index` among its subtitle streams), converted to WebVTT. Reads the
+/// whole file, so it can take a few seconds on large videos.
+#[tauri::command]
+#[specta::specta]
+pub async fn extract_subtitle(state: State<'_, AppState>, path: String, index: i64) -> AppResult<SubtitleFile> {
+    media::tracks::extract_subtitle(&state.db, &media::Ffmpeg, path, index).await
 }
 
 /// The external subtitle next to a video, if any.

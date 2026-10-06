@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, State};
 
-use crate::domain::models::{AppSettings, DatabaseInfo, ImportSummary, LibraryStats, Video};
+use crate::domain::models::{AppSettings, DatabaseInfo, ImportSummary, LibraryStats, PlayerPreferences, Video};
+use crate::domain::shortcuts::KeyboardShortcuts;
 use crate::error::AppResult;
 use crate::services::{asset_scope, backup, maintenance, watch};
 use crate::state::AppState;
@@ -17,6 +18,39 @@ pub async fn get_settings(state: State<'_, AppState>) -> AppResult<AppSettings> 
 #[specta::specta]
 pub async fn update_settings(state: State<'_, AppState>, settings: AppSettings) -> AppResult<AppSettings> {
     watch::update_settings(&state.db, settings).await
+}
+
+/// Volume, speed, subtitles and layout of the player, as it was last left.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_player_preferences(state: State<'_, AppState>) -> AppResult<PlayerPreferences> {
+    watch::player_preferences(&state.db).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_player_preferences(
+    state: State<'_, AppState>,
+    preferences: PlayerPreferences,
+) -> AppResult<PlayerPreferences> {
+    watch::update_player_preferences(&state.db, preferences).await
+}
+
+/// The keys of every configurable action, with defaults filling anything not customized.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_keyboard_shortcuts(state: State<'_, AppState>) -> AppResult<KeyboardShortcuts> {
+    watch::keyboard_shortcuts(&state.db).await
+}
+
+/// Stores the keyboard shortcuts; rejects malformed, reserved or repeated keys and more than two keys per action.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_keyboard_shortcuts(
+    state: State<'_, AppState>,
+    shortcuts: KeyboardShortcuts,
+) -> AppResult<KeyboardShortcuts> {
+    watch::update_keyboard_shortcuts(&state.db, shortcuts).await
 }
 
 #[tauri::command]

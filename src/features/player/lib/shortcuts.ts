@@ -1,3 +1,6 @@
+import { type KeyboardShortcuts, PLAYBACK_SPEED_STEP } from "../../../shared/ipc/bindings";
+import { comboFromEvent, type ShortcutKeys } from "../../../shared/lib/keyboard";
+
 /** What a key does in the player. */
 export type PlayerCommand =
     | { type: "togglePlay" }
@@ -12,36 +15,44 @@ export type PlayerCommand =
     | { type: "close" };
 
 const VOLUME_STEP = 0.05;
-const SPEED_STEP = 0.25;
 
-const byKey: Record<string, PlayerCommand> = {
-    " ": { type: "togglePlay" },
-    k: { type: "togglePlay" },
-    j: { type: "seek", by: -10 },
-    l: { type: "seek", by: 10 },
-    arrowleft: { type: "seek", by: -5 },
-    arrowright: { type: "seek", by: 5 },
-    arrowup: { type: "volume", by: VOLUME_STEP },
-    arrowdown: { type: "volume", by: -VOLUME_STEP },
-    "[": { type: "speed", by: -SPEED_STEP },
-    "]": { type: "speed", by: SPEED_STEP },
-    backspace: { type: "resetSpeed" },
-    f: { type: "fullscreen" },
-    t: { type: "theater" },
-    m: { type: "mute" },
-    c: { type: "subtitles" },
-    escape: { type: "close" },
-};
+/** The configurable actions the player handles; history back and forward belong to the app's navigation. */
+const commandByAction = {
+    playPause: { type: "togglePlay" },
+    seekBack10: { type: "seek", by: -10 },
+    seekForward10: { type: "seek", by: 10 },
+    seekBack5: { type: "seek", by: -5 },
+    seekForward5: { type: "seek", by: 5 },
+    volumeUp: { type: "volume", by: VOLUME_STEP },
+    volumeDown: { type: "volume", by: -VOLUME_STEP },
+    mute: { type: "mute" },
+    speedDown: { type: "speed", by: -PLAYBACK_SPEED_STEP },
+    speedUp: { type: "speed", by: PLAYBACK_SPEED_STEP },
+    speedReset: { type: "resetSpeed" },
+    fullscreen: { type: "fullscreen" },
+    theater: { type: "theater" },
+    subtitles: { type: "subtitles" },
+} satisfies Partial<Record<keyof KeyboardShortcuts, PlayerCommand>>;
 
-type KeyLike = Pick<KeyboardEvent, "key" | "altKey" | "ctrlKey" | "metaKey">;
+type KeyLike = Parameters<typeof comboFromEvent>[0];
 
-/**
- * Maps a key press to a player command. Modified keys are left alone: Alt+arrows navigate the app history and
- * Ctrl/Cmd combinations belong to the system.
- */
-export function commandForKey(event: KeyLike): PlayerCommand | null {
-    if (event.altKey || event.ctrlKey || event.metaKey) {
+/** Maps a key press to a player command using the configured shortcuts. `Esc` always closes (it is not configurable). */
+export function commandForKey(event: KeyLike, shortcuts: ShortcutKeys): PlayerCommand | null {
+    const combo = comboFromEvent(event);
+    if (combo === null) {
         return null;
     }
-    return byKey[event.key.toLowerCase()] ?? null;
+    if (combo === "Escape") {
+        return { type: "close" };
+    }
+    for (const [action, command] of Object.entries(commandByAction)) {
+        if (isAction(action) && shortcuts[action].includes(combo)) {
+            return command;
+        }
+    }
+    return null;
+}
+
+function isAction(action: string): action is keyof typeof commandByAction {
+    return Object.hasOwn(commandByAction, action);
 }

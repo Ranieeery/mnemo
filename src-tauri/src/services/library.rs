@@ -28,6 +28,19 @@ pub fn ensure_in_library(path: &Path, library_folders: &[String]) -> AppResult<(
     }
 }
 
+/// A file that exists inside a library folder, for commands that hand paths to the system or to ffmpeg.
+pub async fn library_file(db: &Db, path: String) -> AppResult<PathBuf> {
+    let checked = path.clone();
+    db.call(move |connection| ensure_in_library(checked.as_ref(), &folders::paths(connection)?))
+        .await?;
+    let path = PathBuf::from(path);
+    if tokio::fs::try_exists(&path).await.unwrap_or(false) {
+        Ok(path)
+    } else {
+        Err(AppError::NotFound(path.to_string_lossy().into_owned()))
+    }
+}
+
 pub async fn add_folder(db: &Db, path: String) -> AppResult<LibraryFolder> {
     let metadata = tokio::fs::metadata(&path)
         .await
@@ -73,7 +86,8 @@ pub async fn set_folder_icon(db: &Db, path: String, icon: Option<String>) -> App
 
 /// Folder icons chosen most recently, newest first.
 pub async fn recent_folder_icons(db: &Db) -> AppResult<Vec<String>> {
-    db.call(|connection| settings::recent_folder_icons(connection)).await
+    db.call(|connection| settings::get::<settings::RecentFolderIcons>(connection))
+        .await
 }
 
 pub async fn set_view_mode(db: &Db, path: String, mode: Option<FolderViewMode>) -> AppResult<()> {
