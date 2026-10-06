@@ -123,6 +123,16 @@ impl Harness {
         .unwrap()
     }
 
+    /// Adds `folder` to the library, as the app always does before reading one, and asks to read it.
+    pub async fn enqueue(&self, folder: PathBuf, priority: Priority, report: bool) {
+        let path = folder.to_string_lossy().into_owned();
+        self.db
+            .call(move |connection| crate::db::folders::add(connection, &path))
+            .await
+            .unwrap();
+        self.processor.enqueue(folder, priority, report);
+    }
+
     pub fn toolkit(&self) -> &FakeToolkit {
         &self.processor.inner.toolkit
     }
@@ -165,9 +175,7 @@ async fn reads_new_videos_skips_stored_ones_and_reports_failures() {
     ]);
     let harness = Harness::new(FakeToolkit::default(), 2);
 
-    harness
-        .processor
-        .enqueue(dir.path().to_path_buf(), Priority::Normal, true);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, true).await;
     let outcome = harness.outcomes(1).await.remove(0);
     assert_eq!(
         outcome.summary,
@@ -188,9 +196,7 @@ async fn reads_new_videos_skips_stored_ones_and_reports_failures() {
     assert!(errors[0].path.ends_with("broken.mkv"));
 
     // Running again finds everything stored.
-    harness
-        .processor
-        .enqueue(dir.path().to_path_buf(), Priority::Normal, false);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
     let again = harness.outcomes(2).await.remove(1);
     assert_eq!(again.summary.processed, 0);
     assert_eq!(again.summary.skipped, 3);
@@ -200,9 +206,7 @@ async fn reads_new_videos_skips_stored_ones_and_reports_failures() {
 async fn never_reads_more_files_at_once_than_allowed() {
     let dir = library(&names(12));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(30)), 3);
-    harness
-        .processor
-        .enqueue(dir.path().to_path_buf(), Priority::Normal, false);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
     harness.outcomes(1).await;
 
     let peak = harness.toolkit().peak.load(Ordering::SeqCst);
@@ -218,14 +222,10 @@ async fn reads_each_file_once_whatever_is_asked() {
     let show = dir.path().join("Show");
 
     // The subfolder first, then the folder around it (twice), then the same subfolder again.
-    harness
-        .processor
-        .enqueue(show.join("Season 2"), Priority::Normal, false);
-    harness.processor.enqueue(show.clone(), Priority::Normal, false);
-    harness.processor.enqueue(show.clone(), Priority::Normal, true);
-    harness
-        .processor
-        .enqueue(show.join("Season 2"), Priority::Normal, false);
+    harness.enqueue(show.join("Season 2"), Priority::Normal, false).await;
+    harness.enqueue(show.clone(), Priority::Normal, false).await;
+    harness.enqueue(show.clone(), Priority::Normal, true).await;
+    harness.enqueue(show.join("Season 2"), Priority::Normal, false).await;
     let outcomes = harness.outcomes(2).await;
 
     let mut probed = harness.toolkit().probed.lock().unwrap().clone();
@@ -244,9 +244,7 @@ async fn reads_each_file_once_whatever_is_asked() {
 async fn cancelling_a_job_stops_it_without_leaving_anything_halfway() {
     let dir = library(&names(10));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(150)), 2);
-    harness
-        .processor
-        .enqueue(dir.path().to_path_buf(), Priority::Normal, false);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
     tokio::time::sleep(Duration::from_millis(50)).await;
     assert_eq!(harness.processor.status().in_flight.len(), 2);
 
@@ -261,9 +259,7 @@ async fn cancelling_a_job_stops_it_without_leaving_anything_halfway() {
     assert!(harness.processor.status().jobs.is_empty());
 
     // Asking again resumes: what was stored is skipped and the rest is read.
-    harness
-        .processor
-        .enqueue(dir.path().to_path_buf(), Priority::Normal, false);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
     let resumed = harness.outcomes(2).await.remove(1);
     assert_eq!(resumed.summary.skipped, outcome.summary.processed);
     assert_eq!(harness.stored().await.len(), 10);
@@ -275,11 +271,11 @@ async fn cancelling_one_job_keeps_the_others_going() {
     let second = library(&names(3));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(40)), 2);
     harness
-        .processor
-        .enqueue(first.path().to_path_buf(), Priority::Normal, false);
+        .enqueue(first.path().to_path_buf(), Priority::Normal, false)
+        .await;
     harness
-        .processor
-        .enqueue(second.path().to_path_buf(), Priority::Normal, false);
+        .enqueue(second.path().to_path_buf(), Priority::Normal, false)
+        .await;
     harness.processor.cancel(Some(first.path()));
 
     let outcomes = harness.outcomes(2).await;
@@ -297,11 +293,11 @@ async fn cancelling_everything_empties_the_queue() {
     let second = library(&names(5));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 1);
     harness
-        .processor
-        .enqueue(first.path().to_path_buf(), Priority::Normal, false);
+        .enqueue(first.path().to_path_buf(), Priority::Normal, false)
+        .await;
     harness
-        .processor
-        .enqueue(second.path().to_path_buf(), Priority::Normal, false);
+        .enqueue(second.path().to_path_buf(), Priority::Normal, false)
+        .await;
     tokio::time::sleep(Duration::from_millis(30)).await;
     harness.processor.cancel(None);
 
@@ -322,11 +318,11 @@ async fn a_missing_tool_stops_every_job_once() {
         2,
     );
     harness
-        .processor
-        .enqueue(first.path().to_path_buf(), Priority::Normal, false);
+        .enqueue(first.path().to_path_buf(), Priority::Normal, false)
+        .await;
     harness
-        .processor
-        .enqueue(second.path().to_path_buf(), Priority::Normal, false);
+        .enqueue(second.path().to_path_buf(), Priority::Normal, false)
+        .await;
 
     let outcomes = harness.outcomes(2).await;
     assert!(outcomes.iter().all(|outcome| outcome.missing_tool));
@@ -340,14 +336,12 @@ async fn serves_normal_jobs_before_low_priority_ones() {
     let low = library(&names(3));
     let normal = library(&names(3));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(20)), 1);
-    harness
-        .processor
-        .enqueue(low.path().to_path_buf(), Priority::Low, false);
+    harness.enqueue(low.path().to_path_buf(), Priority::Low, false).await;
     // Let the low job list its files before the normal one arrives.
     tokio::time::sleep(Duration::from_millis(10)).await;
     harness
-        .processor
-        .enqueue(normal.path().to_path_buf(), Priority::Normal, false);
+        .enqueue(normal.path().to_path_buf(), Priority::Normal, false)
+        .await;
 
     let outcomes = harness.outcomes(2).await;
     assert_eq!(Path::new(&outcomes[0].folder), normal.path());
@@ -357,7 +351,7 @@ async fn serves_normal_jobs_before_low_priority_ones() {
 async fn a_folder_that_cannot_be_read_ends_with_its_error() {
     let harness = Harness::new(FakeToolkit::default(), 1);
     let missing = tempfile::tempdir().unwrap().path().join("gone");
-    harness.processor.enqueue(missing, Priority::Normal, false);
+    harness.enqueue(missing, Priority::Normal, false).await;
     let outcome = harness.outcomes(1).await.remove(0);
     assert!(outcome.error.is_some());
 }
@@ -366,9 +360,7 @@ async fn a_folder_that_cannot_be_read_ends_with_its_error() {
 async fn status_shows_the_jobs_and_the_files_being_read() {
     let dir = library(&names(4));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 2);
-    harness
-        .processor
-        .enqueue(dir.path().to_path_buf(), Priority::Normal, false);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     let status = harness.processor.status();
@@ -380,4 +372,47 @@ async fn status_shows_the_jobs_and_the_files_being_read() {
 
     harness.outcomes(1).await;
     assert_eq!(harness.processor.status(), ProcessingStatus::default());
+}
+
+#[tokio::test]
+async fn forgetting_a_folder_stops_its_jobs_and_those_of_its_subfolders() {
+    let show = tree(&["Season 1/Ep 1.mkv", "Season 1/Ep 2.mkv", "Season 1/Ep 3.mkv"]);
+    let other = library(&names(2));
+    let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 1);
+    harness
+        .enqueue(show.path().join("Season 1"), Priority::Normal, false)
+        .await;
+    harness
+        .enqueue(other.path().to_path_buf(), Priority::Normal, false)
+        .await;
+    tokio::time::sleep(Duration::from_millis(30)).await;
+
+    harness.processor.forget(show.path());
+    let outcomes = harness.outcomes(2).await;
+    assert_eq!(Path::new(&outcomes[0].folder), show.path().join("Season 1"));
+    assert!(outcomes[0].cancelled && outcomes[0].removed);
+    assert_eq!(Path::new(&outcomes[1].folder), other.path());
+    assert!(!outcomes[1].cancelled && !outcomes[1].removed);
+    assert_eq!(outcomes[1].summary.processed, 2);
+}
+
+/// Regression: removing a library folder while its videos waited to be stored brought them back as orphans.
+#[tokio::test]
+async fn videos_whose_folder_left_the_library_are_not_stored() {
+    let dir = library(&names(4));
+    let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(10)), 4);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
+    // Every file is read and waits in the writer's batch.
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    let path = dir.path().to_string_lossy().into_owned();
+    harness
+        .db
+        .call(move |connection| crate::db::folders::remove(connection, &path))
+        .await
+        .unwrap();
+
+    let outcome = harness.outcomes(1).await.remove(0);
+    assert_eq!(outcome.summary.processed, 0);
+    assert!(harness.stored().await.is_empty());
+    assert_eq!(harness.thumbnail_files(), 0);
 }

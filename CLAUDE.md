@@ -162,7 +162,10 @@ src/
   `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
-- Remover vídeos ou pastas também remove as thumbnails (só dentro do diretório de thumbnails).
+- Remover vídeos ou pastas também remove as thumbnails (só dentro do diretório de thumbnails). Remover uma pasta
+  cancela antes os jobs dela e das subpastas (`Processor::forget`, sem aviso ao usuário), e o escritor do pipeline só
+  grava vídeos que, na mesma transação, ainda estão dentro de uma pasta da biblioteca. Adicionar uma pasta sempre
+  força a leitura, mesmo que ela já tenha sido lida na sessão antes de ser removida.
 - Export/import JSON com `formatVersion` (atual: 2); o import aceita exports das versões 1.x e é atômico.
 
 ## Mídia

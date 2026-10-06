@@ -8,7 +8,9 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use super::{FileError, Inner, worker};
+use crate::db::folders;
 use crate::db::videos::{self, NewVideo};
+use crate::services::library::ensure_in_library;
 use crate::services::media::MediaToolkit;
 
 /// A batch is stored when it holds this many videos, or when the oldest has waited this long.
@@ -55,31 +57,44 @@ async fn store<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, batch: Vec<Read
     let stored = inner
         .db
         .call(move |connection| {
+            // A folder removed from the library while its videos were being read must not get them back.
+            let library = folders::paths(connection)?;
+            let inside: Vec<bool> = rows
+                .iter()
+                .map(|(file_path, ..)| ensure_in_library(Path::new(file_path), &library).is_ok())
+                .collect();
             let videos: Vec<NewVideo> = rows
                 .iter()
-                .map(|(file_path, title, duration_seconds, thumbnail_path)| NewVideo {
+                .zip(&inside)
+                .filter(|(_, inside)| **inside)
+                .map(|((file_path, title, duration_seconds, thumbnail_path), _)| NewVideo {
                     file_path,
                     title,
                     duration_seconds: *duration_seconds,
                     thumbnail_path: thumbnail_path.as_deref(),
                 })
                 .collect();
-            videos::insert_batch(connection, &videos)
+            let mut inserted = videos::insert_batch(connection, &videos)?.into_iter();
+            // Per read video: stored (`Some(true)`), already there (`Some(false)`) or outside the library (`None`).
+            Ok(inside
+                .into_iter()
+                .map(|inside| if inside { inserted.next() } else { None })
+                .collect::<Vec<_>>())
         })
         .await;
 
     match stored {
-        Ok(inserted) => {
-            for (read, new) in batch.into_iter().zip(inserted) {
-                if !new {
+        Ok(results) => {
+            for (read, result) in batch.into_iter().zip(results) {
+                if result != Some(true) {
                     discard_thumbnail(&inner.thumbnails_dir, read.thumbnail_path.as_deref()).await;
                 }
                 inner.settle(read.job_id, &[read.file_path], |job, _| {
                     job.done += 1;
-                    if new {
-                        job.summary.processed += 1;
-                    } else {
-                        job.summary.skipped += 1;
+                    match result {
+                        Some(true) => job.summary.processed += 1,
+                        Some(false) => job.summary.skipped += 1,
+                        None => {}
                     }
                 });
             }

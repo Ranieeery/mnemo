@@ -78,10 +78,13 @@ async function finished(outcome: ProcessingOutcome) {
     } else if (outcome.error !== null) {
         toast({ title: `Could not read ${name}`, description: outcome.error, tone: "danger" });
     } else if (outcome.cancelled) {
-        toast({
-            title: `Stopped reading videos in ${name}`,
-            description: `${plural(processed, "new video")} added; the rest is left for later.`,
-        });
+        // A folder removed from the library needs no word: the user just asked for it.
+        if (!outcome.removed) {
+            toast({
+                title: `Stopped reading videos in ${name}`,
+                description: `${plural(processed, "new video")} added; the rest is left for later.`,
+            });
+        }
     } else if (outcome.report) {
         toast({
             title: processed > 0 ? `Added ${plural(processed, "new video")} to ${name}` : `${name} is up to date`,

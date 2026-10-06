@@ -270,8 +270,8 @@ mod tests {
         let library = tree(&["Ep 1.mkv"]);
         let harness = Harness::new(ProcessingToolkit::default(), 1);
         harness
-            .processor
-            .enqueue(library.path().to_path_buf(), Priority::Normal, false);
+            .enqueue(library.path().to_path_buf(), Priority::Normal, false)
+            .await;
         harness.outcomes(1).await;
         let file = library.path().join("Ep 1.mkv").to_string_lossy().into_owned();
         let video = harness
@@ -291,8 +291,8 @@ mod tests {
         .await
         .unwrap();
         harness
-            .processor
-            .enqueue(library.path().to_path_buf(), Priority::Normal, false);
+            .enqueue(library.path().to_path_buf(), Priority::Normal, false)
+            .await;
         harness.outcomes(2).await;
 
         let stored = harness

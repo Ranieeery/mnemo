@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use tauri::{AppHandle, State};
 
 use crate::domain::folder_view::FolderViewMode;
@@ -25,6 +27,8 @@ pub async fn add_library_folder(app: AppHandle, state: State<'_, AppState>, path
 #[tauri::command]
 #[specta::specta]
 pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> AppResult<i64> {
+    // First stop reading it, so no video of the folder comes back after the removal.
+    state.processor.forget(Path::new(&path));
     library::remove_folder(&state.db, &state.paths.thumbnails, path).await
 }
 

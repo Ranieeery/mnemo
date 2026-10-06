@@ -2,7 +2,7 @@ import { emit } from "@tauri-apps/api/event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { UserEvent } from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { followProcessing } from "../../shared/stores/processing";
+import { followProcessing, processFolder } from "../../shared/stores/processing";
 import { libraryFolderFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
@@ -38,6 +38,22 @@ describe("LibraryNav", () => {
         expect(callsOf(calls, "remove_library_folder")).toEqual([{ path: "D:\\Series" }]);
     });
 
+    // Regression: a folder removed and added back in the same session was taken as already read.
+    it("reads the videos of a folder added back to the library", async () => {
+        const calls = mockCommands({
+            list_library_folders: [],
+            process_folders: null,
+            add_library_folder: series,
+            "plugin:dialog|open": series.path,
+        });
+        await processFolder(series.path);
+        const { user } = renderScreen(<LibraryNav currentPath={undefined} />);
+
+        await user.click(await screen.findByRole("button", { name: "Add folder" }));
+        expect(await screen.findByText("Added Series")).toBeInTheDocument();
+        await waitFor(() => expect(callsOf(calls, "process_folders")).toHaveLength(2));
+    });
+
     it("syncs a folder, shows it is being read and reports what was found", async () => {
         const calls = mockCommands({
             list_library_folders: [series],
@@ -70,6 +86,7 @@ describe("LibraryNav", () => {
                 cancelled: false,
                 missingTool: false,
                 error: null,
+                removed: false,
                 report: true,
             })
         );

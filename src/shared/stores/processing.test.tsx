@@ -15,6 +15,7 @@ function outcome(folder: string, overrides: Partial<ProcessingOutcome> = {}): Pr
         cancelled: false,
         missingTool: false,
         error: null,
+        removed: false,
         report: false,
         ...overrides,
     };
@@ -75,6 +76,14 @@ describe("processing store", () => {
 
         await processFolder("D:\\Videos");
         expect(callsOf(calls, "process_folders")).toHaveLength(2);
+    });
+
+    it("says nothing when the folder being read was removed from the library", async () => {
+        await follow();
+        await processFolder("D:\\Videos", { report: true });
+        await finish(outcome("D:\\Videos", { cancelled: true, removed: true, report: true }));
+        expect(screen.queryByText("Stopped reading videos in Videos")).not.toBeInTheDocument();
+        expect(screen.queryByText("Videos is up to date")).not.toBeInTheDocument();
     });
 
     it("reports a finished job when asked to", async () => {

@@ -388,6 +388,8 @@ export type ProcessingOutcome = {
 	missingTool: boolean,
 	/**  The folder itself could not be read. */
 	error: string | null,
+	/**  The folder was removed from the library while it was being read; nothing to tell the user. */
+	removed: boolean,
 	/**  Someone asked to be told how it went (a sync from the menu or Settings). */
 	report: boolean,
 };

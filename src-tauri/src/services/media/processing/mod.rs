@@ -102,6 +102,7 @@ struct Job {
     summary: ProcessingSummary,
     missing_tool: bool,
     error: Option<String>,
+    removed: bool,
 }
 
 impl Job {
@@ -116,6 +117,7 @@ impl Job {
             cancelled: self.cancel.is_cancelled(),
             missing_tool: self.missing_tool,
             error: self.error.clone(),
+            removed: self.removed,
             report: self.report,
         }
     }
@@ -180,6 +182,7 @@ impl<T: MediaToolkit + 'static> Processor<T> {
                 summary: ProcessingSummary::default(),
                 missing_tool: false,
                 error: None,
+                removed: false,
             });
             id
         };
@@ -191,21 +194,17 @@ impl<T: MediaToolkit + 'static> Processor<T> {
     /// Cancels the job of `folder`, or every job when `None`. Running ffmpeg processes are killed; what was already
     /// stored stays.
     pub fn cancel(&self, folder: Option<&Path>) {
-        let finished = {
-            let mut state = self.inner.lock();
-            let State { jobs, claimed, .. } = &mut *state;
-            for job in jobs
-                .iter_mut()
-                .filter(|job| folder.is_none_or(|folder| Path::new(&job.folder) == folder))
-            {
-                job.cancel.cancel();
-                for file in job.pending.drain(..) {
-                    claimed.remove(file.to_string_lossy().as_ref());
-                }
-            }
-            take_finished(&mut state)
-        };
-        self.inner.report(finished);
+        self.inner.cancel_where(
+            |job| folder.is_none_or(|folder| Path::new(&job.folder) == folder),
+            false,
+        );
+    }
+
+    /// Stops reading `folder` and everything inside it because it left the library. Videos read meanwhile are not
+    /// stored either: the writer only keeps videos inside library folders.
+    pub fn forget(&self, folder: &Path) {
+        self.inner
+            .cancel_where(|job| is_within(Path::new(&job.folder), folder), true);
     }
 
     pub fn status(&self) -> ProcessingStatus {
@@ -249,6 +248,22 @@ impl<T: MediaToolkit + 'static> Inner<T> {
             cancelling: state.jobs.iter().any(|job| job.cancel.is_cancelled()),
             errors: state.errors.iter().cloned().collect(),
         }
+    }
+
+    fn cancel_where(&self, matches: impl Fn(&Job) -> bool, removed: bool) {
+        let finished = {
+            let mut state = self.lock();
+            let State { jobs, claimed, .. } = &mut *state;
+            for job in jobs.iter_mut().filter(|job| matches(job)) {
+                job.cancel.cancel();
+                job.removed |= removed;
+                for file in job.pending.drain(..) {
+                    claimed.remove(file.to_string_lossy().as_ref());
+                }
+            }
+            take_finished(&mut state)
+        };
+        self.report(finished);
     }
 
     /// Sends the outcome of finished jobs and a fresh status.

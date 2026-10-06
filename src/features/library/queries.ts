@@ -24,7 +24,8 @@ export function useAddLibraryFolder() {
                 description: "New videos appear as they are read.",
                 tone: "success",
             });
-            void processFolder(folder.path);
+            // Forced: the folder may have been read earlier in this session, before being removed.
+            void processFolder(folder.path, { force: true });
         },
         onError: (error) => {
             toast({ title: "Could not add the folder", description: errorMessage(error), tone: "danger" });

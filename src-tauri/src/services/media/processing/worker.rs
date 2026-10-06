@@ -69,18 +69,7 @@ fn finish<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, task: Task, result: 
 }
 
 fn cancel_all<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>) {
-    let finished = {
-        let mut state = inner.lock();
-        let super::State { jobs, claimed, .. } = &mut *state;
-        for job in jobs.iter_mut() {
-            job.cancel.cancel();
-            for file in job.pending.drain(..) {
-                claimed.remove(file.to_string_lossy().as_ref());
-            }
-        }
-        super::take_finished(&mut state)
-    };
-    inner.report(finished);
+    inner.cancel_where(|_| true, false);
 }
 
 /// Reads one video. A thumbnail that fails is not fatal (the card shows a placeholder); a cancelled or partial one is

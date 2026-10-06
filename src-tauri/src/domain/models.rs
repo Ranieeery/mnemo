@@ -223,6 +223,8 @@ pub struct ProcessingOutcome {
     pub missing_tool: bool,
     /// The folder itself could not be read.
     pub error: Option<String>,
+    /// The folder was removed from the library while it was being read; nothing to tell the user.
+    pub removed: bool,
     /// Someone asked to be told how it went (a sync from the menu or Settings).
     pub report: bool,
 }
