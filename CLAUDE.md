@@ -23,6 +23,11 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
   se já existe um.
 - Converse comigo em português. Código, nomes, comentários, textos da interface e mensagens de commit sugeridas em
   inglês (commits semânticos; versão em semver).
+- **Release notes** (quando pedidas, em inglês, Markdown, para quem usa o app, sem detalhes internos):
+  `# Mnemo X.Y.Z`, um parágrafo de abertura (o que a versão traz e a compatibilidade com dados de versões
+  anteriores), `## Highlights` (3 a 5 itens com início em negrito), uma seção `##` por área com o que mudou para o
+  usuário, `## Fixes` quando houver, e `## Upgrading from X.Y` (dados preservados, mudanças de comportamento,
+  requisitos). Atalhos e formatos entre crases; nada de nomes de código, comandos ou tabelas.
 
 ## Stack
 
