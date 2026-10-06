@@ -1,6 +1,6 @@
 [package]
 name = "mnemo"
-version = "2.1.0"
+version = "2.2.0"
 description = "Desktop app to organize and watch a local video library."
 authors = ["Ranieeery"]
 license = "MIT"
