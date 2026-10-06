@@ -1,10 +1,12 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use tauri::State;
-use tauri::ipc::Channel;
 
-use crate::domain::models::{MediaToolsStatus, MediaTracks, ProcessingEvent, ProcessingSummary, SubtitleFile, Video};
+use crate::db::folders;
+use crate::domain::models::{MediaToolsStatus, MediaTracks, ProcessingStatus, SubtitleFile, Video};
 use crate::error::AppResult;
+use crate::services::library::ensure_in_library;
+use crate::services::media::processing::Priority;
 use crate::services::{media, subtitles};
 use crate::state::AppState;
 
@@ -14,28 +16,34 @@ pub async fn media_tools_status() -> MediaToolsStatus {
     media::tools_status().await
 }
 
-/// Extracts metadata and thumbnails for the new videos below a folder, streaming progress. Jobs run one at a time;
-/// a second request waits for the first.
+/// Queues the new videos below each folder to be read in the background and returns at once. Progress and the end
+/// of each job arrive as events; `report` asks for the job's summary to be shown. Folders already queued (or inside
+/// one) add nothing. Fails, queuing nothing, if any folder is outside the library.
 #[tauri::command]
 #[specta::specta]
-pub async fn process_folder(
-    state: State<'_, AppState>,
-    path: String,
-    on_event: Channel<ProcessingEvent>,
-) -> AppResult<ProcessingSummary> {
-    let _job = state.processing.lock().await;
-    media::pipeline::process_folder(
-        &state.db,
-        &media::Ffmpeg,
-        &state.paths.thumbnails,
-        Path::new(&path),
-        |event| {
-            if let Err(error) = on_event.send(event) {
-                tracing::debug!(%error, "processing progress channel closed");
-            }
-        },
-    )
-    .await
+pub async fn process_folders(state: State<'_, AppState>, paths: Vec<String>, report: bool) -> AppResult<()> {
+    let library = state.db.call(|connection| folders::paths(connection)).await?;
+    for path in &paths {
+        ensure_in_library(Path::new(path), &library)?;
+    }
+    for path in paths {
+        state.processor.enqueue(PathBuf::from(path), Priority::Normal, report);
+    }
+    Ok(())
+}
+
+/// Cancels reading the videos of one folder, or of every folder when `null`; running ffmpeg processes are killed.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_processing(state: State<'_, AppState>, folder: Option<String>) {
+    state.processor.cancel(folder.as_deref().map(Path::new));
+}
+
+/// What the processing pipeline is doing now, for screens that open while it runs.
+#[tauri::command]
+#[specta::specta]
+pub fn get_processing_status(state: State<'_, AppState>) -> ProcessingStatus {
+    state.processor.status()
 }
 
 /// Makes the frame at `position_seconds` the video's thumbnail, or restores the automatic one when `null`.

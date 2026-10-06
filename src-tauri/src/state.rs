@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::db::Db;
+use crate::domain::media::processing_concurrency;
 use crate::error::{AppError, AppResult};
+use crate::services::media::Ffmpeg;
+use crate::services::media::processing::{Notifier, Processor};
 use crate::services::search::SearchGate;
 
 const DATABASE_FILE: &str = "mnemo.db";
@@ -35,19 +38,27 @@ impl AppPaths {
 pub struct AppState {
     pub db: Db,
     pub paths: AppPaths,
-    /// Serializes media processing jobs: a new job waits for the running one instead of competing for ffmpeg.
-    pub processing: tokio::sync::Mutex<()>,
+    /// Reads new videos in the background; see `services::media::processing`.
+    pub processor: Processor<Ffmpeg>,
     pub search: SearchGate,
 }
 
 impl AppState {
-    pub fn initialize(app: &AppHandle) -> AppResult<Self> {
+    pub fn initialize(app: &AppHandle, notify: Notifier) -> AppResult<Self> {
         let paths = AppPaths::resolve(app)?;
         let db = Db::open(&paths.database)?;
+        let cores = std::thread::available_parallelism().map_or(1, usize::from);
+        let processor = Processor::new(
+            db.clone(),
+            Ffmpeg,
+            paths.thumbnails.clone(),
+            processing_concurrency(cores),
+            notify,
+        );
         Ok(Self {
             db,
             paths,
-            processing: tokio::sync::Mutex::new(()),
+            processor,
             search: SearchGate::default(),
         })
     }

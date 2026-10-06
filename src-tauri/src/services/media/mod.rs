@@ -2,8 +2,8 @@
 
 pub mod cover;
 mod ffprobe;
-pub mod pipeline;
 mod process;
+pub mod processing;
 pub mod thumbnails;
 pub mod tracks;
 
@@ -14,6 +14,7 @@ use std::time::Duration;
 
 use crate::domain::models::{MediaToolsStatus, MediaTracks, SubtitleFormat};
 use crate::error::AppResult;
+use tokio_util::sync::CancellationToken;
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(30);
 const THUMBNAIL_TIMEOUT: Duration = Duration::from_secs(60);
@@ -21,19 +22,26 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(10);
 const SUBTITLE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Operations the pipeline needs from the media tools. Abstracted so the pipeline can be tested without ffmpeg.
+/// `cancel` stops the work early with [`AppError::Cancelled`](crate::error::AppError::Cancelled), killing the tool.
 pub trait MediaToolkit: Send + Sync {
     /// Duration in seconds of a file that has a video stream.
-    fn probe(&self, video: &Path) -> impl Future<Output = AppResult<f64>> + Send;
+    fn probe(&self, video: &Path, cancel: &CancellationToken) -> impl Future<Output = AppResult<f64>> + Send;
     /// Writes a JPEG frame of `video` taken at `at_seconds` to `output`.
-    fn thumbnail(&self, video: &Path, output: &Path, at_seconds: f64) -> impl Future<Output = AppResult<()>> + Send;
+    fn thumbnail(
+        &self,
+        video: &Path,
+        output: &Path,
+        at_seconds: f64,
+        cancel: &CancellationToken,
+    ) -> impl Future<Output = AppResult<()>> + Send;
 }
 
 /// The real toolkit: `ffprobe` and `ffmpeg` found on the `PATH`.
 pub struct Ffmpeg;
 
 impl MediaToolkit for Ffmpeg {
-    async fn probe(&self, video: &Path) -> AppResult<f64> {
-        let output = process::run(
+    async fn probe(&self, video: &Path, cancel: &CancellationToken) -> AppResult<f64> {
+        let output = process::run_until_cancelled(
             "ffprobe",
             [
                 OsStr::new("-v"),
@@ -45,15 +53,22 @@ impl MediaToolkit for Ffmpeg {
                 video.as_os_str(),
             ],
             PROBE_TIMEOUT,
+            cancel,
         )
         .await?;
         ffprobe::parse_duration(&output)
     }
 
-    async fn thumbnail(&self, video: &Path, output: &Path, at_seconds: f64) -> AppResult<()> {
+    async fn thumbnail(
+        &self,
+        video: &Path,
+        output: &Path,
+        at_seconds: f64,
+        cancel: &CancellationToken,
+    ) -> AppResult<()> {
         let timestamp = format!("{at_seconds:.3}");
         // `-ss` before `-i` seeks in the input, which is much faster than decoding up to the timestamp.
-        process::run(
+        process::run_until_cancelled(
             "ffmpeg",
             [
                 OsStr::new("-ss"),
@@ -68,6 +83,7 @@ impl MediaToolkit for Ffmpeg {
                 output.as_os_str(),
             ],
             THUMBNAIL_TIMEOUT,
+            cancel,
         )
         .await
         .map(drop)
@@ -180,12 +196,17 @@ mod tests {
         .await
         .unwrap();
 
-        let duration = Ffmpeg.probe(&video).await.unwrap();
+        let duration = Ffmpeg.probe(&video, &CancellationToken::new()).await.unwrap();
         assert!((duration - 3.0).abs() < 0.2, "{duration}");
 
         let thumbnail = dir.path().join("sample.jpg");
         Ffmpeg
-            .thumbnail(&video, &thumbnail, thumbnails::capture_time(duration))
+            .thumbnail(
+                &video,
+                &thumbnail,
+                thumbnails::capture_time(duration),
+                &CancellationToken::new(),
+            )
             .await
             .unwrap();
         assert!(std::fs::metadata(&thumbnail).unwrap().len() > 0);

@@ -16,15 +16,19 @@ function isArgs(value: unknown): value is Args {
  */
 export function mockCommands(handlers: Record<string, Handler | unknown>): CommandCall[] {
     const calls: CommandCall[] = [];
-    mockIPC((command, payload) => {
-        const args = isArgs(payload) ? payload : {};
-        calls.push({ command, args });
-        if (!(command in handlers)) {
-            throw commandError("internal", `no mock for ${command}`);
-        }
-        const handler = handlers[command];
-        return typeof handler === "function" ? handler(args) : handler;
-    });
+    mockIPC(
+        (command, payload) => {
+            const args = isArgs(payload) ? payload : {};
+            calls.push({ command, args });
+            if (!(command in handlers)) {
+                throw commandError("internal", `no mock for ${command}`);
+            }
+            const handler = handlers[command];
+            return typeof handler === "function" ? handler(args) : handler;
+            // Backend events are delivered by the mock too: tests send them with `emit` from "@tauri-apps/api/event".
+        },
+        { shouldMockEvents: true }
+    );
     return calls;
 }
 

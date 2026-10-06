@@ -19,6 +19,12 @@ fn has_extension_in(path: &Path, extensions: &[&str]) -> bool {
         .is_some_and(|extension| extensions.iter().any(|known| known.eq_ignore_ascii_case(extension)))
 }
 
+/// How many videos the pipeline reads at once: half the CPU cores, between 1 and 4. ffmpeg already uses several
+/// threads per file, and more parallel reads would mostly wait on the disk (often an external drive).
+pub fn processing_concurrency(cores: usize) -> usize {
+    (cores / 2).clamp(1, 4)
+}
+
 /// Default title for a newly found video: its file name without the extension.
 pub fn title_from_path(path: &Path) -> String {
     path.file_stem()
@@ -37,6 +43,15 @@ pub fn display_name(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_half_the_cores_at_once_within_limits() {
+        assert_eq!(processing_concurrency(1), 1);
+        assert_eq!(processing_concurrency(2), 1);
+        assert_eq!(processing_concurrency(6), 3);
+        assert_eq!(processing_concurrency(8), 4);
+        assert_eq!(processing_concurrency(32), 4);
+    }
 
     #[test]
     fn recognizes_every_video_extension_case_insensitively() {

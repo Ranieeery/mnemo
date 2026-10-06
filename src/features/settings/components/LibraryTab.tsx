@@ -4,7 +4,7 @@ import { type ReactNode, useState } from "react";
 import { errorMessage } from "../../../shared/ipc/client";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
 import { formatDuration } from "../../../shared/lib/formatDuration";
-import { processFolder } from "../../../shared/stores/processing";
+import { syncFolders } from "../../../shared/stores/processing";
 import { Button, Card, ConfirmDialog, ErrorState, Skeleton, toast } from "../../../shared/ui";
 import { useExportLibrary, useImportLibrary, useLibraryStats, useResetWatchStatus } from "../queries";
 import { SettingRow } from "./SettingRow";
@@ -78,19 +78,18 @@ export function LibraryTab({ foldersPanel }: { foldersPanel: ReactNode }) {
 
     const syncAll = async () => {
         setSyncing(true);
-        let added = 0;
-        let failed = 0;
-        for (const folder of folders.data ?? []) {
-            const summary = await processFolder(folder.path, { force: true });
-            added += summary?.processed ?? 0;
-            failed += summary?.failed ?? 0;
+        try {
+            const { processed, failed } = await syncFolders((folders.data ?? []).map((folder) => folder.path));
+            toast({
+                title: processed > 0 ? `Added ${processed} new videos` : "The library is up to date",
+                description: failed > 0 ? `${failed} files could not be read.` : undefined,
+                tone: "success",
+            });
+        } catch (error) {
+            toast({ title: "Could not sync the library", description: errorMessage(error), tone: "danger" });
+        } finally {
+            setSyncing(false);
         }
-        setSyncing(false);
-        toast({
-            title: added > 0 ? `Added ${added} new videos` : "The library is up to date",
-            description: failed > 0 ? `${failed} files could not be read.` : undefined,
-            tone: "success",
-        });
     };
 
     return (

@@ -50,7 +50,8 @@ thumbnails, tags and watch progress in a local SQLite database.
 - **Tags:** tag videos individually or a whole folder at once, search by tag, and clean up tags in Settings.
 - **Search:** search the library by title, description and tag, or search file names on disk inside a folder,
   including videos not read yet.
-- **Background processing:** durations and thumbnails are read with ffmpeg in the background, with progress.
+- **Background processing:** durations and thumbnails are read with ffmpeg in the background, several files at a
+  time, with progress, details per folder and a cancel button.
 - **Backup:** export the whole library to JSON and import it back (exports from Mnemo 1.x are accepted too).
 - **Maintenance:** library statistics, database details and cleanup of videos that no longer belong to a folder.
 

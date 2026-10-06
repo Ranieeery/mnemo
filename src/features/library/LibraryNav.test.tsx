@@ -1,6 +1,8 @@
+import { emit } from "@tauri-apps/api/event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { UserEvent } from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { followProcessing } from "../../shared/stores/processing";
 import { libraryFolderFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
@@ -36,18 +38,43 @@ describe("LibraryNav", () => {
         expect(callsOf(calls, "remove_library_folder")).toEqual([{ path: "D:\\Series" }]);
     });
 
-    it("syncs a folder and reports what was found", async () => {
+    it("syncs a folder, shows it is being read and reports what was found", async () => {
         const calls = mockCommands({
             list_library_folders: [series],
-            process_folder: { processed: 3, skipped: 40, failed: 0 },
+            process_folders: null,
+            get_processing_status: { jobs: [], inFlight: [], cancelling: false, errors: [] },
         });
+        const stop = followProcessing();
         renderScreen(<LibraryNav currentPath={undefined} />);
 
         fireEvent.contextMenu(await screen.findByRole("link", { name: /Series/ }));
         fireEvent.click(await screen.findByRole("menuitem", { name: "Sync folder" }));
+        await waitFor(() =>
+            expect(callsOf(calls, "process_folders")).toEqual([{ paths: [series.path], report: true }])
+        );
 
-        expect(await screen.findByText("Added 3 new videos")).toBeInTheDocument();
-        await waitFor(() => expect(callsOf(calls, "process_folder")).toHaveLength(1));
+        await act(() =>
+            emit("processing-status-changed", {
+                jobs: [{ folder: series.path, scanning: false, total: 3, done: 1, failed: 0 }],
+                inFlight: [],
+                cancelling: false,
+                errors: [],
+            })
+        );
+        expect(await screen.findByRole("status", { name: "Reading videos in Series" })).toBeInTheDocument();
+
+        await act(() =>
+            emit("processing-finished", {
+                folder: series.path,
+                summary: { processed: 3, skipped: 40, failed: 0 },
+                cancelled: false,
+                missingTool: false,
+                error: null,
+                report: true,
+            })
+        );
+        expect(await screen.findByText("Added 3 new videos to Series")).toBeInTheDocument();
+        stop();
     });
 
     async function openIconDialog(recent: string[] = []) {

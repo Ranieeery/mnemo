@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use tokio_util::sync::CancellationToken;
+
 use super::{MediaToolkit, thumbnails};
 use crate::db::{Db, videos};
 use crate::domain::models::Video;
@@ -35,7 +37,12 @@ pub async fn set_video_thumbnail<T: MediaToolkit>(
     let output = thumbnails::file_for(thumbnails_dir, Path::new(&video.file_path));
     let new_thumbnail = output.to_string_lossy().into_owned();
     if let Err(error) = toolkit
-        .thumbnail(Path::new(&video.file_path), &output, at_seconds)
+        .thumbnail(
+            Path::new(&video.file_path),
+            &output,
+            at_seconds,
+            &CancellationToken::new(),
+        )
         .await
     {
         discard(thumbnails_dir, vec![new_thumbnail]).await;
@@ -74,7 +81,8 @@ mod tests {
 
     use super::*;
     use crate::db::videos::NewVideo;
-    use crate::services::media::pipeline::process_folder;
+    use crate::services::media::processing::Priority;
+    use crate::services::media::processing::tests::{FakeToolkit as ProcessingToolkit, Harness};
     use crate::services::scanner::tests::tree;
 
     /// Writes a fake image and records the requested times; fails when asked to.
@@ -85,11 +93,17 @@ mod tests {
     }
 
     impl MediaToolkit for FakeToolkit {
-        async fn probe(&self, _video: &Path) -> AppResult<f64> {
+        async fn probe(&self, _video: &Path, _cancel: &CancellationToken) -> AppResult<f64> {
             Ok(600.0)
         }
 
-        async fn thumbnail(&self, _video: &Path, output: &Path, at_seconds: f64) -> AppResult<()> {
+        async fn thumbnail(
+            &self,
+            _video: &Path,
+            output: &Path,
+            at_seconds: f64,
+            _cancel: &CancellationToken,
+        ) -> AppResult<()> {
             self.requested.lock().unwrap().push(at_seconds);
             // Like ffmpeg, a failure can leave a partial file behind.
             std::fs::write(output, b"jpg").unwrap();
@@ -254,27 +268,35 @@ mod tests {
     #[tokio::test]
     async fn processing_the_folder_again_keeps_the_chosen_thumbnail() {
         let library = tree(&["Ep 1.mkv"]);
-        let thumbnails_dir = tempfile::tempdir().unwrap();
-        let db = Db::open_in_memory().unwrap();
-        let toolkit = FakeToolkit::default();
-        process_folder(&db, &toolkit, thumbnails_dir.path(), library.path(), |_| {})
-            .await
-            .unwrap();
+        let harness = Harness::new(ProcessingToolkit::default(), 1);
+        harness
+            .processor
+            .enqueue(library.path().to_path_buf(), Priority::Normal, false);
+        harness.outcomes(1).await;
         let file = library.path().join("Ep 1.mkv").to_string_lossy().into_owned();
-        let video = db
+        let video = harness
+            .db
             .call(move |connection| videos::find_by_path(connection, &file))
             .await
             .unwrap()
             .unwrap();
 
-        let chosen = set_video_thumbnail(&db, &toolkit, thumbnails_dir.path(), video.id, Some(42.0))
-            .await
-            .unwrap();
-        process_folder(&db, &toolkit, thumbnails_dir.path(), library.path(), |_| {})
-            .await
-            .unwrap();
+        let chosen = set_video_thumbnail(
+            &harness.db,
+            &FakeToolkit::default(),
+            harness.thumbnails_dir.path(),
+            video.id,
+            Some(42.0),
+        )
+        .await
+        .unwrap();
+        harness
+            .processor
+            .enqueue(library.path().to_path_buf(), Priority::Normal, false);
+        harness.outcomes(2).await;
 
-        let stored = db
+        let stored = harness
+            .db
             .call(move |connection| videos::get(connection, video.id))
             .await
             .unwrap();

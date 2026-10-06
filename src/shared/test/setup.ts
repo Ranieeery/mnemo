@@ -12,8 +12,10 @@ beforeEach(() => {
     mockConvertFileSrc("windows");
 });
 
-afterEach(() => {
+afterEach(async () => {
     cleanup();
+    // Unmounting removes event listeners through promises; let them reach the mocked backend before it goes away.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     clearMocks();
     // App-wide singletons outlive a test; start every test from a clean slate.
     queryClient.clear();

@@ -34,7 +34,7 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
 | Camada | Escolha |
 |---|---|
 | Shell desktop | Tauri 2 (Rust, edição 2024) |
-| Backend | Rust: `tokio`, `serde`, `thiserror`, `tracing`, `rusqlite` (bundled) + `rusqlite_migration` |
+| Backend | Rust: `tokio` (+ `tokio-util` para `CancellationToken`), `serde`, `thiserror`, `tracing`, `rusqlite` (bundled) + `rusqlite_migration` |
 | Bindings IPC | `tauri-specta` 2 RC, versão fixada com `=` (tipos TypeScript e constantes gerados a partir do Rust) |
 | Plugins Tauri | `dialog` (seleção de pasta e de arquivo de backup). `tauri-plugin-opener` só como crate Rust (abrir no player externo / revelar), sem plugin nem permissão no webview |
 | Frontend | React 19 + TypeScript 7 (strict) + Vite 8 |
@@ -90,7 +90,7 @@ ativos (permitidos em testes via `clippy.toml`).
 ```
 src-tauri/src/
 ├── lib.rs              # setup: tracing, estado, escopo de assets, registro de comandos
-├── state.rs            # AppState (banco, caminhos, fila de processamento, busca em andamento)
+├── state.rs            # AppState (banco, caminhos, processador em segundo plano, busca em andamento)
 ├── error.rs            # AppError (thiserror), serializado como { kind, message }
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
 ├── services/           # regras: biblioteca e navegação, scanner, mídia (ffprobe/ffmpeg e pipeline), busca,
@@ -172,8 +172,18 @@ src/
 - Thumbnails em `<appDataDir>/thumbnails/`, exibidas via asset protocol.
 - `MediaToolkit` (probe e thumbnail, usado pelo pipeline) e `TrackToolkit` (faixas e extração de legendas) abstraem
   o ffmpeg para os testes. Comandos que entregam caminhos ao ffmpeg ou ao sistema usam `library::library_file`.
-- O pipeline processa um job por vez e envia progresso por `Channel`; a etapa por arquivo é isolada para permitir, no
-  futuro, concorrência limitada e cancelamento.
+- Pipeline (`services/media/processing`): serviço de longa duração no `AppState`. Cada pasta pedida
+  (`process_folders`, que retorna na hora) vira um job; pedir uma pasta já na fila, ou dentro de uma, não cria job, e
+  um arquivo reivindicado por um job nunca é lido por outro. Um pool fixo de workers lê no máximo
+  `processing_concurrency` arquivos por vez (metade dos núcleos, de 1 a 4) e um único escritor grava em lote
+  (`videos::insert_batch`, transação a cada 25 itens ou 1 s, `ON CONFLICT DO NOTHING`). Prioridades `Normal` e `Low`
+  (a baixa é para trabalho futuro como prévias). `cancel_processing` cancela um job ou todos com `CancellationToken`:
+  `process::run_until_cancelled` mata o ffmpeg na hora e a thumbnail parcial é apagada. Nada fica pela metade:
+  cancelar ou fechar o app só perde o lote não gravado, refeito no próximo pedido. ffmpeg ausente para todos os jobs
+  uma vez. O estado vai ao frontend pelos eventos tipados `processingStatusChanged` (no máximo a cada 200 ms) e
+  `processingFinished` (um por job), declarados em `commands/events.rs`; `get_processing_status` dá o estado inicial.
+- A limpeza de órfãos também apaga thumbnails que nenhum vídeo usa, com mais de 1 h (deixadas por um processamento
+  interrompido; as recentes podem ser de um vídeo prestes a ser gravado).
 
 ## Segurança
 
@@ -247,8 +257,10 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   Tauri falham com `STATUS_ENTRYPOINT_NOT_FOUND`).
 - **Frontend:** funções puras em `shared/lib` com cobertura completa; telas e hooks com Testing Library, mockando o
   backend. Testar comportamento, não implementação. Setup em `shared/test/setup.ts` (jest-dom, polyfills do Radix,
-  stub de `<video>`, limpeza dos singletons: cache, processamento, toasts e diálogos). Helpers: `renderWithUi`, `renderScreen` (roteador, cache novo e
-  providers), `mockCommands`/`callsOf` (comandos não mockados falham), fixtures e `app/testApp.tsx` (app inteiro).
+  stub de `<video>`, limpeza dos singletons: cache, processamento, toasts e diálogos; espera os cleanups assíncronos
+  de eventos antes de limpar os mocks). Helpers: `renderWithUi`, `renderScreen` (roteador, cache novo e providers),
+  `mockCommands`/`callsOf` (comandos não mockados falham; também simula eventos do backend, enviados nos testes com
+  `emit` de `@tauri-apps/api/event`), fixtures e `app/testApp.tsx` (app inteiro).
   Componentes que suspendem (como `FolderIcon` com um ícone fora da lista curada) só re-renderizam dentro de
   `act()` nos testes. Em JSX, caminhos do Windows vão entre chaves (`path={"D:\\Videos"}`): atributos com aspas não processam escapes.
 - Atalhos do player e da navegação, retomada e gravação de progresso têm testes.
@@ -285,7 +297,9 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 - Estatísticas por pasta: total, assistidos e percentual de progresso.
 
 ### Processamento de mídia
-- Metadados e thumbnail em segundo plano, com barra de progresso mostrando o arquivo atual; um job por vez.
+- Metadados e thumbnail em segundo plano, vários arquivos em paralelo. A barra mostra as pastas, os arquivos em
+  leitura, o progresso total e as falhas, com "Cancel" (tudo) e "Details" (progresso e cancelamento por pasta, lista
+  de falhas com "Show in file manager"). "Sync folder" e "Sync library" mostram o resultado ao fim, em qualquer tela.
 - Vídeos já processados são ignorados; falha na thumbnail não descarta o vídeo.
 - Detecção de ffmpeg/ffprobe com instruções de instalação.
 

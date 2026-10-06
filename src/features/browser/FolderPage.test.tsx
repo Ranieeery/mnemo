@@ -38,7 +38,7 @@ function mockFolder(folderContents: FolderContents, extra: Record<string, unknow
         browse_folder: folderContents,
         get_folder_summary: { totalVideos: 19, watchedVideos: 12, taggedVideos: 3 },
         media_tools_status: { ffmpeg: true, ffprobe: true },
-        process_folder: { processed: 0, skipped: 19, failed: 0 },
+        process_folders: null,
         ...extra,
     });
 }
@@ -180,16 +180,14 @@ describe("FolderPage", () => {
     it("reads new videos of the folder in the background when opened", async () => {
         const calls = mockFolder(contents());
         renderScreen(<FolderPage path={SHOW} />);
-        await waitFor(() =>
-            expect(callsOf(calls, "process_folder")).toEqual([expect.objectContaining({ path: SHOW })])
-        );
+        await waitFor(() => expect(callsOf(calls, "process_folders")).toEqual([{ paths: [SHOW], report: false }]));
     });
 
     it("does not try to read videos without ffmpeg", async () => {
         const calls = mockFolder(contents(), { media_tools_status: { ffmpeg: false, ffprobe: true } });
         renderScreen(<FolderPage path={SHOW} />);
         await screen.findByRole("button", { name: "Trailer" });
-        expect(callsOf(calls, "process_folder")).toEqual([]);
+        expect(callsOf(calls, "process_folders")).toEqual([]);
     });
 
     it("groups the whole tree in continuous view and switches views", async () => {

@@ -62,7 +62,9 @@ pub struct NewVideo<'a> {
     pub thumbnail_path: Option<&'a str>,
 }
 
-/// Inserts a processed video. A video already stored under the same path is kept as is and returned.
+/// Inserts a processed video. A video already stored under the same path is kept as is and returned. The pipeline
+/// stores videos with [`insert_batch`]; this one sets up test data.
+#[cfg(test)]
 pub fn insert(connection: &Connection, video: &NewVideo) -> AppResult<Video> {
     connection.execute(
         "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, is_watched, watch_progress_seconds)
@@ -76,6 +78,38 @@ pub fn insert(connection: &Connection, video: &NewVideo) -> AppResult<Video> {
         ],
     )?;
     find_by_path(connection, video.file_path)?.ok_or_else(|| AppError::NotFound(video.file_path.to_owned()))
+}
+
+/// Inserts processed videos in one transaction. Returns, for each, whether it was new: a video already stored under
+/// the same path (read meanwhile by another job) is kept as is, so running a batch twice changes nothing.
+pub fn insert_batch(connection: &mut Connection, videos: &[NewVideo]) -> AppResult<Vec<bool>> {
+    let transaction = connection.transaction()?;
+    let mut inserted = Vec::with_capacity(videos.len());
+    {
+        let mut statement = transaction.prepare_cached(
+            "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, is_watched, watch_progress_seconds)
+             VALUES (?1, ?2, ?3, ?4, 0, 0)
+             ON CONFLICT (file_path) DO NOTHING",
+        )?;
+        for video in videos {
+            let changed = statement.execute(params![
+                video.file_path,
+                video.title,
+                video.duration_seconds.round(),
+                video.thumbnail_path
+            ])?;
+            inserted.push(changed == 1);
+        }
+    }
+    transaction.commit()?;
+    Ok(inserted)
+}
+
+/// Every thumbnail file the library uses.
+pub fn thumbnail_paths(connection: &Connection) -> AppResult<Vec<String>> {
+    let mut statement = connection.prepare("SELECT thumbnail_path FROM videos WHERE thumbnail_path IS NOT NULL")?;
+    let paths = statement.query_map([], |row| row.get(0))?.collect::<Result<_, _>>()?;
+    Ok(paths)
 }
 
 /// Videos inside `folder`, ordered by path. With `recursive == false` only the folder's direct children.
@@ -236,6 +270,31 @@ pub(crate) mod tests {
 
     fn paths(videos: &[Video]) -> Vec<String> {
         videos.iter().map(|video| video.file_path.clone()).collect()
+    }
+
+    #[test]
+    fn inserts_a_batch_once_even_when_run_again() {
+        let mut connection = test_support::connection();
+        let batch = [
+            NewVideo {
+                file_path: "D:\\a.mkv",
+                title: "a",
+                duration_seconds: 60.0,
+                thumbnail_path: None,
+            },
+            NewVideo {
+                file_path: "D:\\b.mkv",
+                title: "b",
+                duration_seconds: 90.0,
+                thumbnail_path: Some("b.jpg"),
+            },
+        ];
+        assert_eq!(insert_batch(&mut connection, &batch).unwrap(), [true, true]);
+        assert_eq!(insert_batch(&mut connection, &batch).unwrap(), [false, false]);
+        let count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM videos", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
     }
 
     #[test]

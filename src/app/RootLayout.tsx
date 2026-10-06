@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { queryClient } from "../shared/ipc/queryClient";
 import { comboFromEvent, isTextEntry } from "../shared/lib/keyboard";
 import { openShortcutsHelp } from "../shared/stores/dialogs";
+import { followProcessing } from "../shared/stores/processing";
 import { Toaster, TooltipProvider } from "../shared/ui";
 import { DialogHost } from "./DialogHost";
 import { useHistoryShortcuts } from "./navigation/useHistoryNavigation";
@@ -25,6 +26,8 @@ export function RootLayout() {
 /** Keys that work on every screen. Inside the query provider: the keys are configurable and loaded from the backend. */
 function GlobalShortcuts() {
     useHistoryShortcuts();
+    // Background jobs report here, whatever screen is open.
+    useEffect(() => followProcessing(), []);
 
     // "?" shows every shortcut, except while typing (where it is just a character) or over another dialog.
     useEffect(() => {

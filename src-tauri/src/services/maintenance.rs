@@ -1,8 +1,10 @@
 //! Library statistics and the debug tools of the Settings screen.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use crate::db::{Db, folders, orphans, tags};
+use crate::db::{Db, folders, orphans, tags, videos};
 use crate::domain::models::{DatabaseInfo, LibraryStats, Video};
 use crate::error::AppResult;
 use crate::services::media::thumbnails;
@@ -44,7 +46,11 @@ pub async fn orphaned_videos(db: &Db) -> AppResult<Vec<Video>> {
         .await
 }
 
-/// Deletes videos that belong to no library folder, with their thumbnails. Returns how many were removed.
+/// Thumbnails younger than this are never cleaned up: their video may still be on its way to the database.
+const UNUSED_THUMBNAIL_GRACE: Duration = Duration::from_secs(60 * 60);
+
+/// Deletes videos that belong to no library folder, with their thumbnails, and thumbnail files no video uses (left
+/// by an interrupted processing run). Returns how many videos were removed.
 pub async fn clean_orphaned_videos(db: &Db, thumbnails_dir: &Path) -> AppResult<i64> {
     let removed = db
         .call(|connection| {
@@ -57,8 +63,20 @@ pub async fn clean_orphaned_videos(db: &Db, thumbnails_dir: &Path) -> AppResult<
         })
         .await?;
     let (count, removed_thumbnails) = removed;
+    let used: HashSet<String> = db
+        .call(|connection| videos::thumbnail_paths(connection))
+        .await?
+        .into_iter()
+        .collect();
     let thumbnails_dir = thumbnails_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &removed_thumbnails)).await?;
+    let unused = tokio::task::spawn_blocking(move || {
+        thumbnails::delete(&thumbnails_dir, &removed_thumbnails);
+        thumbnails::delete_unused(&thumbnails_dir, &used, UNUSED_THUMBNAIL_GRACE)
+    })
+    .await?;
+    if unused > 0 {
+        tracing::info!(unused, "deleted thumbnails no video uses");
+    }
     Ok(count)
 }
 

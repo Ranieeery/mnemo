@@ -27,7 +27,9 @@ type LibraryFolderItemProps = {
 export function LibraryFolderItem({ folder, currentPath }: LibraryFolderItemProps) {
     const navigate = useNavigate();
     const removeFolder = useRemoveLibraryFolder();
-    const processing = useProcessingStore((state) => state.job !== null && isWithin(state.job.folder, folder.path));
+    const processing = useProcessingStore((state) =>
+        state.status.jobs.some((job) => isWithin(job.folder, folder.path))
+    );
     const [iconOpen, setIconOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
     const active = currentPath !== undefined && isWithin(currentPath, folder.path);

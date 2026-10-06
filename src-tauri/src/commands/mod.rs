@@ -1,5 +1,6 @@
 //! IPC commands: a thin layer that adapts services to Tauri. TypeScript bindings are generated from this list.
 
+pub mod events;
 mod library;
 mod media;
 mod search;
@@ -8,7 +9,7 @@ mod system;
 mod tags;
 mod videos;
 
-use tauri_specta::{Builder, collect_commands};
+use tauri_specta::{Builder, collect_commands, collect_events};
 
 use crate::domain::models::PlayerPreferences;
 use crate::domain::player::{
@@ -24,6 +25,10 @@ use crate::domain::watch::{
 
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
+        .events(collect_events![
+            events::ProcessingStatusChanged,
+            events::ProcessingFinished
+        ])
         .commands(collect_commands![
             library::list_library_folders,
             library::add_library_folder,
@@ -57,7 +62,9 @@ pub fn builder() -> Builder<tauri::Wry> {
             search::search_library,
             search::search_folder,
             media::media_tools_status,
-            media::process_folder,
+            media::process_folders,
+            media::cancel_processing,
+            media::get_processing_status,
             media::set_video_thumbnail,
             media::find_subtitle,
             media::list_media_tracks,

@@ -17,12 +17,14 @@ pub fn run() -> tauri::Result<()> {
     init_tracing();
 
     let bindings = commands::builder();
+    let invoke_handler = bindings.invoke_handler();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
+            bindings.mount_events(app);
             let handle = app.handle();
-            let state = AppState::initialize(handle)?;
+            let state = AppState::initialize(handle, commands::events::processing_notifier(handle.clone()))?;
             let library_folders =
                 tauri::async_runtime::block_on(state.db.call(|connection| db::folders::paths(connection)))?;
             asset_scope::allow(handle, &state.paths.thumbnails)?;
@@ -31,7 +33,7 @@ pub fn run() -> tauri::Result<()> {
             app.manage(state);
             Ok(())
         })
-        .invoke_handler(bindings.invoke_handler())
+        .invoke_handler(invoke_handler)
         .on_window_event(|window, event| {
             // Closing the main window ends background work (processing jobs, ffmpeg) with the app.
             if let tauri::WindowEvent::CloseRequested { .. } = event {
