@@ -29,6 +29,14 @@ function useTagMutation<Variables, Result>(
     });
 }
 
+export function useCreateTag() {
+    return useTagMutation(
+        (name: string) => call(commands.createTag(name)),
+        "Could not create the tag",
+        (tag) => toast({ title: `Created tag "${tag.name}"`, tone: "success" })
+    );
+}
+
 export function useAddTagToVideo(videoId: number) {
     return useTagMutation((name: string) => call(commands.addTagToVideo(videoId, name)), "Could not add the tag");
 }

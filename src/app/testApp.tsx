@@ -6,7 +6,7 @@ import { folderContentsFixture, libraryFolderFixture } from "../shared/test/fixt
 import { mockCommands } from "../shared/test/ipc";
 import { createAppRouter } from "./router";
 
-export const seriesFolder = libraryFolderFixture({ path: "D:\\Series", name: "Series" });
+const seriesFolder = libraryFolderFixture({ path: "D:\\Series", name: "Series" });
 const emptyHome: HomeData = { continueWatching: [], recentlyWatched: [], suggestions: [], folderPreviews: [] };
 
 /** Test helper: the whole app at `path` (with its real router and root layout) over a small mocked backend. */

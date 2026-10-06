@@ -4,6 +4,7 @@ import type { TagWithUsage } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
 import { Button, ConfirmDialog, EmptyState, ErrorState, IconButton, Skeleton } from "../../../shared/ui";
 import { useAllTags, useDeleteAllTags, useDeleteTag, useDeleteUnusedTags, useRemoveTagFromAllVideos } from "../queries";
+import { CreateTagForm } from "./CreateTagForm";
 
 type PendingAction =
     | { kind: "delete"; tag: TagWithUsage }
@@ -39,11 +40,14 @@ export function TagManager() {
     }
     if (tags.data.length === 0) {
         return (
-            <EmptyState
-                icon={Tags}
-                title="No tags yet"
-                description="Add tags from a video's details, or to a whole folder from its menu."
-            />
+            <div className="flex flex-col gap-4">
+                <CreateTagForm />
+                <EmptyState
+                    icon={Tags}
+                    title="No tags yet"
+                    description="Create one above, add tags from a video's details, or tag a whole folder from its menu."
+                />
+            </div>
         );
     }
 
@@ -51,6 +55,7 @@ export function TagManager() {
 
     return (
         <div className="flex flex-col gap-4">
+            <CreateTagForm />
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-body text-text-muted">
                     {tags.data.length} tags, {unused} unused

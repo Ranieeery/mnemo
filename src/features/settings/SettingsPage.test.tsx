@@ -21,7 +21,6 @@ function mockSettings(extra: Record<string, unknown> = {}) {
             path: "C:\\Users\\me\\AppData\\Roaming\\com.mnemo\\mnemo.db",
             sizeBytes: 233_472,
             schemaVersion: 2,
-            tables: [{ name: "videos", rows: 41 }],
         },
         list_orphaned_videos: [videoFixture({ filePath: "E:\\Old\\gone.mkv" })],
         ...extra,
@@ -71,6 +70,9 @@ describe("SettingsPage", () => {
         await user.click(await screen.findByRole("tab", { name: "Playback" }));
         const slider = await screen.findByRole("slider", { name: "Watched threshold" });
         expect(slider).toHaveAttribute("aria-valuenow", "90");
+        // Regression: a default `w-full` overrode the given width and collapsed the slider inside the settings row.
+        expect(slider.closest(".touch-none")).toHaveClass("w-48");
+        expect(slider.closest(".touch-none")).not.toHaveClass("w-full");
 
         slider.focus();
         fireEvent.keyDown(slider, { key: "ArrowLeft" });
@@ -85,6 +87,6 @@ describe("SettingsPage", () => {
         await user.click(await screen.findByRole("tab", { name: "Maintenance" }));
         expect(await screen.findByText("E:\\Old\\gone.mkv")).toBeInTheDocument();
         expect(screen.getByText("228.0 KB")).toBeInTheDocument();
-        expect(screen.getByText("41 rows")).toBeInTheDocument();
+        expect(screen.queryByText(/rows/)).not.toBeInTheDocument();
     });
 });

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
-export const MIN_SPEED = 0.25;
-export const MAX_SPEED = 2;
+const MIN_SPEED = 0.25;
+const MAX_SPEED = 2;
 export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 
 type PlaybackPreferences = {
@@ -9,6 +9,8 @@ type PlaybackPreferences = {
     muted: boolean;
     speed: number;
     subtitlesEnabled: boolean;
+    /** Video across the whole window width, with the details and playlist below it. Kept for the session. */
+    theater: boolean;
     /** Set when moving to the next video of a playlist, so speed and subtitles carry over. */
     continuing: boolean;
 };
@@ -20,6 +22,7 @@ export const usePlayerStore = create<PlaybackPreferences>(() => ({
     muted: false,
     speed: 1,
     subtitlesEnabled: true,
+    theater: false,
     continuing: false,
 }));
 
@@ -45,6 +48,9 @@ export const playerPreferences = {
     },
     toggleSubtitles() {
         usePlayerStore.setState((state) => ({ subtitlesEnabled: !state.subtitlesEnabled }));
+    },
+    toggleTheater() {
+        usePlayerStore.setState((state) => ({ theater: !state.theater }));
     },
     /** Call before switching to the next video of the playlist. */
     continueWithNext() {

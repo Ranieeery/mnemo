@@ -2116,7 +2116,7 @@ dependencies = [
 
 [[package]]
 name = "mnemo"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "rusqlite",
  "rusqlite_migration",

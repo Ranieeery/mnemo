@@ -1,7 +1,7 @@
 {
   "name": "mnemo",
   "private": true,
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Desktop app to organize and watch a local video library.",
   "license": "MIT",
   "type": "module",

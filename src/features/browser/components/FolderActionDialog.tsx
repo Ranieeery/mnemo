@@ -2,9 +2,10 @@ import { type FormEvent, useCallback, useState } from "react";
 import type { FolderSummary } from "../../../shared/ipc/bindings";
 import { Button, ConfirmDialog, Dialog, Input } from "../../../shared/ui";
 import { useAddTagToFolder, useRemoveFolderTags, useSetFolderWatched } from "../queries";
+import { FolderPropertiesDialog } from "./FolderPropertiesDialog";
 
 export type FolderTarget = { path: string; name: string };
-export type FolderAction = "markWatched" | "markUnwatched" | "addTag" | "removeTags";
+export type FolderAction = "markWatched" | "markUnwatched" | "addTag" | "removeTags" | "properties";
 
 type PendingAction = { action: FolderAction; target: FolderTarget; summary: FolderSummary };
 
@@ -68,6 +69,8 @@ function FolderActionDialog({ action, target, summary, onClose }: FolderActionDi
                     }}
                 />
             );
+        case "properties":
+            return <FolderPropertiesDialog target={target} summary={summary} onClose={onClose} />;
         case "addTag":
             return <AddTagDialog target={target} videoCount={summary.totalVideos} onClose={onClose} />;
     }

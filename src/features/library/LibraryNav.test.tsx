@@ -5,7 +5,7 @@ import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { LibraryNav } from "./components/LibraryNav";
 
-const series = libraryFolderFixture({ id: 1, path: "D:\\Series", name: "Series", customIcon: "📺" });
+const series = libraryFolderFixture({ id: 1, path: "D:\\Series", name: "Series", customIcon: "tv" });
 const movies = libraryFolderFixture({ id: 2, path: "D:\\Movies", name: "Movies" });
 
 describe("LibraryNav", () => {
@@ -15,7 +15,7 @@ describe("LibraryNav", () => {
 
         const current = await screen.findByRole("link", { name: /Series/ });
         expect(current).toHaveAttribute("aria-current", "page");
-        expect(current).toHaveTextContent("📺");
+        expect(current.querySelector("svg")).toHaveClass("lucide-tv");
         expect(screen.getByRole("link", { name: "Movies" })).not.toHaveAttribute("aria-current");
     });
 
@@ -53,11 +53,11 @@ describe("LibraryNav", () => {
 
         fireEvent.contextMenu(await screen.findByRole("link", { name: "Movies" }));
         fireEvent.click(await screen.findByRole("menuitem", { name: "Change icon" }));
-        await user.type(await screen.findByRole("textbox", { name: "Or type any emoji" }), "🍿");
+        await user.click(await screen.findByRole("radio", { name: "popcorn" }));
         await user.click(screen.getByRole("button", { name: "Save icon" }));
 
         await waitFor(() =>
-            expect(callsOf(calls, "set_library_folder_icon")).toEqual([{ path: "D:\\Movies", icon: "🍿" }])
+            expect(callsOf(calls, "set_library_folder_icon")).toEqual([{ path: "D:\\Movies", icon: "popcorn" }])
         );
     });
 });

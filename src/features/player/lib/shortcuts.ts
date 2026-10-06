@@ -6,12 +6,13 @@ export type PlayerCommand =
     | { type: "speed"; by: number }
     | { type: "resetSpeed" }
     | { type: "fullscreen" }
+    | { type: "theater" }
     | { type: "mute" }
     | { type: "subtitles" }
     | { type: "close" };
 
-export const VOLUME_STEP = 0.05;
-export const SPEED_STEP = 0.25;
+const VOLUME_STEP = 0.05;
+const SPEED_STEP = 0.25;
 
 const byKey: Record<string, PlayerCommand> = {
     " ": { type: "togglePlay" },
@@ -26,6 +27,7 @@ const byKey: Record<string, PlayerCommand> = {
     "]": { type: "speed", by: SPEED_STEP },
     backspace: { type: "resetSpeed" },
     f: { type: "fullscreen" },
+    t: { type: "theater" },
     m: { type: "mute" },
     c: { type: "subtitles" },
     escape: { type: "close" },

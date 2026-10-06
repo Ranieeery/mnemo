@@ -12,6 +12,15 @@
         color: var(--color-text);
     }
 
+    /* Tailwind's preflight gives buttons the default cursor; every clickable control shows the pointer here. */
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    [role="slider"],
+    a[href],
+    label[for] {
+        cursor: pointer;
+    }
+
     :focus-visible {
         outline: 2px solid var(--color-focus-ring);
         outline-offset: 2px;

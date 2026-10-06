@@ -1,8 +1,8 @@
 /** Search params of the screens, validated because the URL can contain anything. */
 
-export type HomeSearch = { q?: string };
-export type FolderSearch = { path: string; q?: string };
-export type WatchSearch = { path: string };
+type HomeSearch = { q?: string };
+type FolderSearch = { path: string; q?: string };
+type WatchSearch = { path: string };
 
 function optionalQuery(value: unknown): { q?: string } {
     return typeof value === "string" && value.trim() ? { q: value } : {};

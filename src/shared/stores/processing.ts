@@ -8,7 +8,7 @@ import { isWithin } from "../lib/paths";
 import { toast } from "../ui";
 
 /** The job currently extracting metadata and thumbnails. Only set while there is actual work to show. */
-export type ProcessingJob = {
+type ProcessingJob = {
     folder: string;
     done: number;
     total: number;

@@ -6,7 +6,7 @@ import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { loadMetadata, playToEnd } from "../../shared/test/media";
 import { renderScreen } from "../../shared/test/render";
 import { PlayerPage } from "./components/PlayerPage";
-import { usePlayerStore } from "./store";
+import { playerPreferences, usePlayerStore } from "./store";
 
 const SHOW = "D:\\Videos\\Show";
 const current = videoFixture({ id: 1, title: "Pilot", filePath: `${SHOW}\\Ep 1.mkv`, watchProgressSeconds: 300 });
@@ -18,10 +18,16 @@ type Options = { video?: Video | null; subtitle?: boolean };
 function renderPlayer({ video = current, subtitle = false }: Options = {}) {
     const path = video?.filePath ?? `${SHOW}\\Raw.mkv`;
     const playlist: VideoEntry[] = video ? [entryFixture(video), entryFixture(next)] : [];
+    // The record a real backend would keep, so refetches after a change see it.
+    let stored = video;
     const calls = mockCommands({
-        get_video: video,
+        get_video: () => stored,
         list_playlist: playlist,
         find_subtitle: subtitle ? { format: "srt", content: SUBTITLE } : null,
+        set_watched: ({ watched }: Record<string, unknown>) => {
+            stored = stored && { ...stored, isWatched: watched === true };
+            return stored;
+        },
         save_progress: ({ positionSeconds }: Record<string, unknown>) => ({
             ...current,
             watchProgressSeconds: positionSeconds,
@@ -42,7 +48,14 @@ async function videoElement(): Promise<HTMLVideoElement> {
 
 describe("PlayerPage", () => {
     beforeEach(() => {
-        usePlayerStore.setState({ volume: 1, muted: false, speed: 1, subtitlesEnabled: true, continuing: false });
+        usePlayerStore.setState({
+            volume: 1,
+            muted: false,
+            speed: 1,
+            subtitlesEnabled: true,
+            theater: false,
+            continuing: false,
+        });
     });
 
     afterEach(() => {
@@ -140,7 +153,9 @@ describe("PlayerPage", () => {
 
     it("offers the next video when one ends and plays it on request", async () => {
         const { user, router, calls } = renderPlayer();
-        expect(await screen.findByRole("button", { name: /The Second One/ })).toBeInTheDocument();
+        const upNext = await screen.findByRole("button", { name: /The Second One/ });
+        // Regression: a fixed full-width thumbnail pushed the title out of the "Up next" rows.
+        expect(upNext.firstElementChild).not.toHaveClass("w-full");
         const element = await videoElement();
         act(() => loadMetadata(element, 1500));
         act(() => playToEnd(element));
@@ -149,6 +164,40 @@ describe("PlayerPage", () => {
         expect(callsOf(calls, "save_progress")).toContainEqual({ id: 1, positionSeconds: 1500, finished: true });
         await user.click(screen.getByRole("button", { name: "Play now" }));
         await waitFor(() => expect(router.state.location.search).toEqual({ path: next.filePath }));
+    });
+
+    it("shows a toggle that turns green once the video is watched", async () => {
+        const { user } = renderPlayer();
+        const toggle = await screen.findByRole("button", { name: "Mark as watched" });
+        expect(toggle).toHaveAttribute("aria-pressed", "false");
+        await user.click(toggle);
+        const watched = await screen.findByRole("button", { name: "Watched" });
+        expect(watched).toHaveAttribute("aria-pressed", "true");
+        expect(watched).toHaveClass("bg-success");
+        // Regression: the longer label stays in the layout (hidden), so toggling never resizes the button.
+        expect(watched).toHaveTextContent("Mark as watched");
+    });
+
+    it("switches to theater mode with the button or T, without reloading the video", async () => {
+        const { user } = renderPlayer();
+        const element = await videoElement();
+        const theater = screen.getByRole("button", { name: "Theater mode" });
+        expect(theater).toHaveAttribute("aria-pressed", "false");
+
+        await user.click(theater);
+        expect(screen.getByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "true");
+        expect(document.querySelector("video")).toBe(element);
+        expect(screen.getByRole("complementary", { name: "Up next" })).toBeInTheDocument();
+
+        await user.keyboard("t");
+        expect(screen.getByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "false");
+        expect(document.querySelector("video")).toBe(element);
+    });
+
+    it("keeps theater mode for the next videos", () => {
+        playerPreferences.toggleTheater();
+        playerPreferences.startVideo();
+        expect(usePlayerStore.getState().theater).toBe(true);
     });
 
     it("closes with Escape, going back to where it was opened from", async () => {

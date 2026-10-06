@@ -23,6 +23,21 @@ pub fn list_with_usage(connection: &Connection) -> AppResult<Vec<TagWithUsage>> 
     Ok(tags)
 }
 
+/// Creates a tag that no video uses yet. `name` must already be normalized by the caller.
+pub fn create(connection: &Connection, name: &str) -> AppResult<Tag> {
+    let inserted = connection.execute(
+        "INSERT INTO tags (name) VALUES (?1) ON CONFLICT (name) DO NOTHING",
+        [name],
+    )?;
+    if inserted == 0 {
+        return Err(AppError::InvalidInput(format!("a tag named \"{name}\" already exists")));
+    }
+    Ok(Tag {
+        id: connection.last_insert_rowid(),
+        name: name.to_owned(),
+    })
+}
+
 /// Returns the tag with this name, creating it if needed. `name` must already be normalized by the caller.
 pub fn find_or_create(connection: &Connection, name: &str) -> AppResult<Tag> {
     connection.execute(
@@ -123,6 +138,15 @@ mod tests {
     use super::*;
     use crate::db::test_support;
     use crate::db::videos::tests::{add_video, path};
+
+    #[test]
+    fn create_rejects_duplicates() {
+        let connection = test_support::connection();
+        let created = create(&connection, "anime").unwrap();
+        assert_eq!(find_or_create(&connection, "anime").unwrap(), created);
+        assert!(matches!(create(&connection, "anime"), Err(AppError::InvalidInput(_))));
+        assert_eq!(list_with_usage(&connection).unwrap()[0].video_count, 0);
+    }
 
     #[test]
     fn find_or_create_reuses_existing_tags() {

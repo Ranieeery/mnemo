@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Film, Folder, FolderOpen } from "lucide-react";
+import { ChevronRight, Film, FolderOpen } from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { errorMessage } from "../../../shared/ipc/client";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
-import { EmptyState, ErrorState, useColumns } from "../../../shared/ui";
+import { EmptyState, ErrorState, FolderIcon, useColumns } from "../../../shared/ui";
 import { VIDEO_CARD_MIN_WIDTH, VIDEO_GRID_GAP } from "../../../shared/video";
 import { useHome } from "../queries";
 import { SectionHeading, VideoRow, VideoRowSkeleton } from "./VideoRow";
@@ -104,9 +104,7 @@ function HomeContent({ columns, home, hasFolders, addFolderAction }: HomeContent
                             search={{ path: folder.path }}
                             className="group flex items-center gap-2 self-start rounded-control text-title font-semibold text-text"
                         >
-                            <span aria-hidden className="flex size-6 items-center justify-center">
-                                {folder.customIcon ?? <Folder className="size-5 text-text-muted" />}
-                            </span>
+                            <FolderIcon name={folder.customIcon} className="size-5 text-text-muted" />
                             {folder.name}
                             <ChevronRight
                                 className="size-4 text-text-subtle transition-transform duration-(--duration-fast) ease-standard group-hover:translate-x-0.5"

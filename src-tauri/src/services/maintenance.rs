@@ -3,19 +3,9 @@
 use std::path::{Path, PathBuf};
 
 use crate::db::{Db, folders, orphans, tags};
-use crate::domain::models::{DatabaseInfo, LibraryStats, TableCount, Video};
+use crate::domain::models::{DatabaseInfo, LibraryStats, Video};
 use crate::error::AppResult;
 use crate::services::media::thumbnails;
-
-const TABLES: &[&str] = &[
-    "videos",
-    "tags",
-    "video_tags",
-    "library_folders",
-    "watch_history",
-    "folder_settings",
-    "app_settings",
-];
 
 pub async fn library_stats(db: &Db) -> AppResult<LibraryStats> {
     db.call(|connection| {
@@ -40,21 +30,10 @@ pub async fn database_info(db: &Db, database_path: PathBuf) -> AppResult<Databas
         .unwrap_or(0);
     db.call(move |connection| {
         let schema_version = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        let tables = TABLES
-            .iter()
-            .map(|table| {
-                let rows = connection.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0))?;
-                Ok(TableCount {
-                    name: (*table).to_owned(),
-                    rows,
-                })
-            })
-            .collect::<AppResult<_>>()?;
         Ok(DatabaseInfo {
             path: database_path.to_string_lossy().into_owned(),
             size_bytes,
             schema_version,
-            tables,
         })
     })
     .await
@@ -134,6 +113,5 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(info.schema_version, 2);
-        assert_eq!(info.tables.len(), TABLES.len());
     }
 }

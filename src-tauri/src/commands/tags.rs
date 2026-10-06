@@ -17,6 +17,13 @@ pub async fn get_video_tags(state: State<'_, AppState>, video_id: i64) -> AppRes
     tags::for_video(&state.db, video_id).await
 }
 
+/// Creates an unused tag (normalized). Fails with `invalidInput` when the name is empty or taken.
+#[tauri::command]
+#[specta::specta]
+pub async fn create_tag(state: State<'_, AppState>, name: String) -> AppResult<Tag> {
+    tags::create(&state.db, name).await
+}
+
 /// Adds a tag (normalized, created on demand) and returns the video's tags.
 #[tauri::command]
 #[specta::specta]

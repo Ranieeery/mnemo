@@ -18,10 +18,14 @@ export function Sidebar() {
 
     return (
         <aside className="flex w-60 shrink-0 flex-col gap-6 border-r border-border bg-surface px-3 py-4">
-            <div className="flex items-center gap-2 px-2.5">
+            <Link
+                to="/"
+                aria-label="Mnemo, go to home"
+                className="flex items-center gap-2 self-start rounded-control px-2.5"
+            >
                 <img src="/logo.png" alt="" className="size-6 rounded-badge" />
                 <span className="text-title font-semibold tracking-tight text-text">Mnemo</span>
-            </div>
+            </Link>
             <nav aria-label="Main">
                 <Link to="/" aria-current={isHome ? "page" : undefined} className={navLinkClasses(isHome)}>
                     <House className="size-4" aria-hidden />

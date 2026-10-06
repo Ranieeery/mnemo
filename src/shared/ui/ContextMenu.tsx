@@ -1,14 +1,11 @@
-import { Check } from "lucide-react";
 import { ContextMenu as Primitive } from "radix-ui";
 import type { ComponentProps, ReactNode } from "react";
 import { cx } from "../lib/cx";
 import {
     menuContentClasses,
     menuDangerItemClasses,
-    menuIndicatorClasses,
     menuItemClasses,
     menuLabelClasses,
-    menuSelectableItemClasses,
     menuSeparatorClasses,
     menuShortcutClasses,
 } from "./menuStyles";
@@ -16,7 +13,6 @@ import {
 /** Right-click menu. Also opens from the keyboard (context menu key / Shift+F10) on the focused trigger. */
 export const ContextMenu = Primitive.Root;
 export const ContextMenuTrigger = Primitive.Trigger;
-export const ContextMenuRadioGroup = Primitive.RadioGroup;
 
 export function ContextMenuContent({ className, ...props }: ComponentProps<typeof Primitive.Content>) {
     return (
@@ -49,17 +45,6 @@ export function ContextMenuItem({
             {children}
             {shortcut && <span className={menuShortcutClasses}>{shortcut}</span>}
         </Primitive.Item>
-    );
-}
-
-export function ContextMenuRadioItem({ className, children, ...props }: ComponentProps<typeof Primitive.RadioItem>) {
-    return (
-        <Primitive.RadioItem className={cx(menuItemClasses, menuSelectableItemClasses, className)} {...props}>
-            <Primitive.ItemIndicator className={menuIndicatorClasses}>
-                <Check />
-            </Primitive.ItemIndicator>
-            {children}
-        </Primitive.RadioItem>
     );
 }
 

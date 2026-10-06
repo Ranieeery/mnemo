@@ -27,6 +27,11 @@ type VideoStageProps = {
     onClose: () => void;
 };
 
+/** In theater mode the video may fill the window below the player header (h-14). */
+export function stageHeight(theater: boolean) {
+    return theater ? "max-h-[calc(100vh-3.5rem)]" : "max-h-[70vh]";
+}
+
 /** The video with its controls, subtitles and keyboard shortcuts. Remount it (key) for each video. */
 export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStageProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -35,8 +40,14 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
     const { visible, reveal } = useAutoHide(playback.playing);
     const { flash, show } = useFlash();
     const fullscreen = useFullscreen(containerRef);
-    const { volume, muted, speed, subtitlesEnabled } = usePlayerStore(
-        useShallow(({ volume, muted, speed, subtitlesEnabled }) => ({ volume, muted, speed, subtitlesEnabled }))
+    const { volume, muted, speed, subtitlesEnabled, theater } = usePlayerStore(
+        useShallow(({ volume, muted, speed, subtitlesEnabled, theater }) => ({
+            volume,
+            muted,
+            speed,
+            subtitlesEnabled,
+            theater,
+        }))
     );
     const saver = useProgressSaver(video);
     const [unplayable, setUnplayable] = useState(false);
@@ -119,6 +130,8 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
                 return show(usePlayerStore.getState().subtitlesEnabled ? "Subtitles on" : "Subtitles off");
             case "fullscreen":
                 return fullscreen.toggle();
+            case "theater":
+                return playerPreferences.toggleTheater();
             case "close":
                 if (document.fullscreenElement) {
                     return void document.exitFullscreen();
@@ -137,7 +150,7 @@ export function VideoStage({ path, video, cues, onEnded, onClose }: VideoStagePr
             onMouseMove={reveal}
             className={cx(
                 "relative flex items-center justify-center overflow-hidden bg-backdrop",
-                fullscreen.isFullscreen ? "size-full" : "aspect-video max-h-[70vh] w-full",
+                fullscreen.isFullscreen ? "size-full" : cx("aspect-video w-full", stageHeight(theater)),
                 !visible && "cursor-none"
             )}
         >

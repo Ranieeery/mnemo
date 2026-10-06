@@ -1,4 +1,4 @@
-import { Circle, CircleCheck, Ellipsis, Tag, TagsIcon } from "lucide-react";
+import { Circle, CircleCheck, Ellipsis, Info, Tag, TagsIcon } from "lucide-react";
 import { Fragment, type ReactElement, type ReactNode, useState } from "react";
 import type { FolderSummary } from "../../../shared/ipc/bindings";
 import {
@@ -29,7 +29,7 @@ type ActionItem = {
 };
 
 /** Folder actions with their availability; everything is disabled until the counts are known. */
-export function folderActionItems(summary: FolderSummary | undefined): ActionItem[] {
+function folderActionItems(summary: FolderSummary | undefined): ActionItem[] {
     const total = summary?.totalVideos ?? 0;
     const watched = summary?.watchedVideos ?? 0;
     return [
@@ -49,6 +49,7 @@ export function folderActionItems(summary: FolderSummary | undefined): ActionIte
             tone: "danger",
             disabled: (summary?.taggedVideos ?? 0) === 0,
         },
+        { action: "properties", label: "Properties", icon: <Info />, disabled: !summary, separatorBefore: true },
     ];
 }
 

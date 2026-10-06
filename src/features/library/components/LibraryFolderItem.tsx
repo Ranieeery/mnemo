@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Folder, RefreshCw, Smile, Trash2 } from "lucide-react";
+import { Palette, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { cx } from "../../../shared/lib/cx";
@@ -12,6 +12,7 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
     ContextMenuTrigger,
+    FolderIcon,
     Spinner,
 } from "../../../shared/ui";
 import { useRemoveLibraryFolder } from "../queries";
@@ -47,9 +48,7 @@ export function LibraryFolderItem({ folder, currentPath }: LibraryFolderItemProp
                                 : "text-text-muted hover:bg-surface-hover hover:text-text"
                         )}
                     >
-                        <span className="flex size-5 shrink-0 items-center justify-center text-lead" aria-hidden>
-                            {folder.customIcon ?? <Folder className="size-4" />}
-                        </span>
+                        <FolderIcon name={folder.customIcon} />
                         <span className="min-w-0 flex-1 truncate" title={folder.path}>
                             {folder.name}
                         </span>
@@ -63,7 +62,7 @@ export function LibraryFolderItem({ folder, currentPath }: LibraryFolderItemProp
                     >
                         Sync folder
                     </ContextMenuItem>
-                    <ContextMenuItem icon={<Smile />} onSelect={() => setIconOpen(true)}>
+                    <ContextMenuItem icon={<Palette />} onSelect={() => setIconOpen(true)}>
                         Change icon
                     </ContextMenuItem>
                     <ContextMenuSeparator />

@@ -13,6 +13,9 @@ type SliderProps = {
     label: string;
     /** Human-readable value for screen readers, e.g. "40%". */
     valueText?: string;
+    /** `compact` is a thinner track with a smaller thumb, for secondary controls like volume. */
+    size?: "regular" | "compact";
+    /** Must set the width (e.g. `w-full`, `w-48`): the slider has no intrinsic size. */
     className?: string;
 };
 
@@ -25,8 +28,10 @@ export function Slider({
     step = 1,
     label,
     valueText,
+    size = "regular",
     className,
 }: SliderProps) {
+    const compact = size === "compact";
     return (
         <Primitive.Root
             value={[value]}
@@ -35,15 +40,20 @@ export function Slider({
             min={min}
             max={max}
             step={step}
-            className={cx("relative flex h-5 w-full touch-none select-none items-center", className)}
+            className={cx("relative flex h-5 touch-none select-none items-center", className)}
         >
-            <Primitive.Track className="relative h-1 grow overflow-hidden rounded-full bg-surface-hover">
+            <Primitive.Track
+                className={cx("relative grow overflow-hidden rounded-full bg-surface-hover", compact ? "h-0.5" : "h-1")}
+            >
                 <Primitive.Range className="absolute h-full bg-accent" />
             </Primitive.Track>
             <Primitive.Thumb
                 aria-label={label}
                 aria-valuetext={valueText}
-                className="block size-3.5 rounded-full bg-text shadow-raised transition-transform duration-(--duration-fast) ease-standard hover:scale-110"
+                className={cx(
+                    "block rounded-full bg-text shadow-raised transition-transform duration-(--duration-fast) ease-standard hover:scale-110",
+                    compact ? "size-3" : "size-3.5"
+                )}
             />
         </Primitive.Root>
     );

@@ -8,8 +8,9 @@ function isVideo(value: object): value is Video {
  * Returns `data` with every copy of the video `updated.id` replaced, whatever the shape of the cached query (lists,
  * home sections, folder groups, search entries). Untouched branches keep their identity so React can skip them.
  */
-export function replaceVideo<T>(data: T, updated: Video): T {
-    return replaceIn(data, updated) as T;
+export function replaceVideo<T>(data: T, updated: Video): T;
+export function replaceVideo(data: unknown, updated: Video): unknown {
+    return replaceIn(data, updated);
 }
 
 function replaceIn(value: unknown, updated: Video): unknown {

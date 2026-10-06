@@ -27,6 +27,13 @@ describe("app shell", () => {
         expect(await screen.findByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument();
     });
 
+    it("goes home from the logo", async () => {
+        const { user } = renderApp("/");
+        await openSeries(user);
+        await user.click(screen.getByRole("link", { name: "Mnemo, go to home" }));
+        expect(await screen.findByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument();
+    });
+
     it("navigates with the mouse side buttons", async () => {
         const { user } = renderApp("/");
         await openSeries(user);

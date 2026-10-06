@@ -27,7 +27,7 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
                 aria-label={video?.isWatched ? `${title}, watched` : title}
                 className={cx(
                     "group flex w-full min-w-0 flex-col gap-2 rounded-card text-left",
-                    "transition-transform duration-(--duration-fast) ease-standard active:scale-[0.99]",
+                    "transition-transform duration-(--duration-fast) ease-standard active:scale-99",
                     className
                 )}
             >
@@ -36,7 +36,7 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
                     durationSeconds={video?.durationSeconds}
                     progress={video ? watchedFraction(video) : 0}
                     watched={video?.isWatched}
-                    className="transition-shadow duration-(--duration-fast) ease-standard group-hover:shadow-overlay"
+                    className="w-full transition-shadow duration-(--duration-fast) ease-standard group-hover:shadow-overlay"
                 />
                 <div className="flex min-w-0 flex-col gap-0.5 px-0.5">
                     <span

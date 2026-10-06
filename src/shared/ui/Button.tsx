@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { cx } from "../lib/cx";
 import { Spinner } from "./Spinner";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "success";
 export type ButtonSize = "sm" | "md";
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -10,6 +10,7 @@ const variantClasses: Record<ButtonVariant, string> = {
     secondary: "bg-surface-raised text-text hover:bg-surface-hover border border-border",
     ghost: "text-text-muted hover:bg-surface-hover hover:text-text",
     danger: "bg-danger text-danger-foreground hover:bg-danger-hover",
+    success: "bg-success text-success-foreground hover:bg-success/85",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

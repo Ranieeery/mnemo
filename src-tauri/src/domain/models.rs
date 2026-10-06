@@ -144,18 +144,10 @@ pub struct LibraryStats {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct TableCount {
-    pub name: String,
-    pub rows: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct DatabaseInfo {
     pub path: String,
     pub size_bytes: i64,
     pub schema_version: i64,
-    pub tables: Vec<TableCount>,
 }
 
 /// User-adjustable settings.

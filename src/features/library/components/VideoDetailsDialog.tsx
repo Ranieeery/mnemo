@@ -5,7 +5,7 @@ import { call, errorMessage } from "../../../shared/ipc/client";
 import { queryKeys } from "../../../shared/ipc/queryKeys";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { Button, Dialog, Input, Textarea, toast } from "../../../shared/ui";
-import { replaceVideo, watchedFraction } from "../../../shared/video";
+import { replaceVideo } from "../../../shared/video";
 
 type VideoDetailsDialogProps = {
     video: Video;
@@ -46,7 +46,6 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
     const [description, setDescription] = useState(video.description);
     const changed = title !== video.title || description !== video.description;
     const titleError = title.trim() ? undefined : "The title cannot be empty.";
-    const percent = Math.round(watchedFraction(video) * 100);
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -96,9 +95,7 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
                 {tagsEditor}
                 <dl className="grid grid-cols-2 gap-4 rounded-card bg-surface p-4">
                     <Detail label="Duration">{formatDuration(video.durationSeconds)}</Detail>
-                    <Detail label="Status">
-                        {video.isWatched ? "Watched" : percent > 0 ? `${percent}% watched` : "Not started"}
-                    </Detail>
+                    <Detail label="Status">{video.isWatched ? "Watched" : "Not watched"}</Detail>
                     <div className="col-span-2">
                         <Detail label="File">{video.filePath}</Detail>
                     </div>

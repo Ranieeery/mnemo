@@ -1,9 +1,9 @@
-import { Folder, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
 import { processFolder } from "../../../shared/stores/processing";
-import { Card, ConfirmDialog, IconButton, Skeleton } from "../../../shared/ui";
+import { Card, ConfirmDialog, FolderIcon, IconButton, Skeleton } from "../../../shared/ui";
 import { useRemoveLibraryFolder } from "../queries";
 import { AddFolderButton } from "./LibraryNav";
 
@@ -29,9 +29,7 @@ export function LibraryFoldersPanel() {
                 <ul className="divide-y divide-border border-t border-border">
                     {folders.data.map((folder) => (
                         <li key={folder.id} className="flex items-center gap-3 px-5 py-3">
-                            <span aria-hidden className="flex size-6 shrink-0 items-center justify-center text-lead">
-                                {folder.customIcon ?? <Folder className="size-4 text-text-muted" />}
-                            </span>
+                            <FolderIcon name={folder.customIcon} className="size-5 text-text-muted" />
                             <div className="flex min-w-0 flex-1 flex-col">
                                 <span className="truncate text-body text-text">{folder.name}</span>
                                 <span className="truncate text-small text-text-subtle" title={folder.path}>

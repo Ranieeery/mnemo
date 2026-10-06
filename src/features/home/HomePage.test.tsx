@@ -14,7 +14,7 @@ function renderHome() {
 
 describe("HomePage", () => {
     it("shows each section and a preview per library folder", async () => {
-        const folder = libraryFolderFixture({ customIcon: "🎬" });
+        const folder = libraryFolderFixture({ customIcon: "film" });
         mockCommands({
             list_library_folders: [folder],
             get_home: {
@@ -31,7 +31,7 @@ describe("HomePage", () => {
         expect(screen.getByRole("heading", { name: "Recently watched" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Halfway there" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Seen it, watched" })).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: /Videos/ })).toHaveTextContent("🎬");
+        expect(screen.getByRole("link", { name: /Videos/ }).querySelector("svg")).toHaveClass("lucide-film");
         expect(screen.getByRole("button", { name: "From the folder" })).toBeInTheDocument();
     });
 

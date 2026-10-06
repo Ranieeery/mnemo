@@ -52,7 +52,7 @@ export function ControlsSection() {
             <div className="grid max-w-3xl gap-6 md:grid-cols-2">
                 <Input label="Title" defaultValue="Pilot" />
                 <Input label="Tag" placeholder="anime" hint="Tags are saved in lowercase." />
-                <Input label="Folder icon" defaultValue="🎬🎬" error="Use a single emoji." />
+                <Input label="Title" defaultValue="" error="The title cannot be empty." />
                 <Input label="Disabled" defaultValue="Read only" disabled />
             </div>
 
@@ -67,7 +67,13 @@ export function ControlsSection() {
 
             <div className="grid max-w-3xl gap-6 md:grid-cols-2">
                 <Specimen label={`Slider: volume ${volume}%`}>
-                    <Slider label="Volume" value={volume} onValueChange={setVolume} valueText={`${volume}%`} />
+                    <Slider
+                        label="Volume"
+                        value={volume}
+                        onValueChange={setVolume}
+                        valueText={`${volume}%`}
+                        className="w-full"
+                    />
                 </Specimen>
                 <Specimen label={`Slider with steps: ${threshold}%`}>
                     <Slider
@@ -78,6 +84,7 @@ export function ControlsSection() {
                         max={100}
                         step={5}
                         valueText={`${threshold}%`}
+                        className="w-full"
                     />
                 </Specimen>
             </div>

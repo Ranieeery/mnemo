@@ -46,6 +46,8 @@ export const commands = {
 	/**  Clears the watch status of every video (tags are kept). Returns how many changed. */
 	resetAllWatchStatus: () => typedError<number, IpcError>(__TAURI_INVOKE("reset_all_watch_status")),
 	listTags: () => typedError<TagWithUsage[], IpcError>(__TAURI_INVOKE("list_tags")),
+	/**  Creates an unused tag (normalized). Fails with `invalidInput` when the name is empty or taken. */
+	createTag: (name: string) => typedError<Tag, IpcError>(__TAURI_INVOKE("create_tag", { name })),
 	getVideoTags: (videoId: number) => typedError<Tag[], IpcError>(__TAURI_INVOKE("get_video_tags", { videoId })),
 	/**  Adds a tag (normalized, created on demand) and returns the video's tags. */
 	addTagToVideo: (videoId: number, name: string) => typedError<Tag[], IpcError>(__TAURI_INVOKE("add_tag_to_video", { videoId, name })),
@@ -111,7 +113,6 @@ export type DatabaseInfo = {
 	path: string,
 	sizeBytes: number,
 	schemaVersion: number,
-	tables: TableCount[],
 };
 
 export type ErrorKind = "database" | "io" | "notFound" | "invalidInput" | "mediaToolMissing" | "mediaProcessFailed" | "timeout" | "importFormat" | "cancelled" | "internal";
@@ -238,11 +239,6 @@ export type SubtitleFile = {
 };
 
 export type SubtitleFormat = "srt" | "vtt" | "sub" | "ass";
-
-export type TableCount = {
-	name: string,
-	rows: number,
-};
 
 export type Tag = {
 	id: number,

@@ -33,6 +33,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             videos::set_folder_watched,
             videos::reset_all_watch_status,
             tags::list_tags,
+            tags::create_tag,
             tags::get_video_tags,
             tags::add_tag_to_video,
             tags::remove_tag_from_video,

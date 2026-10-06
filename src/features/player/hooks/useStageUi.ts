@@ -33,7 +33,7 @@ export function useAutoHide(playing: boolean) {
     return { visible, reveal };
 }
 
-export type Flash = { id: number; label: string };
+type Flash = { id: number; label: string };
 
 /** A short message in the middle of the video confirming what a key did ("+10s", "Volume 40%", "1.5×"). */
 export function useFlash() {

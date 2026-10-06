@@ -4,7 +4,7 @@ import type { ErrorKind } from "../ipc/bindings";
 type Args = Record<string, unknown>;
 type Handler = (args: Args) => unknown;
 
-export type CommandCall = { command: string; args: Args };
+type CommandCall = { command: string; args: Args };
 
 function isArgs(value: unknown): value is Args {
     return typeof value === "object" && value !== null;

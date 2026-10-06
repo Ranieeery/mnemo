@@ -3,6 +3,7 @@ import {
     Minimize,
     Pause,
     Play,
+    RectangleHorizontal,
     RotateCcw,
     RotateCw,
     Subtitles,
@@ -46,8 +47,14 @@ export function PlayerControls({
     onToggleFullscreen,
     visible,
 }: PlayerControlsProps) {
-    const { volume, muted, speed, subtitlesEnabled } = usePlayerStore(
-        useShallow(({ volume, muted, speed, subtitlesEnabled }) => ({ volume, muted, speed, subtitlesEnabled }))
+    const { volume, muted, speed, subtitlesEnabled, theater } = usePlayerStore(
+        useShallow(({ volume, muted, speed, subtitlesEnabled, theater }) => ({
+            volume,
+            muted,
+            speed,
+            subtitlesEnabled,
+            theater,
+        }))
     );
     const audible = muted ? 0 : volume;
     const VolumeIcon = audible === 0 ? VolumeX : audible < 0.5 ? Volume1 : Volume2;
@@ -67,6 +74,7 @@ export function PlayerControls({
                 step={1}
                 onValueChange={playback.seekTo}
                 valueText={`${formatDuration(playback.currentTime)} of ${formatDuration(playback.duration)}`}
+                className="w-full"
             />
             <div className="flex items-center gap-1">
                 <IconButton
@@ -91,20 +99,33 @@ export function PlayerControls({
                     variant="overlay"
                     onClick={() => playback.seekBy(10)}
                 />
-                <IconButton
-                    label={muted ? "Unmute" : "Mute"}
-                    shortcut="M"
-                    icon={<VolumeIcon />}
-                    variant="overlay"
-                    onClick={playerPreferences.toggleMute}
-                />
-                <Slider
-                    label="Volume"
-                    value={Math.round(audible * 100)}
-                    onValueChange={(value) => playerPreferences.setVolume(value / 100)}
-                    valueText={`${Math.round(audible * 100)}%`}
-                    className="w-24"
-                />
+                {/* Like YouTube: the volume slider slides out while the mute button is hovered or focused. */}
+                <div className="group/volume flex items-center">
+                    <IconButton
+                        label={muted ? "Unmute" : "Mute"}
+                        shortcut="M"
+                        icon={<VolumeIcon />}
+                        variant="overlay"
+                        onClick={playerPreferences.toggleMute}
+                    />
+                    {/* No overflow clipping, so the thumb sits at the ends exactly like the seek bar's. */}
+                    <div
+                        className={cx(
+                            "invisible w-0 opacity-0 transition-[width,opacity] duration-(--duration-base) ease-standard",
+                            "group-hover/volume:visible group-hover/volume:w-20 group-hover/volume:px-1 group-hover/volume:opacity-100",
+                            "group-focus-within/volume:visible group-focus-within/volume:w-20 group-focus-within/volume:px-1 group-focus-within/volume:opacity-100"
+                        )}
+                    >
+                        <Slider
+                            label="Volume"
+                            size="compact"
+                            value={Math.round(audible * 100)}
+                            onValueChange={(value) => playerPreferences.setVolume(value / 100)}
+                            valueText={`${Math.round(audible * 100)}%`}
+                            className="w-full"
+                        />
+                    </div>
+                </div>
                 <span className="ml-3 text-small text-text tabular-nums">
                     {formatDuration(playback.currentTime)} / {formatDuration(playback.duration)}
                 </span>
@@ -145,6 +166,18 @@ export function PlayerControls({
                             </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    {/* Like YouTube, theater mode is a page layout, so it has no meaning in full screen. */}
+                    {!isFullscreen && (
+                        <IconButton
+                            label="Theater mode"
+                            shortcut="T"
+                            icon={<RectangleHorizontal />}
+                            variant="overlay"
+                            pressed={theater}
+                            className={cx(theater && "bg-surface-hover/60")}
+                            onClick={playerPreferences.toggleTheater}
+                        />
+                    )}
                     <IconButton
                         label={isFullscreen ? "Exit full screen" : "Full screen"}
                         shortcut="F"

@@ -37,6 +37,15 @@ describe("TagManager", () => {
         expect(callsOf(calls, "remove_tag_from_all_videos")).toEqual([{ tagId: 1 }]);
     });
 
+    it("creates a tag from Settings", async () => {
+        const calls = mockCommands({ list_tags: [], create_tag: { id: 3, name: "documentary" } });
+        const { user } = renderScreen(<TagManager />);
+        await user.type(await screen.findByRole("textbox", { name: "New tag" }), "Documentary{Enter}");
+        expect(await screen.findByText('Created tag "documentary"')).toBeInTheDocument();
+        expect(callsOf(calls, "create_tag")).toEqual([{ name: "Documentary" }]);
+        expect(screen.getByRole("textbox", { name: "New tag" })).toHaveValue("");
+    });
+
     it("guides the user when there are no tags", async () => {
         mockCommands({ list_tags: [] });
         renderScreen(<TagManager />);

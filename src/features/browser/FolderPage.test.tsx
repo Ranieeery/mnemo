@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { FolderContents } from "../../shared/ipc/bindings";
 import { entryFixture, folderContentsFixture, libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
@@ -109,6 +109,21 @@ describe("FolderPage", () => {
 
         expect(await screen.findByText("Marked 7 videos as watched")).toBeInTheDocument();
         expect(callsOf(calls, "set_folder_watched")).toEqual([{ path: SHOW, watched: true }]);
+    });
+
+    it("opens the folder menu on right-click and shows the folder properties", async () => {
+        // Regression: the subfolder card did not pass the context menu's handlers on, so right-click did nothing.
+        mockFolder(contents());
+        renderScreen(<FolderPage path={SHOW} />);
+
+        fireEvent.contextMenu(await screen.findByRole("link", { name: /Season 2/ }));
+        expect(await screen.findByRole("menuitem", { name: "Mark all as watched" })).toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: "Add tag to all videos" })).toBeInTheDocument();
+        fireEvent.click(await screen.findByRole("menuitem", { name: "Properties" }));
+
+        const dialog = await screen.findByRole("dialog", { name: "Season 2" });
+        expect(dialog).toHaveTextContent(`${SHOW}\\Season 2`);
+        expect(within(dialog).getByRole("button", { name: "Show in file manager" })).toBeInTheDocument();
     });
 
     it("adds a tag to every video of the folder", async () => {

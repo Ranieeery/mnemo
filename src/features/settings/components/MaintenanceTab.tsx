@@ -25,7 +25,7 @@ function DatabaseInfoCard() {
             />
         );
     }
-    const { path, sizeBytes, schemaVersion, tables } = info.data;
+    const { path, sizeBytes, schemaVersion } = info.data;
     return (
         <Card className="flex flex-col gap-4 p-5">
             <h3 className="text-body font-medium text-text">Database</h3>
@@ -36,12 +36,6 @@ function DatabaseInfoCard() {
                 <dd className="text-text tabular-nums">{formatBytes(sizeBytes)}</dd>
                 <dt className="text-text-muted">Schema version</dt>
                 <dd className="text-text tabular-nums">{schemaVersion}</dd>
-                {tables.map((table) => (
-                    <div key={table.name} className="contents">
-                        <dt className="text-text-muted">{table.name}</dt>
-                        <dd className="text-text tabular-nums">{table.rows} rows</dd>
-                    </div>
-                ))}
             </dl>
         </Card>
     );

@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { Circle, CircleCheck, ExternalLink, FolderOpen, PencilLine } from "lucide-react";
+import { Circle, CircleCheckBig, ExternalLink, FolderOpen, PencilLine } from "lucide-react";
 import type { Video } from "../../../shared/ipc/bindings";
+import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { baseName, parentPath } from "../../../shared/lib/paths";
 import { openVideoDetails } from "../../../shared/stores/dialogs";
 import { Badge, Button, IconButton } from "../../../shared/ui";
-import { openInDefaultPlayer, showInFileManager, useSetWatched, watchedFraction } from "../../../shared/video";
+import { openInDefaultPlayer, showInFileManager, useSetWatched } from "../../../shared/video";
 
 type VideoInfoProps = {
     path: string;
@@ -16,7 +17,6 @@ type VideoInfoProps = {
 export function VideoInfo({ path, title, video }: VideoInfoProps) {
     const setWatched = useSetWatched();
     const folder = parentPath(path);
-    const percent = video ? Math.round(watchedFraction(video) * 100) : 0;
 
     return (
         <section className="flex flex-col gap-4 px-6 py-5">
@@ -35,17 +35,34 @@ export function VideoInfo({ path, title, video }: VideoInfoProps) {
                             <span className="tabular-nums">{formatDuration(video.durationSeconds)}</span>
                         )}
                         {video?.isWatched && <Badge tone="success">Watched</Badge>}
-                        {video && !video.isWatched && percent > 0 && <Badge>{percent}% watched</Badge>}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     {video && (
                         <>
+                            {/* A toggle: green with a check when watched, neutral with an empty circle when not. */}
                             <Button
-                                icon={video.isWatched ? <Circle /> : <CircleCheck />}
+                                variant={video.isWatched ? "success" : "secondary"}
+                                icon={video.isWatched ? <CircleCheckBig /> : <Circle />}
+                                aria-pressed={video.isWatched}
+                                title={video.isWatched ? "Mark as unwatched" : undefined}
                                 onClick={() => setWatched.mutate({ video, watched: !video.isWatched })}
                             >
-                                {video.isWatched ? "Mark as unwatched" : "Mark as watched"}
+                                {/* Both labels share one grid cell, so the button keeps the width of the longer one. */}
+                                <span className="grid">
+                                    <span
+                                        aria-hidden={!video.isWatched}
+                                        className={cx("col-start-1 row-start-1", !video.isWatched && "invisible")}
+                                    >
+                                        Watched
+                                    </span>
+                                    <span
+                                        aria-hidden={video.isWatched}
+                                        className={cx("col-start-1 row-start-1", video.isWatched && "invisible")}
+                                    >
+                                        Mark as watched
+                                    </span>
+                                </span>
                             </Button>
                             <Button icon={<PencilLine />} onClick={() => openVideoDetails(video)}>
                                 Details and tags

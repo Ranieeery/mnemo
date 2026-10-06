@@ -11,6 +11,12 @@ pub async fn for_video(db: &Db, video_id: i64) -> AppResult<Vec<Tag>> {
     db.call(move |connection| tags::for_video(connection, video_id)).await
 }
 
+/// Creates a tag without assigning it, so it can be picked later.
+pub async fn create(db: &Db, name: String) -> AppResult<Tag> {
+    let name = normalize_tag_name(&name)?;
+    db.call(move |connection| tags::create(connection, &name)).await
+}
+
 /// Adds a tag (created on demand) to a video and returns the video's tags.
 pub async fn add_to_video(db: &Db, video_id: i64, name: String) -> AppResult<Vec<Tag>> {
     let name = normalize_tag_name(&name)?;

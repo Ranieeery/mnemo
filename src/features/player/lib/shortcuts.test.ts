@@ -20,6 +20,7 @@ describe("commandForKey", () => {
         ["]", { type: "speed", by: 0.25 }],
         ["Backspace", { type: "resetSpeed" }],
         ["f", { type: "fullscreen" }],
+        ["t", { type: "theater" }],
         ["m", { type: "mute" }],
         ["c", { type: "subtitles" }],
         ["Escape", { type: "close" }],

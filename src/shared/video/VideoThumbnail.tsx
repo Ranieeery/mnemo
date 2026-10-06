@@ -13,7 +13,10 @@ type VideoThumbnailProps = {
     className?: string;
 };
 
-/** 16:9 thumbnail with fixed dimensions (no layout shift), lazy loading and a placeholder when missing. */
+/**
+ * 16:9 thumbnail with fixed dimensions (no layout shift), lazy loading and a placeholder when missing. The caller sets
+ * the width through `className` (`w-full` in grids).
+ */
 export function VideoThumbnail({
     thumbnailPath,
     durationSeconds,
@@ -26,7 +29,7 @@ export function VideoThumbnail({
     const inProgress = !watched && progress > 0 && progress < 1;
 
     return (
-        <div className={cx("relative aspect-video w-full overflow-hidden rounded-card bg-surface-raised", className)}>
+        <div className={cx("relative aspect-video overflow-hidden rounded-card bg-surface-raised", className)}>
             {showImage ? (
                 <img
                     src={convertFileSrc(thumbnailPath)}

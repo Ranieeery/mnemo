@@ -4,7 +4,7 @@ import { Button, Dialog } from "../../../shared/ui";
 import { entryTitle } from "../../../shared/video";
 
 /** Seconds before the next video starts on its own. */
-export const NEXT_VIDEO_COUNTDOWN = 5;
+const NEXT_VIDEO_COUNTDOWN = 5;
 
 type NextVideoDialogProps = {
     next: VideoEntry;
