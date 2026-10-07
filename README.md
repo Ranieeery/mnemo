@@ -5,7 +5,7 @@
 <h1 align="center">Mnemo: Local Video Library</h1>
 
 <p align="center">
-  <strong>Version 2.2.0</strong> - Desktop application for managing and watching your local video collection
+  <strong>Version 2.3.0</strong> - Desktop application for managing and watching your local video collection
 </p>
 
 <p align="center">
