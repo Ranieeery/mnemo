@@ -28,6 +28,14 @@ describe("app shell", () => {
         expect(await screen.findByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument();
     });
 
+    it("never opens the webview's own right-click menu, except in text fields", async () => {
+        renderApp("/");
+        const heading = await screen.findByRole("heading", { name: "Home", level: 1 });
+        // `fireEvent` returns false when the default (the webview's menu) was prevented.
+        expect(fireEvent.contextMenu(heading)).toBe(false);
+        expect(fireEvent.contextMenu(screen.getByRole("searchbox"))).toBe(true);
+    });
+
     it("opens the watch history from the sidebar", async () => {
         const { user } = renderApp("/", {
             list_watch_history: { entries: [], nextCursor: null },

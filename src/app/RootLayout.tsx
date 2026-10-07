@@ -15,6 +15,7 @@ export function RootLayout() {
         <QueryClientProvider client={queryClient}>
             <TooltipProvider delayDuration={400} skipDelayDuration={200}>
                 <GlobalShortcuts />
+                <NoBrowserContextMenu />
                 <Outlet />
                 <DialogHost />
                 <Toaster />
@@ -45,6 +46,24 @@ function GlobalShortcuts() {
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
+    return null;
+}
+
+/**
+ * Right-click shows the app's own menus (videos, folders) and never the webview's (Back, Reload, Inspect), which
+ * would break out of the app. Text fields keep it for cut, copy and paste.
+ */
+function NoBrowserContextMenu() {
+    useEffect(() => {
+        const handleContextMenu = (event: MouseEvent) => {
+            if (!isTextEntry(event.target)) {
+                event.preventDefault();
+            }
+        };
+        window.addEventListener("contextmenu", handleContextMenu);
+        return () => window.removeEventListener("contextmenu", handleContextMenu);
     }, []);
 
     return null;

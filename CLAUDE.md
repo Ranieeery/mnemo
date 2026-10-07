@@ -283,6 +283,8 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 - Todo conteúdo assíncrono tem estado de carregamento (skeleton com o formato do conteúdo), vazio (com orientação do
   que fazer) e erro (com ação de recuperação).
 - Ações dão feedback (toast ou mudança visível). Confirmação apenas para ações destrutivas ou em massa.
+- O botão direito mostra só os menus do app (`ContextMenu`). O menu do webview (voltar, recarregar, inspecionar) fica
+  bloqueado em todo o app (`RootLayout`), exceto em campos de texto, para recortar, copiar e colar.
 - Navegação completa por teclado, foco sempre visível, contraste adequado, `aria-*` corretos.
 - Animações sutis e funcionais; nunca decorativas ou longas.
 - Visual profissional e intencional; o conteúdo (thumbnails) é o protagonista. Evitar estética genérica de IA
