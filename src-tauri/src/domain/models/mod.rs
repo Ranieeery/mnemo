@@ -9,6 +9,14 @@ use specta_typescript::Number;
 
 use super::folder_view::ResolvedViewMode;
 
+mod history;
+mod playback;
+mod processing;
+
+pub use history::*;
+pub use playback::*;
+pub use processing::*;
+
 /// A processed video as stored in the library.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -190,70 +198,6 @@ pub struct MediaToolsStatus {
     pub ffprobe: bool,
 }
 
-/// What a processing job did with the videos of its folder.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessingSummary {
-    /// New videos added to the library.
-    pub processed: i64,
-    /// Videos already in the library, or being read by another job.
-    pub skipped: i64,
-    pub failed: i64,
-}
-
-/// One folder being read in the background.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessingJob {
-    pub folder: String,
-    /// Still listing the folder's files; `total` is not known yet.
-    pub scanning: bool,
-    /// New videos to read.
-    pub total: i64,
-    /// Read so far, successfully or not.
-    pub done: i64,
-    pub failed: i64,
-}
-
-/// A video that could not be read.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct FileError {
-    pub path: String,
-    pub message: String,
-}
-
-/// Everything the processing pipeline is doing, sent to the frontend whenever it changes.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessingStatus {
-    /// In the order they run.
-    pub jobs: Vec<ProcessingJob>,
-    /// Paths of the files being read right now.
-    pub in_flight: Vec<String>,
-    /// Some job was cancelled and is waiting for its running files to stop.
-    pub cancelling: bool,
-    /// The most recent failures of the current run, newest last.
-    pub errors: Vec<FileError>,
-}
-
-/// How a job ended, sent once per job.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessingOutcome {
-    pub folder: String,
-    pub summary: ProcessingSummary,
-    pub cancelled: bool,
-    /// ffmpeg or ffprobe could not be run, so the job stopped.
-    pub missing_tool: bool,
-    /// The folder itself could not be read.
-    pub error: Option<String>,
-    /// The folder was removed from the library while it was being read; nothing to tell the user.
-    pub removed: bool,
-    /// Someone asked to be told how it went (a sync from the menu or Settings).
-    pub report: bool,
-}
-
 /// Progress of a recursive folder search.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -262,130 +206,10 @@ pub struct SearchProgress {
     pub current_folder: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SubtitleFormat {
-    Srt,
-    Vtt,
-    Sub,
-    Ass,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SubtitleFile {
-    pub format: SubtitleFormat,
-    pub content: String,
-}
-
-/// The audio and subtitle streams inside a video file, in file order.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MediaTracks {
-    pub audio: Vec<AudioTrack>,
-    pub subtitles: Vec<SubtitleTrack>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioTrack {
-    /// Position among the file's audio streams (ffmpeg's `0:a:<index>`).
-    pub index: i64,
-    /// ISO 639 code from the file, when it has one other than "undetermined".
-    pub language: Option<String>,
-    pub title: Option<String>,
-    pub codec: String,
-    pub channels: Option<i64>,
-    pub is_default: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SubtitleTrack {
-    /// Position among the file's subtitle streams (ffmpeg's `0:s:<index>`).
-    pub index: i64,
-    pub language: Option<String>,
-    pub title: Option<String>,
-    pub codec: String,
-    pub is_default: bool,
-    pub is_forced: bool,
-    /// Text subtitles can be extracted and shown; image ones (PGS, VobSub, DVB) cannot without OCR.
-    pub is_text: bool,
-}
-
-/// How the built-in player was left: kept between sessions and used for every video. Fields missing from a stored
-/// value take their default (see `db::settings::Player`), so fields can be added later without a migration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct PlayerPreferences {
-    /// From 0 (silent) to 1 (full).
-    #[specta(type = Number)]
-    pub volume: f64,
-    pub muted: bool,
-    #[specta(type = Number)]
-    pub speed: f64,
-    pub subtitles_enabled: bool,
-    pub theater: bool,
-    /// Width of the "Up next" column in pixels, set by dragging its edge; `None` lets it follow the window.
-    pub up_next_width: Option<i64>,
-}
-
-impl Default for PlayerPreferences {
-    fn default() -> Self {
-        Self {
-            volume: 1.0,
-            muted: false,
-            speed: 1.0,
-            subtitles_enabled: true,
-            theater: false,
-            up_next_width: None,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportSummary {
     pub folders: i64,
     pub videos: i64,
     pub tags: i64,
-}
-
-/// Where a page of the watch history ends; pass it back to get the next (older) page. `watched_at` is the stored
-/// timestamp, so treat the cursor as opaque.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoryCursor {
-    pub watched_at: String,
-    pub video_id: i64,
-}
-
-/// A video that became watched on a given day.
-#[derive(Debug, Clone, PartialEq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoryEntry {
-    pub video: Video,
-    /// Local date, `YYYY-MM-DD`.
-    pub day: String,
-    /// When it first became watched that day, ISO 8601 in UTC.
-    pub watched_at: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoryPage {
-    /// Newest first.
-    pub entries: Vec<HistoryEntry>,
-    pub next_cursor: Option<HistoryCursor>,
-}
-
-/// How much was watched on one local day: the videos that became watched and their total length.
-#[derive(Debug, Clone, PartialEq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DailyWatchTotal {
-    /// Local date, `YYYY-MM-DD`.
-    pub day: String,
-    pub videos: i64,
-    #[specta(type = Number)]
-    pub seconds: f64,
 }
