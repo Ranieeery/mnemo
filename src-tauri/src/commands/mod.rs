@@ -27,10 +27,13 @@ pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .events(collect_events![
             events::ProcessingStatusChanged,
-            events::ProcessingFinished
+            events::ProcessingFinished,
+            events::LibraryChanged,
+            events::LibraryFoldersChanged
         ])
         .commands(collect_commands![
             library::list_library_folders,
+            library::get_library_folder_statuses,
             library::add_library_folder,
             library::remove_library_folder,
             library::set_library_folder_icon,
@@ -83,6 +86,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             settings::get_database_info,
             settings::list_orphaned_videos,
             settings::clean_orphaned_videos,
+            settings::list_missing_videos,
+            settings::clean_missing_videos,
             system::open_externally,
             system::reveal_in_file_manager,
         ])

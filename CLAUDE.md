@@ -35,6 +35,7 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
 |---|---|
 | Shell desktop | Tauri 2 (Rust, edição 2024) |
 | Backend | Rust: `tokio` (+ `tokio-util` para `CancellationToken`), `serde`, `thiserror`, `tracing`, `rusqlite` (bundled) + `rusqlite_migration` |
+| Monitoramento de pastas | `notify-debouncer-full` (re-exporta `notify`) e `xxhash-rust` (xxh3, hash estável entre versões do Rust, para reconhecer arquivos renomeados ou movidos) |
 | Bindings IPC | `tauri-specta` 2 RC, versão fixada com `=` (tipos TypeScript e constantes gerados a partir do Rust) |
 | Plugins Tauri | `dialog` (seleção de pasta e de arquivo de backup). `tauri-plugin-opener` só como crate Rust (abrir no player externo / revelar), sem plugin nem permissão no webview |
 | Frontend | React 19 + TypeScript 7 (strict) + Vite 8 |
@@ -93,9 +94,10 @@ src-tauri/src/
 ├── state.rs            # AppState (banco, caminhos, processador em segundo plano, busca em andamento)
 ├── error.rs            # AppError (thiserror), serializado como { kind, message }
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
-├── services/           # regras: biblioteca e navegação, scanner, mídia (ffprobe/ffmpeg e pipeline), busca,
-│                       # visualização, tags, backup, manutenção, legendas, sistema, escopo de assets
-├── db/                 # conexão, migrations.rs e repositórios (videos, watch, orphans, tags, folders,
+├── services/           # regras: biblioteca e navegação, scanner, mídia (ffprobe/ffmpeg e pipeline), sync com o
+│                       # disco (watcher e reconciliação), busca, visualização, tags, backup, manutenção, legendas,
+│                       # sistema, escopo de assets
+├── db/                 # conexão, migrations.rs e repositórios (videos, presence, watch, orphans, tags, folders,
 │                       # settings, history, backup)
 └── domain/             # tipos e regras puras: extensões, limiar, ordem natural, faixas de pasta, modo de exibição
 
@@ -152,13 +154,15 @@ src/
 - `app_settings` é chave/valor em JSON com acesso tipado (`db/settings.rs`): cada setting implementa `Setting` (chave,
   tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
   `settings::set::<S>`. Valores ilegíveis viram o padrão (com log), nunca erro. Settings: `watched_threshold`,
+  `watch_folders`,
   `recent_folder_icons`, `player_preferences` (campos ausentes recebem o padrão; campos inválidos, um a um),
   `keyboard_shortcuts` (ações ausentes recebem o padrão; teclas inválidas são descartadas ação por ação),
   `subtitle_style`. A leitura toma cada campo salvo que ainda é válido para o tipo (`merge_onto_default`), então um
   campo ilegível volta ao padrão sem perder os outros.
 - **Migrações versionadas** (`rusqlite_migration`, em `db/migrations.rs`). A `1` é um baseline compatível com bancos
   das versões 1.x (adiciona colunas que versões antigas criavam depois); a `2` limpa órfãos, normaliza `is_watched`
-  gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`.
+  gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`; a `4` adiciona
+  a `videos` `file_size`, `fingerprint` e `missing_since` (vazios em bancos antigos).
   `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
@@ -166,7 +170,12 @@ src/
   cancela antes os jobs dela e das subpastas (`Processor::forget`, sem aviso ao usuário), e o escritor do pipeline só
   grava vídeos que, na mesma transação, ainda estão dentro de uma pasta da biblioteca. Adicionar uma pasta sempre
   força a leitura, mesmo que ela já tenha sido lida na sessão antes de ser removida.
-- Export/import JSON com `formatVersion` (atual: 2); o import aceita exports das versões 1.x e é atômico.
+- Vídeos cujo arquivo sumiu não são apagados: recebem `missing_since` (`db/presence.rs`) e somem da home, da busca, das
+  estatísticas e das contagens por pasta (o histórico continua mostrando). Voltam com todos os dados se o arquivo
+  reaparecer; os com mais de 30 dias são apagados ao iniciar, só abaixo de pastas acessíveis, e Settings → Maintenance
+  lista e limpa os sumidos.
+- Export/import JSON com `formatVersion` (atual: 2); o import aceita exports das versões 1.x e é atômico. Tamanho,
+  impressão digital e `missing_since` não vão no export (são refeitos a partir do disco).
 
 ## Mídia
 
@@ -187,6 +196,43 @@ src/
   `processingFinished` (um por job), declarados em `commands/events.rs`; `get_processing_status` dá o estado inicial.
 - A limpeza de órfãos também apaga thumbnails que nenhum vídeo usa, com mais de 1 h (deixadas por um processamento
   interrompido; as recentes podem ser de um vídeo prestes a ser gravado).
+
+## Sincronização com o disco
+
+- `services/sync` (`LibrarySync` no `AppState`): um único loop trata tudo em ordem, então duas comparações nunca
+  disputam o banco. Ele faz:
+  - a comparação de todas as pastas acessíveis ao iniciar (3 s após abrir a janela);
+  - os eventos do watcher;
+  - as pastas que voltaram a ficar acessíveis;
+  - as pastas em verificação periódica;
+  - os pedidos de `process_folders`, que compara a pasta antes de enfileirar os vídeos novos.
+- `reconcile.rs` compara o disco com o banco sob os caminhos pedidos:
+  - restaura sumidos que voltaram e marca sumidos os que desapareceram;
+  - grava o tamanho dos vídeos antigos;
+  - reconhece renomeados e movidos (inclusive entre pastas da biblioteca e com o app fechado) e devolve os arquivos
+    novos para o pipeline.
+- Um arquivo novo assume um vídeo que desapareceu ou está sumido quando tem o mesmo tamanho e a mesma impressão
+  digital (`identity.rs`: xxh3 do tamanho, dos primeiros e dos últimos 64 KiB). Para vídeo ainda sem impressão
+  digital, valem mesmo tamanho e mesmo nome de arquivo. O par só vale se for único nos dois sentidos: cópias
+  idênticas nunca são adivinhadas.
+- Segurança dos dados:
+  - nada é marcado sumido abaixo de uma pasta raiz inacessível ou de uma subpasta ilegível;
+  - a raiz é conferida de novo logo antes de gravar;
+  - arquivos novos que ainda crescem ou estão travados (em cópia) são adiados e conferidos de novo depois.
+- O pipeline grava tamanho e impressão digital dos vídeos novos. Os vídeos antigos recebem os dois depois da
+  comparação inicial, um arquivo por vez e só com o pipeline ocioso.
+- Watcher (`watch.rs`):
+  - `notify-debouncer-full`, recursivo por raiz, debounce de 2 s;
+  - renomeações viram pares (o Linux já os entrega; o Windows manda o nome antigo logo antes do novo; no macOS o
+    cache de ids de arquivo do debouncer faz o par, e só lá esse cache existe), e pastas renomeadas levam junto o
+    modo de exibição;
+  - eventos perdidos (`Rescan`) comparam a área inteira.
+- Disponibilidade: as raízes são conferidas a cada 10 s. O status de cada pasta (`FolderWatch`: `watching`, `polling`,
+  `off`, `unavailable`, com motivo) sai em `get_library_folder_statuses`. Uma pasta que não pode ser monitorada (limite
+  do inotify no Linux, alguns compartilhamentos de rede) passa a ser comparada a cada 10 min. Com o setting
+  `watch_folders` desligado, só há a comparação ao iniciar e no "Sync".
+- O frontend recebe os eventos `libraryChanged` (invalida `["library"]`, no máximo uma vez por segundo, em
+  `shared/ipc/followLibrary.ts`) e `libraryFoldersChanged` (invalida os status).
 
 ## Segurança
 
@@ -255,7 +301,8 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 ## Testes
 
 - **Rust:** testes nos serviços e repositórios (SQLite em memória, `tempfile`). O pipeline de mídia usa um
-  `MediaToolkit` falso; testes com ffmpeg real ou com uma cópia de banco real são `#[ignore]` (ver Comandos). No
+  `MediaToolkit` falso; o sync com o disco é testado de ponta a ponta com o watcher real sobre diretórios temporários,
+  com tempos curtos (`Timing`); testes com ffmpeg real ou com uma cópia de banco real são `#[ignore]` (ver Comandos). No
   Windows, `build.rs` embute o manifesto de Common Controls em todos os binários (sem ele, os executáveis de teste do
   Tauri falham com `STATUS_ENTRYPOINT_NOT_FOUND`).
 - **Frontend:** funções puras em `shared/lib` com cobertura completa; telas e hooks com Testing Library, mockando o
@@ -298,6 +345,12 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   seletor tem a aba "Suggested" (até 40: os 8 últimos usados, guardados em `app_settings`, e uma lista curada) e
   "All icons" (todos, com busca). Emojis salvos pela 1.x aparecem como o ícone padrão de pasta.
 - Estatísticas por pasta: total, assistidos e percentual de progresso.
+- A biblioteca acompanha o disco sozinha (ver "Sincronização com o disco"):
+  - vídeos novos são lidos;
+  - renomeados e movidos mantêm progresso, tags, título e histórico;
+  - apagados ficam sumidos por 30 dias.
+- Pasta desconectada (HD externo, rede offline): aparece com um ícone na sidebar, e a tela da pasta explica e oferece
+  "Try again". Os vídeos continuam na home e nada é perdido.
 
 ### Processamento de mídia
 - Metadados e thumbnail em segundo plano, vários arquivos em paralelo. A barra mostra as pastas, os arquivos em
@@ -392,6 +445,8 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   Valores salvos inválidos são reparados ação por ação. Os tooltips mostram a tecla configurada.
 
 ### Settings e manutenção
-- Estatísticas da biblioteca, pastas da biblioteca, sincronizar tudo, exportar/importar em JSON (com confirmação).
+- Estatísticas da biblioteca, pastas da biblioteca (com o status de cada uma: monitorada, verificada a cada 10 min e
+  por quê, ou desconectada), sincronizar tudo, exportar/importar em JSON (com confirmação).
+- "Watch folders for changes" (ligado por padrão).
 - Limiar de "assistido".
-- Informações do banco, vídeos órfãos e limpeza de órfãos, versão do app.
+- Informações do banco, vídeos sumidos e órfãos (lista e limpeza com confirmação), versão do app.

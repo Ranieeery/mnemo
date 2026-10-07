@@ -1,15 +1,17 @@
 import { RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
-import { useLibraryFolders } from "../../../shared/ipc/queries";
+import { useLibraryFolderStatuses, useLibraryFolders } from "../../../shared/ipc/queries";
 import { processFolder } from "../../../shared/stores/processing";
 import { Card, ConfirmDialog, FolderIcon, IconButton, Skeleton } from "../../../shared/ui";
 import { useRemoveLibraryFolder } from "../queries";
+import { FolderWatchStatus } from "./FolderWatchStatus";
 import { AddFolderButton } from "./LibraryNav";
 
 /** The library folders with their full paths, for Settings. */
 export function LibraryFoldersPanel() {
     const folders = useLibraryFolders();
+    const statuses = useLibraryFolderStatuses();
     const removeFolder = useRemoveLibraryFolder();
     const [removing, setRemoving] = useState<LibraryFolder | null>(null);
 
@@ -27,29 +29,33 @@ export function LibraryFoldersPanel() {
             {folders.isPending && <Skeleton className="mx-5 mb-4 h-10" />}
             {folders.data && folders.data.length > 0 && (
                 <ul className="divide-y divide-border border-t border-border">
-                    {folders.data.map((folder) => (
-                        <li key={folder.id} className="flex items-center gap-3 px-5 py-3">
-                            <FolderIcon name={folder.customIcon} className="size-5 text-text-muted" />
-                            <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-body text-text">{folder.name}</span>
-                                <span className="truncate text-small text-text-subtle" title={folder.path}>
-                                    {folder.path}
-                                </span>
-                            </div>
-                            <IconButton
-                                label={`Sync ${folder.name}`}
-                                icon={<RefreshCw />}
-                                size="sm"
-                                onClick={() => processFolder(folder.path, { force: true, report: true })}
-                            />
-                            <IconButton
-                                label={`Remove ${folder.name}`}
-                                icon={<Trash2 />}
-                                size="sm"
-                                onClick={() => setRemoving(folder)}
-                            />
-                        </li>
-                    ))}
+                    {folders.data.map((folder) => {
+                        const status = statuses.data?.find((candidate) => candidate.path === folder.path);
+                        return (
+                            <li key={folder.id} className="flex items-center gap-3 px-5 py-3">
+                                <FolderIcon name={folder.customIcon} className="size-5 text-text-muted" />
+                                <div className="flex min-w-0 flex-1 flex-col">
+                                    <span className="truncate text-body text-text">{folder.name}</span>
+                                    <span className="truncate text-small text-text-subtle" title={folder.path}>
+                                        {folder.path}
+                                    </span>
+                                    {status && <FolderWatchStatus status={status} />}
+                                </div>
+                                <IconButton
+                                    label={`Sync ${folder.name}`}
+                                    icon={<RefreshCw />}
+                                    size="sm"
+                                    onClick={() => processFolder(folder.path, { force: true, report: true })}
+                                />
+                                <IconButton
+                                    label={`Remove ${folder.name}`}
+                                    icon={<Trash2 />}
+                                    size="sm"
+                                    onClick={() => setRemoving(folder)}
+                                />
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
             <ConfirmDialog

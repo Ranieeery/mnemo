@@ -102,6 +102,18 @@ impl Setting for WatchedThreshold {
     }
 }
 
+/// Whether library folders are watched for changes.
+pub struct WatchFolders;
+
+impl Setting for WatchFolders {
+    const KEY: &'static str = "watch_folders";
+    type Value = bool;
+
+    fn default_value() -> bool {
+        true
+    }
+}
+
 /// Folder icons chosen most recently, newest first.
 pub struct RecentFolderIcons;
 
@@ -206,11 +218,13 @@ impl Setting for Subtitles {
 pub fn load(connection: &Connection) -> AppResult<AppSettings> {
     Ok(AppSettings {
         watched_threshold: get::<WatchedThreshold>(connection)?,
+        watch_folders: get::<WatchFolders>(connection)?,
     })
 }
 
 pub fn save(connection: &Connection, settings: &AppSettings) -> AppResult<()> {
     set::<WatchedThreshold>(connection, settings.watched_threshold)?;
+    set::<WatchFolders>(connection, settings.watch_folders)?;
     Ok(())
 }
 
@@ -253,10 +267,13 @@ mod tests {
             &connection,
             &AppSettings {
                 watched_threshold: 0.75,
+                watch_folders: false,
             },
         )
         .unwrap();
-        assert_eq!(load(&connection).unwrap().watched_threshold, 0.75);
+        let loaded = load(&connection).unwrap();
+        assert_eq!(loaded.watched_threshold, 0.75);
+        assert!(!loaded.watch_folders);
     }
 
     #[test]
@@ -302,7 +319,16 @@ mod tests {
     #[test]
     fn rejects_invalid_values_on_write() {
         let connection = test_support::connection();
-        assert!(save(&connection, &AppSettings { watched_threshold: 0.3 }).is_err());
+        assert!(
+            save(
+                &connection,
+                &AppSettings {
+                    watched_threshold: 0.3,
+                    watch_folders: true
+                }
+            )
+            .is_err()
+        );
         let loud = PlayerPreferences {
             volume: 1.5,
             ..PlayerPreferences::default()

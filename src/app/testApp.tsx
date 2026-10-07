@@ -17,6 +17,7 @@ export function renderApp(path = "/", extraCommands: Record<string, unknown> = {
         media_tools_status: { ffmpeg: true, ffprobe: true },
         process_folders: null,
         get_processing_status: { jobs: [], inFlight: [], cancelling: false, errors: [] },
+        get_library_folder_statuses: [],
         browse_folder: folderContentsFixture({ path: seriesFolder.path }),
         get_folder_summary: { totalVideos: 0, watchedVideos: 0, taggedVideos: 0 },
         ...extraCommands,

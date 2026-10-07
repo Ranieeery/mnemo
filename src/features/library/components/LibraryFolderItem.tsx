@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Palette, RefreshCw, Trash2 } from "lucide-react";
+import { Palette, RefreshCw, Trash2, Unplug } from "lucide-react";
 import { useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
+import { useLibraryFolderStatus } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { isWithin } from "../../../shared/lib/paths";
 import { processFolder, useProcessingStore } from "../../../shared/stores/processing";
@@ -30,6 +31,7 @@ export function LibraryFolderItem({ folder, currentPath }: LibraryFolderItemProp
     const processing = useProcessingStore((state) =>
         state.status.jobs.some((job) => isWithin(job.folder, folder.path))
     );
+    const unavailable = useLibraryFolderStatus(folder.path)?.watch === "unavailable";
     const [iconOpen, setIconOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
     const active = currentPath !== undefined && isWithin(currentPath, folder.path);
@@ -45,15 +47,20 @@ export function LibraryFolderItem({ folder, currentPath }: LibraryFolderItemProp
                         className={cx(
                             "flex h-9 items-center gap-2.5 rounded-control px-2.5 text-body",
                             "transition-colors duration-(--duration-fast) ease-standard",
-                            active
-                                ? "bg-surface-raised font-medium text-text"
-                                : "text-text-muted hover:bg-surface-hover hover:text-text"
+                            active && "bg-surface-raised font-medium text-text",
+                            !active && "hover:bg-surface-hover hover:text-text",
+                            !active && (unavailable ? "text-text-subtle" : "text-text-muted")
                         )}
                     >
                         <FolderIcon name={folder.customIcon} />
-                        <span className="min-w-0 flex-1 truncate" title={folder.path}>
+                        <span
+                            className="min-w-0 flex-1 truncate"
+                            title={unavailable ? `${folder.path} (not connected)` : folder.path}
+                        >
                             {folder.name}
+                            {unavailable && <span className="sr-only">, not connected</span>}
                         </span>
+                        {unavailable && <Unplug aria-hidden className="size-3.5 shrink-0 text-warning" />}
                         {processing && <Spinner label={`Reading videos in ${folder.name}`} className="size-3.5" />}
                     </Link>
                 </ContextMenuTrigger>

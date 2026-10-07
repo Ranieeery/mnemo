@@ -266,6 +266,27 @@ describe("FolderPage", () => {
         expect(screen.getByRole("link", { name: "Go to home" })).toBeInTheDocument();
     });
 
+    it("explains that an unplugged folder keeps its videos and retries", async () => {
+        let connected = false;
+        const calls = mockFolder(contents(), {
+            get_library_folder_statuses: [{ path: "D:\\Videos", watch: "unavailable", reason: null }],
+            browse_folder: () => {
+                if (!connected) {
+                    throw commandError("io", "D:\\Videos\\Show: The device is not ready.");
+                }
+                return contents();
+            },
+        });
+        const { user } = renderScreen(<FolderPage path={SHOW} />);
+
+        expect(await screen.findByRole("heading", { name: "This folder is not connected" })).toBeInTheDocument();
+        expect(screen.getByText(/Its videos, progress and tags are kept/)).toBeInTheDocument();
+        connected = true;
+        await user.click(screen.getByRole("button", { name: "Try again" }));
+        expect(await screen.findByRole("button", { name: "Trailer" })).toBeInTheDocument();
+        expect(callsOf(calls, "browse_folder").length).toBeGreaterThan(1);
+    });
+
     it("says so when the folder is empty", async () => {
         mockFolder(folderContentsFixture({ path: SHOW }));
         renderScreen(<OrderedFolderPage />);

@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, File } from "lucide-react";
+import { ArrowDown, File, Unplug } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { errorMessage, isErrorKind } from "../../../shared/ipc/client";
-import { useLibraryFolders, useMediaTools } from "../../../shared/ipc/queries";
+import { useLibraryFolderStatus, useLibraryFolders, useMediaTools } from "../../../shared/ipc/queries";
 import { baseName } from "../../../shared/lib/paths";
 import { plural } from "../../../shared/lib/plural";
 import { processFolder } from "../../../shared/stores/processing";
-import { Button, buttonClasses, ErrorState, Skeleton, scrollBehavior } from "../../../shared/ui";
+import { Button, buttonClasses, EmptyState, ErrorState, Skeleton, scrollBehavior } from "../../../shared/ui";
 import { VideoGridSkeleton } from "../../../shared/video";
 import { breadcrumbs } from "../lib/breadcrumbs";
 import { DEFAULT_ORDER, type VideoOrder } from "../lib/videoOrder";
@@ -29,6 +29,7 @@ type FolderPageProps = {
 
 export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange }: FolderPageProps) {
     const folders = useLibraryFolders();
+    const rootStatus = useLibraryFolderStatus(path);
     const contents = useFolderContents(path);
     const summary = useFolderSummary(path);
     const tools = useMediaTools();
@@ -87,6 +88,7 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
             {content ?? (
                 <FolderBody
                     contents={contents}
+                    unavailableRoot={rootStatus?.watch === "unavailable" ? rootStatus.path : null}
                     onFolderAction={actions.request}
                     order={order}
                     onShowAll={() => onOrderChange?.({ ...order, status: "all" })}
@@ -105,16 +107,28 @@ function jumpToOtherFiles() {
 
 type FolderBodyProps = {
     contents: ReturnType<typeof useFolderContents>;
+    /** The library folder holding this one, when it cannot be reached. */
+    unavailableRoot: string | null;
     onFolderAction: ReturnType<typeof useFolderActionDialogs>["request"];
     order: VideoOrder;
     onShowAll: () => void;
 };
 
-function FolderBody({ contents, onFolderAction, order, onShowAll }: FolderBodyProps) {
+function FolderBody({ contents, unavailableRoot, onFolderAction, order, onShowAll }: FolderBodyProps) {
     if (contents.isPending) {
         return <VideoGridSkeleton />;
     }
     if (contents.isError) {
+        if (unavailableRoot) {
+            return (
+                <EmptyState
+                    icon={Unplug}
+                    title="This folder is not connected"
+                    description={`The drive or network location of ${baseName(unavailableRoot)} cannot be reached. Its videos, progress and tags are kept; connect it and try again.`}
+                    action={<Button onClick={() => contents.refetch()}>Try again</Button>}
+                />
+            );
+        }
         const outsideLibrary = isErrorKind(contents.error, "invalidInput");
         return (
             <ErrorState

@@ -306,6 +306,7 @@ mod tests {
                             title: "Episode 2",
                             duration_seconds: 60.0,
                             thumbnail_path: None,
+                            identity: None,
                         },
                     )
                 })

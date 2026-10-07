@@ -56,9 +56,9 @@ pub struct LibraryTotals {
 pub fn library_totals(connection: &Connection, library_folders: &[String]) -> AppResult<LibraryTotals> {
     let (inside, values) = inside_any(library_folders);
     let sql = format!(
-        "SELECT COALESCE(SUM({inside}), 0),
-                COALESCE(SUM({inside} AND v.is_watched = 1), 0),
-                COALESCE(SUM(CASE WHEN {inside} THEN v.duration_seconds ELSE 0 END), 0),
+        "SELECT COALESCE(SUM({inside} AND v.missing_since IS NULL), 0),
+                COALESCE(SUM({inside} AND v.missing_since IS NULL AND v.is_watched = 1), 0),
+                COALESCE(SUM(CASE WHEN {inside} AND v.missing_since IS NULL THEN v.duration_seconds ELSE 0 END), 0),
                 COALESCE(SUM(NOT {inside}), 0)
          FROM videos v"
     );

@@ -386,7 +386,14 @@ mod tests {
             Some(crate::domain::folder_view::FolderViewMode::Continuous),
         )
         .unwrap();
-        settings::save(&source, &AppSettings { watched_threshold: 0.8 }).unwrap();
+        settings::save(
+            &source,
+            &AppSettings {
+                watched_threshold: 0.8,
+                watch_folders: true,
+            },
+        )
+        .unwrap();
         let exported = export(&source).unwrap();
         assert_eq!(exported.format_version, Some(FORMAT_VERSION));
         assert_eq!(exported.watch_history.len(), 1);

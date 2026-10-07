@@ -9,6 +9,7 @@ pub mod media;
 pub mod scanner;
 pub mod search;
 pub mod subtitles;
+pub mod sync;
 pub mod system;
 pub mod tags;
 pub mod watch;

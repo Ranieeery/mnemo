@@ -102,6 +102,26 @@ pub fn clear_view_modes_within(connection: &Connection, path: &str) -> AppResult
     Ok(())
 }
 
+/// Keeps the view mode settings of a folder and of everything inside it when the folder is renamed or moved.
+pub fn move_view_modes(connection: &Connection, from: &str, to: &str) -> AppResult<()> {
+    let source = FolderBounds::new(from);
+    let target = FolderBounds::new(to);
+    connection.execute(
+        "UPDATE OR IGNORE folder_settings
+         SET path = CASE WHEN path = ?1 THEN ?4 ELSE ?5 || substr(path, ?6) END
+         WHERE path = ?1 OR (path >= ?2 AND path < ?3)",
+        params![
+            from,
+            source.lower,
+            source.upper,
+            to,
+            target.lower,
+            source.prefix_chars() as i64 + 1
+        ],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,6 +165,17 @@ mod tests {
         set_view_mode(&connection, &module, Some(FolderViewMode::Folders)).unwrap();
         set_view_mode(&connection, &sibling, Some(FolderViewMode::Continuous)).unwrap();
         assert_eq!(view_modes(&connection).unwrap().len(), 3);
+
+        move_view_modes(&connection, &courses, &path(&["Lib", "Old courses"])).unwrap();
+        let moved: Vec<String> = view_modes(&connection)
+            .unwrap()
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect();
+        assert!(moved.contains(&path(&["Lib", "Old courses"])));
+        assert!(moved.contains(&path(&["Lib", "Old courses", "Module 1"])));
+        assert!(moved.contains(&sibling));
+        move_view_modes(&connection, &path(&["Lib", "Old courses"]), &courses).unwrap();
 
         set_view_mode(&connection, &sibling, None).unwrap();
         clear_view_modes_within(&connection, &courses).unwrap();

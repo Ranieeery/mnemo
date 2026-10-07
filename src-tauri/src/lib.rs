@@ -24,12 +24,18 @@ pub fn run() -> tauri::Result<()> {
         .setup(move |app| {
             bindings.mount_events(app);
             let handle = app.handle();
-            let state = AppState::initialize(handle, commands::events::processing_notifier(handle.clone()))?;
+            let state = AppState::initialize(
+                handle,
+                commands::events::processing_notifier(handle.clone()),
+                commands::events::sync_notifier(handle.clone()),
+            )?;
             let library_folders =
                 tauri::async_runtime::block_on(state.db.call(|connection| db::folders::paths(connection)))?;
             asset_scope::allow(handle, &state.paths.thumbnails)?;
             asset_scope::allow_all(handle, library_folders)?;
             tracing::info!(database = %state.paths.database.display(), "database ready");
+            let sync = state.sync.clone();
+            tauri::async_runtime::spawn(async move { sync.start() });
             app.manage(state);
             Ok(())
         })

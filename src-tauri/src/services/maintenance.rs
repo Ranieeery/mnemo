@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::db::{Db, folders, orphans, tags, videos};
+use crate::db::{Db, folders, orphans, presence, tags, videos};
 use crate::domain::models::{DatabaseInfo, LibraryStats, Video};
 use crate::error::AppResult;
 use crate::services::media::thumbnails;
@@ -44,6 +44,21 @@ pub async fn database_info(db: &Db, database_path: PathBuf) -> AppResult<Databas
 pub async fn orphaned_videos(db: &Db) -> AppResult<Vec<Video>> {
     db.call(|connection| orphans::orphans(connection, &folders::paths(connection)?))
         .await
+}
+
+/// Videos whose file disappeared from a library folder, longest missing first.
+pub async fn missing_videos(db: &Db) -> AppResult<Vec<Video>> {
+    db.call(|connection| presence::missing_videos(connection)).await
+}
+
+/// Deletes every missing video below the library folders, with its thumbnail. Returns how many were removed.
+pub async fn clean_missing_videos(db: &Db, thumbnails_dir: &Path) -> AppResult<i64> {
+    let (count, thumbnails) = db
+        .call(|connection| presence::delete_missing(connection, &folders::paths(connection)?, None))
+        .await?;
+    let thumbnails_dir = thumbnails_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &thumbnails)).await?;
+    Ok(count as i64)
 }
 
 /// Thumbnails younger than this are never cleaned up: their video may still be on its way to the database.
@@ -108,6 +123,7 @@ mod tests {
                         title: "v",
                         duration_seconds: 30.0,
                         thumbnail_path: thumbnail,
+                        identity: None,
                     },
                 )?;
             }
@@ -130,6 +146,39 @@ mod tests {
         let info = database_info(&db, thumbnails_dir.path().join("missing.db"))
             .await
             .unwrap();
-        assert_eq!(info.schema_version, 3);
+        assert_eq!(info.schema_version, 4);
+    }
+
+    #[tokio::test]
+    async fn missing_videos_are_listed_hidden_from_stats_and_cleaned_with_their_thumbnails() {
+        let db = Db::open_in_memory().unwrap();
+        let thumbnails_dir = tempfile::tempdir().unwrap();
+        let thumbnail = thumbnails_dir.path().join("gone.jpg");
+        std::fs::write(&thumbnail, b"").unwrap();
+        let thumbnail_text = thumbnail.to_string_lossy().into_owned();
+        db.call(move |connection| {
+            folders::add(connection, "Lib")?;
+            videos::tests::add_video(connection, &videos::tests::path(&["Lib", "kept.mkv"]), 30.0);
+            let gone = videos::insert(
+                connection,
+                &NewVideo {
+                    file_path: &videos::tests::path(&["Lib", "gone.mkv"]),
+                    title: "gone",
+                    duration_seconds: 30.0,
+                    thumbnail_path: Some(&thumbnail_text),
+                    identity: None,
+                },
+            )?;
+            presence::mark_missing(connection, gone.id)
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(library_stats(&db).await.unwrap().total_videos, 1);
+        assert_eq!(missing_videos(&db).await.unwrap().len(), 1);
+        assert_eq!(clean_missing_videos(&db, thumbnails_dir.path()).await.unwrap(), 1);
+        assert!(missing_videos(&db).await.unwrap().is_empty());
+        assert!(!thumbnail.exists());
+        assert_eq!(library_stats(&db).await.unwrap().total_videos, 1);
     }
 }

@@ -31,6 +31,8 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio = { version = "1.53.2", features = ["fs", "macros", "process", "rt", "sync", "time"] }
 tokio-util = "0.7"
+notify-debouncer-full = "0.7"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [lints.clippy]
 unwrap_used = "warn"

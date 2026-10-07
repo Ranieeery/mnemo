@@ -10,6 +10,7 @@ use tokio::time::Instant;
 use super::{FileError, Inner, worker};
 use crate::db::folders;
 use crate::db::videos::{self, NewVideo};
+use crate::domain::media::FileIdentity;
 use crate::services::library::ensure_in_library;
 use crate::services::media::MediaToolkit;
 
@@ -24,6 +25,7 @@ pub(super) struct Read {
     pub title: String,
     pub duration_seconds: f64,
     pub thumbnail_path: Option<String>,
+    pub identity: Option<FileIdentity>,
 }
 
 pub(super) async fn run<T: MediaToolkit + 'static>(inner: Arc<Inner<T>>, mut receiver: mpsc::UnboundedReceiver<Read>) {
@@ -43,7 +45,8 @@ pub(super) async fn run<T: MediaToolkit + 'static>(inner: Arc<Inner<T>>, mut rec
 /// Stores a batch and settles its files. Videos stored meanwhile by another job keep their record, and the thumbnail
 /// read again for them is deleted.
 async fn store<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, batch: Vec<Read>) {
-    let rows: Vec<(String, String, f64, Option<String>)> = batch
+    type Row = (String, String, f64, Option<String>, Option<FileIdentity>);
+    let rows: Vec<Row> = batch
         .iter()
         .map(|read| {
             (
@@ -51,6 +54,7 @@ async fn store<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, batch: Vec<Read
                 read.title.clone(),
                 read.duration_seconds,
                 read.thumbnail_path.clone(),
+                read.identity.clone(),
             )
         })
         .collect();
@@ -67,12 +71,15 @@ async fn store<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, batch: Vec<Read
                 .iter()
                 .zip(&inside)
                 .filter(|(_, inside)| **inside)
-                .map(|((file_path, title, duration_seconds, thumbnail_path), _)| NewVideo {
-                    file_path,
-                    title,
-                    duration_seconds: *duration_seconds,
-                    thumbnail_path: thumbnail_path.as_deref(),
-                })
+                .map(
+                    |((file_path, title, duration_seconds, thumbnail_path, identity), _)| NewVideo {
+                        file_path,
+                        title,
+                        duration_seconds: *duration_seconds,
+                        thumbnail_path: thumbnail_path.as_deref(),
+                        identity: identity.as_ref(),
+                    },
+                )
                 .collect();
             let mut inserted = videos::insert_batch(connection, &videos)?.into_iter();
             // Per read video: stored (`Some(true)`), already there (`Some(false)`) or outside the library (`None`).

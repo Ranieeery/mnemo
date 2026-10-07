@@ -8,6 +8,14 @@ pub const VIDEO_EXTENSIONS: &[&str] = &[
 /// Subtitle formats looked up next to a video, in priority order.
 pub const SUBTITLE_EXTENSIONS: &[&str] = &["srt", "vtt", "sub", "ass"];
 
+/// What recognizes a video file after a rename or move: its size and a hash of its head and tail
+/// (`services::sync::identity`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileIdentity {
+    pub size: i64,
+    pub fingerprint: String,
+}
+
 /// Returns whether the path has a known video extension (case-insensitive).
 pub fn is_video_path(path: &Path) -> bool {
     has_extension_in(path, VIDEO_EXTENSIONS)

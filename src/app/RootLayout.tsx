@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { followLibrary } from "../shared/ipc/followLibrary";
 import { queryClient } from "../shared/ipc/queryClient";
 import { comboFromEvent, isTextEntry } from "../shared/lib/keyboard";
 import { openShortcutsHelp } from "../shared/stores/dialogs";
@@ -26,8 +27,9 @@ export function RootLayout() {
 /** Keys that work on every screen. Inside the query provider: the keys are configurable and loaded from the backend. */
 function GlobalShortcuts() {
     useHistoryShortcuts();
-    // Background jobs report here, whatever screen is open.
+    // Background jobs and changes on disk report here, whatever screen is open.
     useEffect(() => followProcessing(), []);
+    useEffect(() => followLibrary(), []);
 
     // "?" shows every shortcut, except while typing (where it is just a character) or over another dialog.
     useEffect(() => {

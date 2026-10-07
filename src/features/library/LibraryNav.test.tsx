@@ -24,6 +24,20 @@ describe("LibraryNav", () => {
         expect(screen.getByRole("link", { name: "Movies" })).not.toHaveAttribute("aria-current");
     });
 
+    it("marks a folder whose drive is not connected", async () => {
+        mockCommands({
+            list_library_folders: [series, movies],
+            get_library_folder_statuses: [
+                { path: series.path, watch: "unavailable", reason: null },
+                { path: movies.path, watch: "watching", reason: null },
+            ],
+        });
+        renderScreen(<LibraryNav currentPath={undefined} />);
+
+        expect(await screen.findByRole("link", { name: "Series, not connected" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Movies" })).toBeInTheDocument();
+    });
+
     it("removes a folder after confirmation", async () => {
         const calls = mockCommands({ list_library_folders: [series], remove_library_folder: 42 });
         const { user } = renderScreen(<LibraryNav currentPath={undefined} />);

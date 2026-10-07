@@ -18,7 +18,9 @@ pub async fn get_settings(state: State<'_, AppState>) -> AppResult<AppSettings> 
 #[tauri::command]
 #[specta::specta]
 pub async fn update_settings(state: State<'_, AppState>, settings: AppSettings) -> AppResult<AppSettings> {
-    watch::update_settings(&state.db, settings).await
+    let saved = watch::update_settings(&state.db, settings).await?;
+    state.sync.set_enabled(saved.watch_folders);
+    Ok(saved)
 }
 
 /// Volume, speed, subtitles and layout of the player, as it was last left.
@@ -110,4 +112,17 @@ pub async fn list_orphaned_videos(state: State<'_, AppState>) -> AppResult<Vec<V
 #[specta::specta]
 pub async fn clean_orphaned_videos(state: State<'_, AppState>) -> AppResult<i64> {
     maintenance::clean_orphaned_videos(&state.db, &state.paths.thumbnails).await
+}
+
+/// Videos whose file disappeared from a library folder; they keep their data until cleaned or found again.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_missing_videos(state: State<'_, AppState>) -> AppResult<Vec<Video>> {
+    maintenance::missing_videos(&state.db).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clean_missing_videos(state: State<'_, AppState>) -> AppResult<i64> {
+    maintenance::clean_missing_videos(&state.db, &state.paths.thumbnails).await
 }

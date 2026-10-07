@@ -5,8 +5,15 @@ import { errorMessage } from "../../../shared/ipc/client";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { syncFolders } from "../../../shared/stores/processing";
-import { Button, Card, ConfirmDialog, ErrorState, Skeleton, toast } from "../../../shared/ui";
-import { useExportLibrary, useImportLibrary, useLibraryStats, useResetWatchStatus } from "../queries";
+import { Button, Card, ConfirmDialog, ErrorState, Skeleton, Switch, toast } from "../../../shared/ui";
+import {
+    useAppSettings,
+    useExportLibrary,
+    useImportLibrary,
+    useLibraryStats,
+    useResetWatchStatus,
+    useUpdateSettings,
+} from "../queries";
 import { SettingRow } from "./SettingRow";
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
@@ -41,6 +48,27 @@ function LibraryStatsGrid() {
             <Stat label="Total duration" value={formatDuration(totalDurationSeconds)} />
             <Stat label="Folders" value={totalFolders} />
             <Stat label="Tags" value={totalTags} />
+        </div>
+    );
+}
+
+/** Whether changes in the library folders are followed as they happen. */
+function WatchFoldersSwitch() {
+    const settings = useAppSettings();
+    const updateSettings = useUpdateSettings();
+    if (!settings.data) {
+        return null;
+    }
+    const current = settings.data;
+    return (
+        <div className="px-5 py-4">
+            <Switch
+                label="Watch folders for changes"
+                description="New, renamed, moved and deleted videos show up as they happen. When off, folders are checked when Mnemo starts and when you sync."
+                checked={current.watchFolders}
+                disabled={updateSettings.isPending}
+                onCheckedChange={(watchFolders) => updateSettings.mutate({ ...current, watchFolders })}
+            />
         </div>
     );
 }
@@ -97,7 +125,11 @@ export function LibraryTab({ foldersPanel }: { foldersPanel: ReactNode }) {
             <LibraryStatsGrid />
             {foldersPanel}
             <Card className="divide-y divide-border">
-                <SettingRow title="Sync library" description="Look for new videos in every library folder now.">
+                <WatchFoldersSwitch />
+                <SettingRow
+                    title="Sync library"
+                    description="Look for new, renamed, moved and deleted videos in every library folder now."
+                >
                     <Button
                         icon={<RefreshCw />}
                         loading={syncing}

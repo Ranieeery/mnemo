@@ -416,3 +416,24 @@ async fn videos_whose_folder_left_the_library_are_not_stored() {
     assert!(harness.stored().await.is_empty());
     assert_eq!(harness.thumbnail_files(), 0);
 }
+
+#[tokio::test]
+async fn stored_videos_carry_their_file_identity() {
+    let dir = library(&names(2));
+    let harness = Harness::new(FakeToolkit::default(), 2);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
+    harness.outcomes(1).await;
+    let unidentified: i64 = harness
+        .db
+        .call(|connection| {
+            Ok(connection.query_row(
+                "SELECT COUNT(*) FROM videos WHERE file_size IS NULL OR fingerprint IS NULL",
+                [],
+                |row| row.get(0),
+            )?)
+        })
+        .await
+        .unwrap();
+    assert_eq!(unidentified, 0);
+    assert_eq!(harness.stored().await.len(), 2);
+}

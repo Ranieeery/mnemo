@@ -2,6 +2,7 @@ use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use super::like_pattern;
+use crate::domain::media::FileIdentity;
 use crate::domain::models::{FolderStats, Video};
 use crate::domain::paths::FolderBounds;
 use crate::error::{AppError, AppResult};
@@ -60,6 +61,8 @@ pub struct NewVideo<'a> {
     pub title: &'a str,
     pub duration_seconds: f64,
     pub thumbnail_path: Option<&'a str>,
+    /// Recognizes the file after a rename or move; unknown when it could not be read.
+    pub identity: Option<&'a FileIdentity>,
 }
 
 /// Inserts a processed video. A video already stored under the same path is kept as is and returned. The pipeline
@@ -67,14 +70,17 @@ pub struct NewVideo<'a> {
 #[cfg(test)]
 pub fn insert(connection: &Connection, video: &NewVideo) -> AppResult<Video> {
     connection.execute(
-        "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, is_watched, watch_progress_seconds)
-         VALUES (?1, ?2, ?3, ?4, 0, 0)
+        "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, file_size, fingerprint, is_watched,
+                             watch_progress_seconds)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0)
          ON CONFLICT (file_path) DO NOTHING",
         params![
             video.file_path,
             video.title,
             video.duration_seconds.round(),
-            video.thumbnail_path
+            video.thumbnail_path,
+            video.identity.map(|identity| identity.size),
+            video.identity.map(|identity| identity.fingerprint.as_str()),
         ],
     )?;
     find_by_path(connection, video.file_path)?.ok_or_else(|| AppError::NotFound(video.file_path.to_owned()))
@@ -87,8 +93,9 @@ pub fn insert_batch(connection: &mut Connection, videos: &[NewVideo]) -> AppResu
     let mut inserted = Vec::with_capacity(videos.len());
     {
         let mut statement = transaction.prepare_cached(
-            "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, is_watched, watch_progress_seconds)
-             VALUES (?1, ?2, ?3, ?4, 0, 0)
+            "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, file_size, fingerprint, is_watched,
+                                 watch_progress_seconds)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0)
              ON CONFLICT (file_path) DO NOTHING",
         )?;
         for video in videos {
@@ -96,7 +103,9 @@ pub fn insert_batch(connection: &mut Connection, videos: &[NewVideo]) -> AppResu
                 video.file_path,
                 video.title,
                 video.duration_seconds.round(),
-                video.thumbnail_path
+                video.thumbnail_path,
+                video.identity.map(|identity| identity.size),
+                video.identity.map(|identity| identity.fingerprint.as_str()),
             ])?;
             inserted.push(changed == 1);
         }
@@ -135,7 +144,8 @@ pub fn in_folder(connection: &Connection, folder: &str, recursive: bool) -> AppR
 pub fn stats_in_folder(connection: &Connection, folder: &str) -> AppResult<FolderStats> {
     let bounds = FolderBounds::new(folder);
     let (total, watched) = connection.query_row(
-        "SELECT COUNT(*), COALESCE(SUM(is_watched = 1), 0) FROM videos WHERE file_path >= ?1 AND file_path < ?2",
+        "SELECT COUNT(*), COALESCE(SUM(is_watched = 1), 0) FROM videos
+         WHERE file_path >= ?1 AND file_path < ?2 AND missing_since IS NULL",
         params![bounds.lower, bounds.upper],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
@@ -149,7 +159,7 @@ pub fn tagged_count_in_folder(connection: &Connection, folder: &str) -> AppResul
     let bounds = FolderBounds::new(folder);
     Ok(connection.query_row(
         "SELECT COUNT(DISTINCT v.id) FROM videos v JOIN video_tags vt ON vt.video_id = v.id
-         WHERE v.file_path >= ?1 AND v.file_path < ?2",
+         WHERE v.file_path >= ?1 AND v.file_path < ?2 AND v.missing_since IS NULL",
         params![bounds.lower, bounds.upper],
         |row| row.get(0),
     )?)
@@ -160,7 +170,7 @@ pub fn folder_preview(connection: &Connection, folder: &str, limit: i64) -> AppR
     let bounds = FolderBounds::new(folder);
     let sql = format!(
         "SELECT {COLUMNS} FROM videos v
-         WHERE v.file_path >= ?1 AND v.file_path < ?2
+         WHERE v.file_path >= ?1 AND v.file_path < ?2 AND v.missing_since IS NULL
          ORDER BY CASE
                     WHEN v.is_watched = 1 THEN 2
                     WHEN v.watch_progress_seconds > 0 THEN 1
@@ -175,7 +185,7 @@ pub fn folder_preview(connection: &Connection, folder: &str, limit: i64) -> AppR
 
 pub fn continue_watching(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v WHERE v.watch_progress_seconds > 0 AND v.is_watched = 0
+        "SELECT {COLUMNS} FROM videos v WHERE v.watch_progress_seconds > 0 AND v.is_watched = 0 AND v.missing_since IS NULL
          ORDER BY v.last_watched_at DESC LIMIT ?1"
     );
     query_videos(connection, &sql, [limit])
@@ -183,14 +193,15 @@ pub fn continue_watching(connection: &Connection, limit: i64) -> AppResult<Vec<V
 
 pub fn recently_watched(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v WHERE v.last_watched_at IS NOT NULL ORDER BY v.last_watched_at DESC LIMIT ?1"
+        "SELECT {COLUMNS} FROM videos v WHERE v.last_watched_at IS NOT NULL AND v.missing_since IS NULL
+         ORDER BY v.last_watched_at DESC LIMIT ?1"
     );
     query_videos(connection, &sql, [limit])
 }
 
 pub fn suggestions(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v WHERE v.is_watched = 0 AND v.watch_progress_seconds = 0
+        "SELECT {COLUMNS} FROM videos v WHERE v.is_watched = 0 AND v.watch_progress_seconds = 0 AND v.missing_since IS NULL
          ORDER BY v.created_at DESC LIMIT ?1"
     );
     query_videos(connection, &sql, [limit])
@@ -202,7 +213,8 @@ pub fn search(connection: &Connection, query: &str, limit: i64) -> AppResult<Vec
         "SELECT DISTINCT {COLUMNS} FROM videos v
          LEFT JOIN video_tags vt ON vt.video_id = v.id
          LEFT JOIN tags t ON t.id = vt.tag_id
-         WHERE v.title LIKE ?1 ESCAPE '\\' OR v.description LIKE ?1 ESCAPE '\\' OR t.name LIKE ?1 ESCAPE '\\'
+         WHERE v.missing_since IS NULL
+           AND (v.title LIKE ?1 ESCAPE '\\' OR v.description LIKE ?1 ESCAPE '\\' OR t.name LIKE ?1 ESCAPE '\\')
          ORDER BY v.title
          LIMIT ?2"
     );
@@ -263,6 +275,7 @@ pub(crate) mod tests {
                 title: file_path,
                 duration_seconds: duration,
                 thumbnail_path: Some("thumb.jpg"),
+                identity: None,
             },
         )
         .unwrap()
@@ -281,12 +294,14 @@ pub(crate) mod tests {
                 title: "a",
                 duration_seconds: 60.0,
                 thumbnail_path: None,
+                identity: None,
             },
             NewVideo {
                 file_path: "D:\\b.mkv",
                 title: "b",
                 duration_seconds: 90.0,
                 thumbnail_path: Some("b.jpg"),
+                identity: None,
             },
         ];
         assert_eq!(insert_batch(&mut connection, &batch).unwrap(), [true, true]);
@@ -308,6 +323,7 @@ pub(crate) mod tests {
                 title: "other",
                 duration_seconds: 5.0,
                 thumbnail_path: None,
+                identity: None,
             },
         )
         .unwrap();

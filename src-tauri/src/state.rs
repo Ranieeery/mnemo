@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager};
 
-use crate::db::Db;
+use crate::db::{Db, settings};
 use crate::domain::media::processing_concurrency;
 use crate::error::{AppError, AppResult};
 use crate::services::media::Ffmpeg;
 use crate::services::media::processing::{Notifier, Processor};
 use crate::services::search::SearchGate;
+use crate::services::sync::{LibrarySync, SyncNotifier, Timing};
 
 const DATABASE_FILE: &str = "mnemo.db";
 const THUMBNAILS_DIR: &str = "thumbnails";
@@ -40,11 +41,13 @@ pub struct AppState {
     pub paths: AppPaths,
     /// Reads new videos in the background; see `services::media::processing`.
     pub processor: Processor<Ffmpeg>,
+    /// Keeps the library in step with the disk; see `services::sync`.
+    pub sync: LibrarySync<Ffmpeg>,
     pub search: SearchGate,
 }
 
 impl AppState {
-    pub fn initialize(app: &AppHandle, notify: Notifier) -> AppResult<Self> {
+    pub fn initialize(app: &AppHandle, notify: Notifier, notify_sync: SyncNotifier) -> AppResult<Self> {
         let paths = AppPaths::resolve(app)?;
         let db = Db::open(&paths.database)?;
         let cores = std::thread::available_parallelism().map_or(1, usize::from);
@@ -55,10 +58,21 @@ impl AppState {
             processing_concurrency(cores),
             notify,
         );
+        let watch_folders =
+            tauri::async_runtime::block_on(db.call(|connection| settings::get::<settings::WatchFolders>(connection)))?;
+        let sync = LibrarySync::new(
+            db.clone(),
+            processor.clone(),
+            paths.thumbnails.clone(),
+            watch_folders,
+            Timing::APP,
+            notify_sync,
+        );
         Ok(Self {
             db,
             paths,
             processor,
+            sync,
             search: SearchGate::default(),
         })
     }

@@ -125,6 +125,7 @@ mod tests {
                         title: "a",
                         duration_seconds: 100.0,
                         thumbnail_path: None,
+                        identity: None,
                     },
                 )
             })
@@ -136,6 +137,7 @@ mod tests {
             &db,
             AppSettings {
                 watched_threshold: 0.75,
+                watch_folders: false,
             },
         )
         .await

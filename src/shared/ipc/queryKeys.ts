@@ -6,6 +6,7 @@
 export const queryKeys = {
     library: ["library"] as const,
     libraryFolders: () => ["library", "folders"] as const,
+    libraryFolderStatuses: () => ["library", "folder-statuses"] as const,
     recentFolderIcons: () => ["library", "recent-folder-icons"] as const,
     home: (limit: number) => ["library", "home", limit] as const,
     folder: (path: string) => ["library", "folder", path] as const,
@@ -20,6 +21,7 @@ export const queryKeys = {
     watchHistory: () => ["library", "watch-history"] as const,
     watchTotals: (days: number) => ["library", "watch-totals", days] as const,
     orphanedVideos: () => ["library", "orphans"] as const,
+    missingVideos: () => ["library", "missing"] as const,
     databaseInfo: () => ["library", "database-info"] as const,
     subtitle: (path: string) => ["subtitle", path] as const,
     mediaTracks: (path: string) => ["media-tracks", path] as const,

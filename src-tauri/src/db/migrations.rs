@@ -102,11 +102,22 @@ CREATE TABLE folder_settings (
 const WATCH_HISTORY_DATE_INDEX: &str =
     "CREATE INDEX IF NOT EXISTS idx_watch_history_watched_at ON watch_history (watched_at);";
 
+/// Version 2.3: folder watching. A file's size and a hash of its head and tail recognize it after a rename or move,
+/// and a video whose file disappeared is marked instead of deleted, so it keeps its data if the file comes back.
+const FILE_PRESENCE: &str = r#"
+ALTER TABLE videos ADD COLUMN file_size INTEGER;
+ALTER TABLE videos ADD COLUMN fingerprint TEXT;
+ALTER TABLE videos ADD COLUMN missing_since DATETIME;
+CREATE INDEX idx_videos_file_size ON videos (file_size);
+CREATE INDEX idx_videos_missing_since ON videos (missing_since) WHERE missing_since IS NOT NULL;
+"#;
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
         M::up(INDEXES_CLEANUP_AND_SETTINGS),
         M::up(WATCH_HISTORY_DATE_INDEX),
+        M::up(FILE_PRESENCE),
     ])
 }
 
@@ -250,7 +261,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 3);
+        assert_eq!(user_version(&connection), 4);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -274,7 +285,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 3);
+        assert_eq!(user_version(&connection), 4);
         for table in [
             "videos",
             "tags",
@@ -286,6 +297,24 @@ mod tests {
             assert!(!columns(&connection, table).is_empty(), "{table}");
         }
         assert!(columns(&connection, "folder_settings").contains(&"view_mode".to_owned()));
+    }
+
+    #[test]
+    fn legacy_videos_start_without_file_identity_and_present() {
+        let mut connection = legacy_database(true);
+        run(&mut connection).unwrap();
+        let unknown: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM videos WHERE file_size IS NULL AND fingerprint IS NULL AND missing_since IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let total: i64 = connection
+            .query_row("SELECT COUNT(*) FROM videos", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(unknown, total);
+        assert_legacy_data_preserved(&connection);
     }
 
     #[test]
@@ -307,7 +336,7 @@ mod tests {
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 3);
+        assert_eq!(user_version(&connection), 4);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -377,7 +406,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 3);
+        assert_eq!(user_version(&connection), 4);
         assert_legacy_data_preserved(&connection);
     }
 

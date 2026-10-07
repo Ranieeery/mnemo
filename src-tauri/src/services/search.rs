@@ -140,6 +140,7 @@ mod tests {
                     title: "Finale",
                     duration_seconds: 1.0,
                     thumbnail_path: None,
+                    identity: None,
                 },
             )
         })

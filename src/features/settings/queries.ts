@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type AppSettings, commands, type HomeData, type SubtitleStyle } from "../../shared/ipc/bindings";
 import { call, errorMessage } from "../../shared/ipc/client";
 import { queryKeys } from "../../shared/ipc/queryKeys";
+import { plural } from "../../shared/lib/plural";
 import { toast } from "../../shared/ui";
 
 export function useLibraryStats() {
@@ -18,6 +19,10 @@ export function useDatabaseInfo() {
 
 export function useOrphanedVideos() {
     return useQuery({ queryKey: queryKeys.orphanedVideos(), queryFn: () => call(commands.listOrphanedVideos()) });
+}
+
+export function useMissingVideos() {
+    return useQuery({ queryKey: queryKeys.missingVideos(), queryFn: () => call(commands.listMissingVideos()) });
 }
 
 /** Settings, library and maintenance actions: refresh everything they may affect and report failures. */
@@ -84,6 +89,14 @@ export function useCleanOrphanedVideos() {
         () => call(commands.cleanOrphanedVideos()),
         "Could not clean up",
         (count) => toast({ title: `Removed ${count} orphaned videos`, tone: "success" })
+    );
+}
+
+export function useCleanMissingVideos() {
+    return useSettingsMutation(
+        () => call(commands.cleanMissingVideos()),
+        "Could not clean up",
+        (count) => toast({ title: `Removed ${plural(count, "missing video")}`, tone: "success" })
     );
 }
 

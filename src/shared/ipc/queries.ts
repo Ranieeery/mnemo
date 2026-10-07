@@ -1,6 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ShortcutKeys } from "../lib/keyboard";
-import { commands, DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_SUBTITLE_STYLE, type SubtitleStyle } from "./bindings";
+import { isWithin } from "../lib/paths";
+import {
+    commands,
+    DEFAULT_KEYBOARD_SHORTCUTS,
+    DEFAULT_SUBTITLE_STYLE,
+    type LibraryFolderStatus,
+    type SubtitleStyle,
+} from "./bindings";
 import { call } from "./client";
 import { queryKeys } from "./queryKeys";
 
@@ -11,6 +18,19 @@ export function useLibraryFolders() {
         queryKey: queryKeys.libraryFolders(),
         queryFn: () => call(commands.listLibraryFolders()),
     });
+}
+
+/** Whether each library folder is reachable and how its changes are followed; refreshed by the backend's events. */
+export function useLibraryFolderStatuses() {
+    return useQuery({
+        queryKey: queryKeys.libraryFolderStatuses(),
+        queryFn: () => commands.getLibraryFolderStatuses(),
+    });
+}
+
+/** The status of the library folder that contains `path`, once known. */
+export function useLibraryFolderStatus(path: string): LibraryFolderStatus | undefined {
+    return useLibraryFolderStatuses().data?.find((status) => isWithin(path, status.path));
 }
 
 export function useMediaTools() {

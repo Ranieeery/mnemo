@@ -3,7 +3,7 @@ use std::path::Path;
 use tauri::{AppHandle, State};
 
 use crate::domain::folder_view::FolderViewMode;
-use crate::domain::models::{FolderContents, FolderSummary, HomeData, LibraryFolder, VideoEntry};
+use crate::domain::models::{FolderContents, FolderSummary, HomeData, LibraryFolder, LibraryFolderStatus, VideoEntry};
 use crate::error::AppResult;
 use crate::services::{asset_scope, library};
 use crate::state::AppState;
@@ -14,12 +14,21 @@ pub async fn list_library_folders(state: State<'_, AppState>) -> AppResult<Vec<L
     state.db.call(|connection| crate::db::folders::list(connection)).await
 }
 
+/// Whether each library folder is reachable and how changes in it are followed. Empty until the first check, a few
+/// seconds after startup.
+#[tauri::command]
+#[specta::specta]
+pub fn get_library_folder_statuses(state: State<'_, AppState>) -> Vec<LibraryFolderStatus> {
+    state.sync.statuses()
+}
+
 /// Adds a folder chosen in the native dialog and lets the webview load its files.
 #[tauri::command]
 #[specta::specta]
 pub async fn add_library_folder(app: AppHandle, state: State<'_, AppState>, path: String) -> AppResult<LibraryFolder> {
     let folder = library::add_folder(&state.db, path).await?;
     asset_scope::allow(&app, &folder.path)?;
+    state.sync.refresh();
     Ok(folder)
 }
 
@@ -29,7 +38,9 @@ pub async fn add_library_folder(app: AppHandle, state: State<'_, AppState>, path
 pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> AppResult<i64> {
     // First stop reading it, so no video of the folder comes back after the removal.
     state.processor.forget(Path::new(&path));
-    library::remove_folder(&state.db, &state.paths.thumbnails, path).await
+    let removed = library::remove_folder(&state.db, &state.paths.thumbnails, path).await?;
+    state.sync.refresh();
+    Ok(removed)
 }
 
 #[tauri::command]

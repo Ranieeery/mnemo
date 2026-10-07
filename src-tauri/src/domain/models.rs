@@ -150,12 +150,37 @@ pub struct DatabaseInfo {
     pub schema_version: i64,
 }
 
+/// How a library folder is kept in step with the disk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum FolderWatch {
+    /// Changes are followed as they happen.
+    Watching,
+    /// The folder cannot be watched (see `reason`), so it is compared every few minutes.
+    Polling,
+    /// Watching is turned off in Settings: compared at startup and on "Sync folder".
+    Off,
+    /// The folder cannot be reached (an unplugged drive, an offline share). Its videos are kept as they are.
+    Unavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryFolderStatus {
+    pub path: String,
+    pub watch: FolderWatch,
+    /// Why the folder cannot be watched.
+    pub reason: Option<String>,
+}
+
 /// User-adjustable settings.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[specta(type = Number)]
     pub watched_threshold: f64,
+    /// Follow changes in the library folders as they happen.
+    pub watch_folders: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]

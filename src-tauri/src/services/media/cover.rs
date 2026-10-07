@@ -141,6 +141,7 @@ mod tests {
                         title: "Ep 1",
                         duration_seconds: 600.0,
                         thumbnail_path: thumbnail_path.as_deref(),
+                        identity: None,
                     },
                 )
             })

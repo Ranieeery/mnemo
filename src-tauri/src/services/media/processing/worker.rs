@@ -8,6 +8,7 @@ use super::{FileError, Inner, Task};
 use crate::domain::media::title_from_path;
 use crate::error::{AppError, AppResult};
 use crate::services::media::{MediaToolkit, thumbnails};
+use crate::services::sync::identity;
 
 pub(super) async fn run<T: MediaToolkit + 'static>(inner: Arc<Inner<T>>) {
     loop {
@@ -93,12 +94,19 @@ async fn read<T: MediaToolkit>(toolkit: &T, thumbnails_dir: &Path, task: &Task) 
             None
         }
     };
+    // Lets the folder sync recognize the file after a rename or move; without it, it is fingerprinted later.
+    let identified = file.to_path_buf();
+    let identity = tokio::task::spawn_blocking(move || identity::identify(&identified))
+        .await
+        .ok()
+        .and_then(Result::ok);
     Ok(Read {
         job_id: task.job_id,
         file_path: file.to_string_lossy().into_owned(),
         title: title_from_path(file),
         duration_seconds: duration,
         thumbnail_path: thumbnail.map(|path| path.to_string_lossy().into_owned()),
+        identity,
     })
 }
 

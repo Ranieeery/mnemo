@@ -17,13 +17,14 @@ function mockSettings(extra: Record<string, unknown> = {}) {
             orphanedVideos: 1,
         },
         list_library_folders: [libraryFolderFixture()],
-        get_settings: { watchedThreshold: 0.9 },
+        get_settings: { watchedThreshold: 0.9, watchFolders: true },
         get_database_info: {
             path: "C:\\Users\\me\\AppData\\Roaming\\com.mnemo\\mnemo.db",
             sizeBytes: 233_472,
             schemaVersion: 2,
         },
         list_orphaned_videos: [videoFixture({ filePath: "E:\\Old\\gone.mkv" })],
+        list_missing_videos: [videoFixture({ filePath: "D:\\Series\\deleted.mkv" })],
         ...extra,
     });
 }
@@ -80,7 +81,7 @@ describe("SettingsPage", () => {
     });
 
     it("saves the watched threshold when the slider is released", async () => {
-        const calls = mockSettings({ update_settings: { watchedThreshold: 0.85 } });
+        const calls = mockSettings({ update_settings: { watchedThreshold: 0.85, watchFolders: true } });
         const { user } = renderSettings();
         await user.click(await screen.findByRole("tab", { name: "Playback" }));
         const slider = await screen.findByRole("slider", { name: "Watched threshold" });
@@ -92,8 +93,38 @@ describe("SettingsPage", () => {
         slider.focus();
         fireEvent.keyDown(slider, { key: "ArrowLeft" });
         await waitFor(() =>
-            expect(callsOf(calls, "update_settings")).toEqual([{ settings: { watchedThreshold: 0.85 } }])
+            expect(callsOf(calls, "update_settings")).toEqual([
+                { settings: { watchedThreshold: 0.85, watchFolders: true } },
+            ])
         );
+    });
+
+    it("turns folder watching off, keeping the other settings", async () => {
+        const calls = mockSettings({ update_settings: { watchedThreshold: 0.9, watchFolders: false } });
+        const { user } = renderSettings();
+        const toggle = await screen.findByRole("switch", { name: "Watch folders for changes" });
+        expect(toggle).toBeChecked();
+        await user.click(toggle);
+        await waitFor(() =>
+            expect(callsOf(calls, "update_settings")).toEqual([
+                { settings: { watchedThreshold: 0.9, watchFolders: false } },
+            ])
+        );
+    });
+
+    it("lists videos whose file is missing and removes them after confirmation", async () => {
+        const calls = mockSettings({ clean_missing_videos: 1 });
+        const { user } = renderSettings();
+        await user.click(await screen.findByRole("tab", { name: "Maintenance" }));
+        expect(await screen.findByText("D:\\Series\\deleted.mkv")).toBeInTheDocument();
+        expect(screen.getByText(/1 video can no longer be found on disk/)).toBeInTheDocument();
+
+        const [cleanMissing] = screen.getAllByRole("button", { name: "Clean up" });
+        await user.click(cleanMissing as HTMLElement);
+        const dialog = await screen.findByRole("alertdialog", { name: "Remove 1 missing video?" });
+        await user.click(within(dialog).getByRole("button", { name: "Remove videos" }));
+        expect(await screen.findByText("Removed 1 missing video")).toBeInTheDocument();
+        expect(callsOf(calls, "clean_missing_videos")).toHaveLength(1);
     });
 
     it("lists orphaned videos and the database details", async () => {

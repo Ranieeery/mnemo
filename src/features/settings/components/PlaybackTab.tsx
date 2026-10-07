@@ -62,7 +62,9 @@ export function PlaybackTab() {
                             step={toPercent(WATCHED_THRESHOLD_STEP)}
                             valueText={`${percent}%`}
                             onValueChange={setPercent}
-                            onValueCommit={(value) => updateSettings.mutate({ watchedThreshold: value / 100 })}
+                            onValueCommit={(value) =>
+                                updateSettings.mutate({ ...settings.data, watchedThreshold: value / 100 })
+                            }
                             className="w-48"
                         />
                         <span className="w-12 text-right text-body font-medium text-text tabular-nums">{percent}%</span>

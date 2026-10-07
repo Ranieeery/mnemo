@@ -52,8 +52,12 @@ thumbnails, tags and watch progress in a local SQLite database.
   including videos not read yet.
 - **Background processing:** durations and thumbnails are read with ffmpeg in the background, several files at a
   time, with progress, details per folder and a cancel button.
+- **Follows your folders:** new videos show up on their own. Renamed or moved videos keep their progress, tags and
+  history, even when the change was made while Mnemo was closed. Deleted videos are kept aside for 30 days in case
+  they come back. Unplugged drives never lose anything.
 - **Backup:** export the whole library to JSON and import it back (exports from Mnemo 1.x are accepted too).
-- **Maintenance:** library statistics, database details and cleanup of videos that no longer belong to a folder.
+- **Maintenance:** library statistics, database details and cleanup of videos that no longer belong to a folder or
+  whose file is gone.
 
 ## Shortcuts
 

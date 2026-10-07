@@ -9,6 +9,7 @@ use tauri_specta::Event;
 
 use crate::domain::models::{ProcessingOutcome, ProcessingStatus};
 use crate::services::media::processing::{Notification, Notifier};
+use crate::services::sync::{SyncNotification, SyncNotifier};
 
 /// The processing pipeline's status, whenever it changes (at most a few times per second).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
@@ -17,6 +18,27 @@ pub struct ProcessingStatusChanged(pub ProcessingStatus);
 /// A processing job ended: done, cancelled or stopped by an error.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct ProcessingFinished(pub ProcessingOutcome);
+
+/// Videos or files in the library folders changed on disk: screens showing the library are stale.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct LibraryChanged;
+
+/// A library folder became reachable or unreachable, or the way its changes are followed changed.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct LibraryFoldersChanged;
+
+/// Sends the folder sync's notifications as events to the app's windows.
+pub fn sync_notifier(app: AppHandle) -> SyncNotifier {
+    Arc::new(move |notification| {
+        let sent = match notification {
+            SyncNotification::LibraryChanged => LibraryChanged.emit(&app),
+            SyncNotification::FoldersChanged => LibraryFoldersChanged.emit(&app),
+        };
+        if let Err(error) = sent {
+            tracing::warn!(%error, "failed to send a library event");
+        }
+    })
+}
 
 /// Sends the pipeline's notifications as events to the app's windows.
 pub fn processing_notifier(app: AppHandle) -> Notifier {

@@ -8,6 +8,7 @@ pub mod folders;
 pub mod history;
 mod migrations;
 pub mod orphans;
+pub mod presence;
 pub mod settings;
 pub mod tags;
 pub mod videos;

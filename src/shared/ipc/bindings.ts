@@ -8,6 +8,11 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	listLibraryFolders: () => typedError<LibraryFolder[], IpcError>(__TAURI_INVOKE("list_library_folders")),
+	/**
+	 *  Whether each library folder is reachable and how changes in it are followed. Empty until the first check, a few
+	 *  seconds after startup.
+	 */
+	getLibraryFolderStatuses: () => __TAURI_INVOKE<LibraryFolderStatus[]>("get_library_folder_statuses"),
 	/**  Adds a folder chosen in the native dialog and lets the webview load its files. */
 	addLibraryFolder: (path: string) => typedError<LibraryFolder, IpcError>(__TAURI_INVOKE("add_library_folder", { path })),
 	/**  Removes a library folder with its videos and thumbnails. Returns how many videos were removed. */
@@ -85,9 +90,10 @@ export const commands = {
 	searchFolder: (path: string, query: string, onProgress: Channel<SearchProgress>) => typedError<VideoEntry[], IpcError>(__TAURI_INVOKE("search_folder", { path, query, onProgress })),
 	mediaToolsStatus: () => __TAURI_INVOKE<MediaToolsStatus>("media_tools_status"),
 	/**
-	 *  Queues the new videos below each folder to be read in the background and returns at once. Progress and the end
-	 *  of each job arrive as events; `report` asks for the job's summary to be shown. Folders already queued (or inside
-	 *  one) add nothing. Fails, queuing nothing, if any folder is outside the library.
+	 *  Brings each folder up to date with the disk (renamed, moved and vanished files), then queues its new videos to be
+	 *  read in the background. Progress and the end of each job arrive as events; `report` asks for the job's summary to
+	 *  be shown. Folders already queued (or inside one) add nothing. Fails, queuing nothing, if any folder is outside the
+	 *  library.
 	 */
 	processFolders: (paths: string[], report: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("process_folders", { paths, report })),
 	/**  Cancels reading the videos of one folder, or of every folder when `null`; running ffmpeg processes are killed. */
@@ -129,6 +135,9 @@ export const commands = {
 	getDatabaseInfo: () => typedError<DatabaseInfo, IpcError>(__TAURI_INVOKE("get_database_info")),
 	listOrphanedVideos: () => typedError<Video[], IpcError>(__TAURI_INVOKE("list_orphaned_videos")),
 	cleanOrphanedVideos: () => typedError<number, IpcError>(__TAURI_INVOKE("clean_orphaned_videos")),
+	/**  Videos whose file disappeared from a library folder; they keep their data until cleaned or found again. */
+	listMissingVideos: () => typedError<Video[], IpcError>(__TAURI_INVOKE("list_missing_videos")),
+	cleanMissingVideos: () => typedError<number, IpcError>(__TAURI_INVOKE("clean_missing_videos")),
 	/**  Opens a library file with the system's default application. */
 	openExternally: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("open_externally", { path })),
 	/**  Shows a library file selected in the system file manager. */
@@ -137,6 +146,8 @@ export const commands = {
 
 /** Events */
 export const events = {
+	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
+	libraryFoldersChanged: makeEvent<LibraryFoldersChanged>("library-folders-changed"),
 	processingFinished: makeEvent<ProcessingFinished>("processing-finished"),
 	processingStatusChanged: makeEvent<ProcessingStatusChanged>("processing-status-changed"),
 };
@@ -182,6 +193,8 @@ export const WATCHED_THRESHOLD_STEP = 0.05 as const;
 /**  User-adjustable settings. */
 export type AppSettings = {
 	watchedThreshold: number,
+	/**  Follow changes in the library folders as they happen. */
+	watchFolders: boolean,
 };
 
 export type AudioTrack = {
@@ -258,6 +271,17 @@ export type FolderViewMode =
 /**  Every video in the tree, grouped by subfolder. The playlist spans the folder where the mode was set. */
 "continuous";
 
+/**  How a library folder is kept in step with the disk. */
+export type FolderWatch = 
+/**  Changes are followed as they happen. */
+"watching" | 
+/**  The folder cannot be watched (see `reason`), so it is compared every few minutes. */
+"polling" | 
+/**  Watching is turned off in Settings: compared at startup and on "Sync folder". */
+"off" | 
+/**  The folder cannot be reached (an unplugged drive, an offline share). Its videos are kept as they are. */
+"unavailable";
+
 /**
  *  Where a page of the watch history ends; pass it back to get the next (older) page. `watched_at` is the stored
  *  timestamp, so treat the cursor as opaque.
@@ -321,6 +345,9 @@ export type KeyboardShortcuts = {
 	historyForward: string[],
 };
 
+/**  Videos or files in the library folders changed on disk: screens showing the library are stale. */
+export type LibraryChanged = null;
+
 export type LibraryFolder = {
 	id: number,
 	path: string,
@@ -328,6 +355,16 @@ export type LibraryFolder = {
 	customIcon: string | null,
 	createdAt: string | null,
 };
+
+export type LibraryFolderStatus = {
+	path: string,
+	watch: FolderWatch,
+	/**  Why the folder cannot be watched. */
+	reason: string | null,
+};
+
+/**  A library folder became reachable or unreachable, or the way its changes are followed changed. */
+export type LibraryFoldersChanged = null;
 
 export type LibraryStats = {
 	totalVideos: number,
