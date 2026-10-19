@@ -27,7 +27,8 @@ export const commands = {
 	 *  Files are never moved.
 	 */
 	relocateLibraryFolder: (from: string, to: string) => typedError<RelocationResult, IpcError>(__TAURI_INVOKE("relocate_library_folder", { from, to })),
-	setLibraryFolderIcon: (path: string, icon: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_library_folder_icon", { path, icon })),
+	/**  Sets a library folder's icon and its color; `null` restores each default. */
+	setLibraryFolderAppearance: (path: string, icon: string | null, color: "red" | "orange" | "amber" | "lime" | "green" | "teal" | "cyan" | "blue" | "violet" | "pink" | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_library_folder_appearance", { path, icon, color })),
 	/**  Folder icons chosen most recently, newest first, offered first by the icon picker. */
 	recentFolderIcons: () => typedError<string[], IpcError>(__TAURI_INVOKE("recent_folder_icons")),
 	/**  Sets how a folder lists its videos; `None` makes it inherit from its parent again. */
@@ -179,6 +180,8 @@ export const DEFAULT_SUBTITLE_STYLE = {"background":true,"backgroundOpacity":78,
 
 export const DEFAULT_WATCHED_THRESHOLD = 0.9 as const;
 
+export const FOLDER_COLORS = ["red","orange","amber","lime","green","teal","cyan","blue","violet","pink"] as const;
+
 export const MAX_KEYS_PER_SHORTCUT = 2 as const;
 
 export const MAX_PLAYBACK_SPEED = 2.0 as const;
@@ -256,6 +259,8 @@ export type FileError = {
 	path: string,
 	message: string,
 };
+
+export type FolderColor = "red" | "orange" | "amber" | "lime" | "green" | "teal" | "cyan" | "blue" | "violet" | "pink";
 
 /**
  *  Everything the folder screen shows. In `folders` mode there is at most one group (the folder's own videos);
@@ -375,6 +380,8 @@ export type LibraryFolder = {
 	path: string,
 	name: string,
 	customIcon: string | null,
+	/**  `None` draws the icon in the surrounding text color. */
+	iconColor: FolderColor | null,
 	createdAt: string | null,
 };
 

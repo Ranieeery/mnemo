@@ -11,6 +11,7 @@ mod videos;
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
+use crate::domain::folder_color::FolderColor;
 use crate::domain::layout::{DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, SidebarPreferences};
 use crate::domain::models::PlayerPreferences;
 use crate::domain::player::{
@@ -39,7 +40,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             library::remove_library_folder,
             library::check_folder_relocation,
             library::relocate_library_folder,
-            library::set_library_folder_icon,
+            library::set_library_folder_appearance,
             library::recent_folder_icons,
             library::set_folder_view_mode,
             library::browse_folder,
@@ -106,6 +107,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("MIN_UP_NEXT_WIDTH", MIN_UP_NEXT_WIDTH)
         .constant("MAX_UP_NEXT_WIDTH", MAX_UP_NEXT_WIDTH)
         .constant("DEFAULT_PLAYER_PREFERENCES", PlayerPreferences::default())
+        .constant("FOLDER_COLORS", FolderColor::ALL)
         .constant("DEFAULT_SIDEBAR_WIDTH", DEFAULT_SIDEBAR_WIDTH)
         .constant("MIN_SIDEBAR_WIDTH", MIN_SIDEBAR_WIDTH)
         .constant("MAX_SIDEBAR_WIDTH", MAX_SIDEBAR_WIDTH)

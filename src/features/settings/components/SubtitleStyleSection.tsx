@@ -11,14 +11,29 @@ import {
 } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
 import { useSubtitleStyleQuery } from "../../../shared/ipc/queries";
+import { capitalize } from "../../../shared/lib/capitalize";
 import { cx } from "../../../shared/lib/cx";
 import { SUBTITLE_COLORS } from "../../../shared/lib/subtitleStyle";
-import { Button, Card, ChoiceGroup, ErrorState, Skeleton, Slider, Switch } from "../../../shared/ui";
+import {
+    Button,
+    Card,
+    ChoiceGroup,
+    type ColorSwatch,
+    ColorSwatches,
+    ErrorState,
+    Skeleton,
+    Slider,
+    Switch,
+} from "../../../shared/ui";
 import { useSaveSubtitleStyle } from "../queries";
 import { SettingRow } from "./SettingRow";
 import { SubtitlePreview } from "./SubtitlePreview";
 
-const colorName = (color: SubtitleColor) => color.charAt(0).toUpperCase() + color.slice(1);
+const SUBTITLE_COLOR_SWATCHES: readonly ColorSwatch<SubtitleColor>[] = SUBTITLE_COLORS.map((color) => ({
+    value: color,
+    label: capitalize(color),
+    color: `var(--color-subtitle-${color})`,
+}));
 
 /** How subtitles look in the player, with a preview over a dark and a bright scene. Changes save at once. */
 export function SubtitleStyleSection() {
@@ -76,25 +91,12 @@ export function SubtitleStyleSection() {
                     />
                 </SettingRow>
                 <SettingRow title="Text color" description="Light colors stay readable over most scenes.">
-                    <div role="radiogroup" aria-label="Text color" className="flex gap-2">
-                        {SUBTITLE_COLORS.map((value) => (
-                            // biome-ignore lint/a11y/useSemanticElements: color swatches read better as buttons than radio inputs.
-                            <button
-                                key={value}
-                                type="button"
-                                role="radio"
-                                aria-checked={style.color === value}
-                                aria-label={colorName(value)}
-                                title={colorName(value)}
-                                onClick={() => change({ color: value })}
-                                className={cx(
-                                    "size-7 rounded-full border border-border-strong transition-shadow duration-(--duration-fast) ease-standard",
-                                    style.color === value && "ring-2 ring-accent ring-offset-2 ring-offset-surface"
-                                )}
-                                style={{ backgroundColor: `var(--color-subtitle-${value})` }}
-                            />
-                        ))}
-                    </div>
+                    <ColorSwatches
+                        label="Text color"
+                        value={style.color}
+                        options={SUBTITLE_COLOR_SWATCHES}
+                        onChange={(color) => change({ color })}
+                    />
                 </SettingRow>
                 <div className="px-5 py-4">
                     <Switch

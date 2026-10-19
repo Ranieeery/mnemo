@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::db::{Db, folders, settings, videos};
+use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_view::{FolderViewMode, ResolvedViewMode, resolve_view_mode};
 use crate::domain::media::display_name;
 use crate::domain::models::{
@@ -70,11 +71,17 @@ pub async fn remove_folder(db: &Db, thumbnails_dir: &Path, path: String) -> AppR
     Ok(count)
 }
 
-/// Sets the icon of a library folder (`None` restores the default) and remembers it for the icon picker.
-pub async fn set_folder_icon(db: &Db, path: String, icon: Option<String>) -> AppResult<()> {
+/// Sets the icon of a library folder and its color (`None` restores each default), and remembers the icon for the
+/// icon picker.
+pub async fn set_folder_appearance(
+    db: &Db,
+    path: String,
+    icon: Option<String>,
+    color: Option<FolderColor>,
+) -> AppResult<()> {
     db.call(move |connection| {
         let transaction = connection.transaction()?;
-        folders::set_icon(&transaction, &path, icon.as_deref())?;
+        folders::set_appearance(&transaction, &path, icon.as_deref(), color)?;
         if let Some(icon) = &icon {
             settings::remember_folder_icon(&transaction, icon)?;
         }
@@ -331,13 +338,22 @@ mod tests {
     #[tokio::test]
     async fn setting_a_folder_icon_remembers_it_unless_it_is_the_default() {
         let fixture = Fixture::new().await;
-        set_folder_icon(&fixture.db, fixture.path(&[]), Some("film".into()))
+        set_folder_appearance(
+            &fixture.db,
+            fixture.path(&[]),
+            Some("film".into()),
+            Some(FolderColor::Blue),
+        )
+        .await
+        .unwrap();
+        let folders = fixture.db.call(|connection| folders::list(connection)).await.unwrap();
+        assert_eq!(folders[0].icon_color, Some(FolderColor::Blue));
+
+        set_folder_appearance(&fixture.db, fixture.path(&[]), None, None)
             .await
             .unwrap();
-        set_folder_icon(&fixture.db, fixture.path(&[]), None).await.unwrap();
-
         let folders = fixture.db.call(|connection| folders::list(connection)).await.unwrap();
-        assert_eq!(folders[0].custom_icon, None);
+        assert_eq!((folders[0].custom_icon.clone(), folders[0].icon_color), (None, None));
         assert_eq!(recent_folder_icons(&fixture.db).await.unwrap(), ["film"]);
     }
 
@@ -345,7 +361,7 @@ mod tests {
     async fn an_unknown_folder_keeps_the_recent_icons_unchanged() {
         let fixture = Fixture::new().await;
         assert!(
-            set_folder_icon(&fixture.db, fixture.path(&["Missing"]), Some("film".into()))
+            set_folder_appearance(&fixture.db, fixture.path(&["Missing"]), Some("film".into()), None)
                 .await
                 .is_err()
         );

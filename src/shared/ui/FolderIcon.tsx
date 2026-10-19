@@ -43,7 +43,8 @@ import {
     Video,
     Zap,
 } from "lucide-react";
-import { Suspense, use } from "react";
+import { type CSSProperties, Suspense, use } from "react";
+import type { FolderColor } from "../ipc/bindings";
 import { cx } from "../lib/cx";
 
 /**
@@ -114,26 +115,35 @@ export function loadAllIcons(): Promise<ReadonlyMap<string, LucideIcon>> {
 type FolderIconProps = {
     /** Stored icon name. Unknown values (such as emojis saved by Mnemo 1.x) fall back to the default folder icon. */
     name: string | null;
+    /** One of the folder palette tokens; without one, the icon takes the surrounding text color. */
+    color?: FolderColor | null;
     className?: string;
 };
 
-export function FolderIcon({ name, className }: FolderIconProps) {
+/** The CSS color of a folder palette token. */
+export function folderColorValue(color: FolderColor): string {
+    return `var(--color-folder-${color})`;
+}
+
+export function FolderIcon({ name, color = null, className }: FolderIconProps) {
     const classes = cx("size-4 shrink-0", className);
+    // Lucide draws with `currentColor`, so the icon takes this color; without one, it inherits the text's.
+    const style: CSSProperties | undefined = color ? { color: folderColorValue(color) } : undefined;
     if (name !== null && isSuggested(name)) {
         const Icon = SUGGESTED_ICONS[name];
-        return <Icon className={classes} aria-hidden />;
+        return <Icon className={classes} style={style} aria-hidden />;
     }
     if (name !== null && ICON_NAME.test(name)) {
         return (
-            <Suspense fallback={<Folder className={classes} aria-hidden />}>
-                <AnyIcon name={name} className={classes} />
+            <Suspense fallback={<Folder className={classes} style={style} aria-hidden />}>
+                <AnyIcon name={name} className={classes} style={style} />
             </Suspense>
         );
     }
-    return <Folder className={classes} aria-hidden />;
+    return <Folder className={classes} style={style} aria-hidden />;
 }
 
-function AnyIcon({ name, className }: { name: string; className: string }) {
+function AnyIcon({ name, className, style }: { name: string; className: string; style: CSSProperties | undefined }) {
     const Icon = use(loadAllIcons()).get(name) ?? Folder;
-    return <Icon className={className} aria-hidden />;
+    return <Icon className={className} style={style} aria-hidden />;
 }

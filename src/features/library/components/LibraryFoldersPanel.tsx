@@ -33,7 +33,11 @@ export function LibraryFoldersPanel() {
                         const status = statuses.data?.find((candidate) => candidate.path === folder.path);
                         return (
                             <li key={folder.id} className="flex items-center gap-3 px-5 py-3">
-                                <FolderIcon name={folder.customIcon} className="size-5 text-text-muted" />
+                                <FolderIcon
+                                    name={folder.customIcon}
+                                    color={folder.iconColor}
+                                    className="size-5 text-text-muted"
+                                />
                                 <div className="flex min-w-0 flex-1 flex-col">
                                     <span className="truncate text-body text-text">{folder.name}</span>
                                     <span className="truncate text-small text-text-subtle" title={folder.path}>

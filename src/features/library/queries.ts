@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
-import { commands, type LibraryFolder, type RelocationResult } from "../../shared/ipc/bindings";
+import { commands, type FolderColor, type LibraryFolder, type RelocationResult } from "../../shared/ipc/bindings";
 import { call, errorMessage } from "../../shared/ipc/client";
 import { queryKeys } from "../../shared/ipc/queryKeys";
 import { joinPath, relativeSegments } from "../../shared/lib/paths";
@@ -62,11 +62,19 @@ export function useRecentFolderIcons() {
     });
 }
 
-export function useSetFolderIcon() {
+/** Saves a library folder's icon and its color; `null` restores each default. */
+export function useSetFolderAppearance() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: ({ folder, icon }: { folder: LibraryFolder; icon: string | null }) =>
-            call(commands.setLibraryFolderIcon(folder.path, icon)),
+        mutationFn: ({
+            folder,
+            icon,
+            color,
+        }: {
+            folder: LibraryFolder;
+            icon: string | null;
+            color: FolderColor | null;
+        }) => call(commands.setLibraryFolderAppearance(folder.path, icon, color)),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.library }),
         onError: (error) => {
             toast({ title: "Could not change the icon", description: errorMessage(error), tone: "danger" });

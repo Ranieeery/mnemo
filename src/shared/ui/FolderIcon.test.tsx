@@ -9,6 +9,19 @@ describe("FolderIcon", () => {
         expect(SUGGESTED_FOLDER_ICONS).toContain("gamepad-2");
     });
 
+    it("takes a palette color, or the surrounding text color without one", async () => {
+        const { container, rerender } = render(<FolderIcon name="film" color="teal" />);
+        expect(container.querySelector("svg")).toHaveStyle({ color: "var(--color-folder-teal)" });
+        rerender(<FolderIcon name="🎬" color="red" />);
+        expect(container.querySelector("svg")).toHaveStyle({ color: "var(--color-folder-red)" });
+        rerender(<FolderIcon name="film" />);
+        expect(container.querySelector("svg")?.getAttribute("style")).toBeNull();
+
+        const { container: loaded } = await act(async () => render(<FolderIcon name="zodiac-pisces" color="violet" />));
+        await act(() => loadAllIcons());
+        expect(loaded.querySelector("svg")).toHaveStyle({ color: "var(--color-folder-violet)" });
+    });
+
     it("loads any other lucide icon on demand", async () => {
         // In tests React only retries a suspended render inside act().
         const { container } = await act(async () => render(<FolderIcon name="zodiac-pisces" />));

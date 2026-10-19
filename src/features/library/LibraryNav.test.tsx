@@ -2,6 +2,8 @@ import { emit } from "@tauri-apps/api/event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { UserEvent } from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { FOLDER_COLORS } from "../../shared/ipc/bindings";
+import { capitalize } from "../../shared/lib/capitalize";
 import { useDialogStore } from "../../shared/stores/dialogs";
 import { followProcessing, processFolder } from "../../shared/stores/processing";
 import { libraryFolderFixture } from "../../shared/test/fixtures";
@@ -129,16 +131,17 @@ describe("LibraryNav", () => {
         stop();
     });
 
-    async function openIconDialog(recent: string[] = []) {
+    async function openIconDialog(recent: string[] = [], folder = movies) {
         const calls = mockCommands({
-            list_library_folders: [movies],
+            list_library_folders: [folder],
             recent_folder_icons: recent,
-            set_library_folder_icon: null,
+            set_library_folder_appearance: null,
         });
         const rendered = renderScreen(<LibraryNav currentPath={undefined} />);
-        fireEvent.contextMenu(await screen.findByRole("link", { name: "Movies" }));
-        fireEvent.click(await screen.findByRole("menuitem", { name: "Change icon" }));
-        return { calls, ...rendered, dialog: await screen.findByRole("dialog", { name: "Icon for Movies" }) };
+        fireEvent.contextMenu(await screen.findByRole("link", { name: folder.name }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: "Icon and color…" }));
+        const dialog = await screen.findByRole("dialog", { name: `Icon and color for ${folder.name}` });
+        return { calls, ...rendered, dialog };
     }
 
     async function openAllIcons(user: UserEvent, dialog: HTMLElement) {
@@ -153,11 +156,73 @@ describe("LibraryNav", () => {
     it("changes the icon of a folder", async () => {
         const { calls, user } = await openIconDialog();
         await user.click(await screen.findByRole("radio", { name: "popcorn" }));
-        await user.click(screen.getByRole("button", { name: "Save icon" }));
+        await user.click(screen.getByRole("button", { name: "Save" }));
 
         await waitFor(() =>
-            expect(callsOf(calls, "set_library_folder_icon")).toEqual([{ path: "D:\\Movies", icon: "popcorn" }])
+            expect(callsOf(calls, "set_library_folder_appearance")).toEqual([
+                { path: "D:\\Movies", icon: "popcorn", color: null },
+            ])
         );
+    });
+
+    it("previews and saves a color for the icon, chosen with the keyboard", async () => {
+        const { calls, user, dialog } = await openIconDialog();
+        const colors = within(dialog).getByRole("radiogroup", { name: "Icon color" });
+        const swatches = within(colors).getAllByRole("radio");
+        expect(swatches.map((swatch) => swatch.getAttribute("aria-label"))).toEqual([
+            "Default",
+            ...FOLDER_COLORS.map(capitalize),
+        ]);
+        // One tab stop, on the chosen swatch.
+        expect(swatches.filter((swatch) => swatch.tabIndex === 0)).toEqual([swatches[0]]);
+        expect(within(colors).getByRole("radio", { name: "Default" })).toHaveAttribute("aria-checked", "true");
+
+        swatches[0]?.focus();
+        await user.keyboard("{ArrowRight}{ArrowRight}");
+        const orange = within(colors).getByRole("radio", { name: "Orange" });
+        expect(orange).toHaveAttribute("aria-checked", "true");
+        expect(orange).toHaveFocus();
+        await user.keyboard("{End}");
+        expect(within(colors).getByRole("radio", { name: "Pink" })).toHaveAttribute("aria-checked", "true");
+        await user.keyboard("{ArrowRight}");
+        expect(within(colors).getByRole("radio", { name: "Default" })).toHaveAttribute("aria-checked", "true");
+        await user.click(within(colors).getByRole("radio", { name: "Teal" }));
+
+        // The preview and every icon of the grid show the chosen color before saving.
+        const preview = within(dialog).getByRole("img", { name: "Preview of Movies in the sidebar" });
+        expect(preview.querySelector("svg")).toHaveStyle({ color: "var(--color-folder-teal)" });
+        expect(within(dialog).getByRole("radio", { name: "popcorn" })).toHaveStyle({
+            color: "var(--color-folder-teal)",
+        });
+
+        await user.click(within(dialog).getByRole("button", { name: "Save" }));
+        await waitFor(() =>
+            expect(callsOf(calls, "set_library_folder_appearance")).toEqual([
+                { path: "D:\\Movies", icon: null, color: "teal" },
+            ])
+        );
+    });
+
+    it("resets the icon and its color together", async () => {
+        const styled = { ...movies, customIcon: "popcorn", iconColor: "violet" as const };
+        const { calls, user, dialog } = await openIconDialog([], styled);
+        expect(within(dialog).getByRole("radio", { name: "Violet" })).toHaveAttribute("aria-checked", "true");
+        await user.click(within(dialog).getByRole("button", { name: "Reset to default" }));
+        await waitFor(() =>
+            expect(callsOf(calls, "set_library_folder_appearance")).toEqual([
+                { path: "D:\\Movies", icon: null, color: null },
+            ])
+        );
+    });
+
+    it("shows a folder's color and marks the current folder without relying on it", async () => {
+        mockCommands({ list_library_folders: [{ ...series, iconColor: "red" }, movies] });
+        renderScreen(<LibraryNav currentPath={"D:\\Series"} />);
+        const current = await screen.findByRole("link", { name: "Series" });
+        expect(current.querySelector("svg")).toHaveStyle({ color: "var(--color-folder-red)" });
+        expect(current).toHaveAttribute("aria-current", "page");
+        expect(current).toHaveClass("before:bg-accent", "bg-surface-raised");
+        expect(screen.getByRole("link", { name: "Movies" }).querySelector("svg")?.getAttribute("style")).toBeNull();
     });
 
     it("offers recently used icons first and keeps the first tab short", async () => {
@@ -170,17 +235,20 @@ describe("LibraryNav", () => {
         ).toEqual(["zodiac pisces", "film"]);
         const suggested = within(dialog).getByRole("radiogroup", { name: "Suggested" });
         expect(within(suggested).queryByRole("radio", { name: "film" })).not.toBeInTheDocument();
-        expect(within(dialog).getAllByRole("radio")).toHaveLength(MAIN_TAB_LIMIT);
+        const icons = [recent, suggested].flatMap((group) => within(group).getAllByRole("radio"));
+        expect(icons).toHaveLength(MAIN_TAB_LIMIT);
     });
 
     it("searches every icon and saves one outside the suggestions", async () => {
         const { calls, user, dialog } = await openIconDialog();
         await user.type(await openAllIcons(user, dialog), "zodiac pis");
         await user.click(within(dialog).getByRole("radio", { name: "zodiac pisces" }));
-        await user.click(screen.getByRole("button", { name: "Save icon" }));
+        await user.click(screen.getByRole("button", { name: "Save" }));
 
         await waitFor(() =>
-            expect(callsOf(calls, "set_library_folder_icon")).toEqual([{ path: "D:\\Movies", icon: "zodiac-pisces" }])
+            expect(callsOf(calls, "set_library_folder_appearance")).toEqual([
+                { path: "D:\\Movies", icon: "zodiac-pisces", color: null },
+            ])
         );
     });
 

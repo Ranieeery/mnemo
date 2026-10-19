@@ -14,7 +14,10 @@ describe("replaceVideo", () => {
             recentlyWatched: [second, first],
             suggestions: [],
             folderPreviews: [
-                { folder: { id: 1, path: "D:\\V", name: "V", customIcon: null, createdAt: null }, videos: [first] },
+                {
+                    folder: { id: 1, path: "D:\\V", name: "V", customIcon: null, iconColor: null, createdAt: null },
+                    videos: [first],
+                },
             ],
         };
         const next = replaceVideo(home, watched);

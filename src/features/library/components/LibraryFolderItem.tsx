@@ -16,6 +16,7 @@ import {
     ContextMenuTrigger,
     FolderIcon,
     Spinner,
+    sidebarItemClasses,
     Tooltip,
     useIsTruncated,
 } from "../../../shared/ui";
@@ -72,15 +73,13 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
                             search={{ path: folder.path }}
                             aria-current={active ? "page" : undefined}
                             className={cx(
-                                "flex items-center gap-2.5 rounded-control text-body",
-                                "transition-colors duration-(--duration-fast) ease-standard",
-                                compact ? "relative h-9 w-10 justify-center" : "min-h-9 px-2.5 py-1.5",
-                                active && "bg-surface-raised font-medium text-text",
-                                !active && "hover:bg-surface-hover hover:text-text",
-                                !active && (unavailable ? "text-text-subtle" : "text-text-muted")
+                                "relative flex items-center gap-2.5",
+                                compact ? "h-9 w-10 justify-center" : "min-h-9 px-2.5 py-1.5",
+                                sidebarItemClasses(active, { subtle: unavailable })
                             )}
                         >
-                            <FolderIcon name={folder.customIcon} />
+                            {/* A folder not connected keeps its color: the plug and the dimmed name tell its state. */}
+                            <FolderIcon name={folder.customIcon} color={folder.iconColor} />
                             {/* Long names wrap to two lines, then end with an ellipsis. */}
                             <span
                                 ref={nameRef}
@@ -119,7 +118,7 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
                         </ContextMenuItem>
                     )}
                     <ContextMenuItem icon={<Palette />} onSelect={() => setIconOpen(true)}>
-                        Change icon
+                        Icon and color…
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setRemoveOpen(true)}>

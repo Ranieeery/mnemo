@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tauri::{AppHandle, State};
 
+use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::models::{FolderContents, FolderSummary, HomeData, LibraryFolder, LibraryFolderStatus, VideoEntry};
 use crate::domain::relocation::{RelocationCheck, RelocationResult};
@@ -73,10 +74,16 @@ pub async fn relocate_library_folder(
     Ok(result)
 }
 
+/// Sets a library folder's icon and its color; `null` restores each default.
 #[tauri::command]
 #[specta::specta]
-pub async fn set_library_folder_icon(state: State<'_, AppState>, path: String, icon: Option<String>) -> AppResult<()> {
-    library::set_folder_icon(&state.db, path, icon).await
+pub async fn set_library_folder_appearance(
+    state: State<'_, AppState>,
+    path: String,
+    icon: Option<String>,
+    color: Option<FolderColor>,
+) -> AppResult<()> {
+    library::set_folder_appearance(&state.db, path, icon, color).await
 }
 
 /// Folder icons chosen most recently, newest first, offered first by the icon picker.

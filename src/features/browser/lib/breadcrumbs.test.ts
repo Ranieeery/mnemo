@@ -3,7 +3,7 @@ import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { breadcrumbs } from "./breadcrumbs";
 
 function folder(path: string, name: string): LibraryFolder {
-    return { id: 1, path, name, customIcon: null, createdAt: null };
+    return { id: 1, path, name, customIcon: null, iconColor: null, createdAt: null };
 }
 
 describe("breadcrumbs", () => {

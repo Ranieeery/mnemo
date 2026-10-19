@@ -1,4 +1,6 @@
+import { FOLDER_COLORS } from "../../../shared/ipc/bindings";
 import { cx } from "../../../shared/lib/cx";
+import { FolderIcon } from "../../../shared/ui";
 import { CatalogSection } from "./CatalogSection";
 
 const colorGroups: { name: string; tokens: string[] }[] = [
@@ -78,6 +80,25 @@ export function FoundationsSection() {
                         </ul>
                     </div>
                 ))}
+            </div>
+
+            <div className="flex flex-col gap-3">
+                <h3 className="text-body font-medium text-text">Library folder colors</h3>
+                <p className="text-small text-text-muted">
+                    Icon colors a library folder can take, at least 3:1 on every surface (folder-*).
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    {["background", "surface", "surface-raised", "surface-hover"].map((surface) => (
+                        <div
+                            key={surface}
+                            className={cx("flex items-center gap-2 rounded-control px-3 py-2", swatchClasses[surface])}
+                        >
+                            {FOLDER_COLORS.map((color) => (
+                                <FolderIcon key={color} name="film" color={color} />
+                            ))}
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="flex flex-col gap-3">

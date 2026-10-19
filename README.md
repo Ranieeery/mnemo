@@ -31,7 +31,7 @@ thumbnails, tags and watch progress in a local SQLite database.
 ## Features
 
 - **Folder-based library:** add folders and browse their real hierarchy, with breadcrumbs, per-folder progress and
-  custom icons for library folders.
+  custom icons and icon colors for library folders.
 - **Sort and filter:** sort a folder's videos by name, duration or date added, and show only unwatched, in-progress
   or watched ones.
 - **Two ways to view a folder:** *Folders* shows only what is directly inside it; *Continuous* lists every video below

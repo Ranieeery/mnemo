@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use specta_typescript::Number;
 
+use super::folder_color::FolderColor;
 use super::folder_view::ResolvedViewMode;
 
 mod history;
@@ -52,6 +53,8 @@ pub struct LibraryFolder {
     pub path: String,
     pub name: String,
     pub custom_icon: Option<String>,
+    /// `None` draws the icon in the surrounding text color.
+    pub icon_color: Option<FolderColor>,
     pub created_at: Option<String>,
 }
 

@@ -112,12 +112,16 @@ CREATE INDEX idx_videos_file_size ON videos (file_size);
 CREATE INDEX idx_videos_missing_since ON videos (missing_since) WHERE missing_since IS NOT NULL;
 "#;
 
+/// Version 2.4: a library folder's icon can have a color, stored by its token name (`NULL` is the default color).
+const FOLDER_ICON_COLOR: &str = "ALTER TABLE library_folders ADD COLUMN icon_color TEXT;";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
         M::up(INDEXES_CLEANUP_AND_SETTINGS),
         M::up(WATCH_HISTORY_DATE_INDEX),
         M::up(FILE_PRESENCE),
+        M::up(FOLDER_ICON_COLOR),
     ])
 }
 
@@ -261,7 +265,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 4);
+        assert_eq!(user_version(&connection), 5);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -285,7 +289,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 4);
+        assert_eq!(user_version(&connection), 5);
         for table in [
             "videos",
             "tags",
@@ -318,6 +322,25 @@ mod tests {
     }
 
     #[test]
+    fn legacy_library_folders_keep_their_icon_and_start_with_the_default_color() {
+        let mut connection = legacy_database(true);
+        connection
+            .execute("UPDATE library_folders SET custom_icon = '🎬' WHERE id = 1", params![])
+            .unwrap();
+        run(&mut connection).unwrap();
+        let (icon, color): (Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT custom_icon, icon_color FROM library_folders WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(icon.as_deref(), Some("🎬"));
+        assert_eq!(color, None);
+        assert_legacy_data_preserved(&connection);
+    }
+
+    #[test]
     fn indexes_the_watch_history_by_date() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
@@ -336,7 +359,7 @@ mod tests {
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 4);
+        assert_eq!(user_version(&connection), 5);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -406,7 +429,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 4);
+        assert_eq!(user_version(&connection), 5);
         assert_legacy_data_preserved(&connection);
     }
 

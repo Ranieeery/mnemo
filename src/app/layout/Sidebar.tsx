@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { LibraryNav } from "../../features/library";
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "../../shared/ipc/bindings";
 import { cx } from "../../shared/lib/cx";
-import { IconButton, ResizablePanel, Tooltip } from "../../shared/ui";
+import { IconButton, ResizablePanel, sidebarItemClasses, Tooltip } from "../../shared/ui";
 import { useSidebarPreferences } from "./useSidebarPreferences";
 
 const SIDEBAR_ID = "sidebar";
@@ -26,12 +26,9 @@ function NavLink({ to, label, icon, active, collapsed, className }: NavLinkProps
             aria-current={active ? "page" : undefined}
             aria-label={collapsed ? label : undefined}
             className={cx(
-                "flex h-9 items-center gap-2.5 rounded-control text-body [&_svg]:size-4 [&_svg]:shrink-0",
-                "transition-colors duration-(--duration-fast) ease-standard",
+                "relative flex h-9 items-center gap-2.5 [&_svg]:size-4 [&_svg]:shrink-0",
                 collapsed ? "w-10 justify-center" : "px-2.5",
-                active
-                    ? "bg-surface-raised font-medium text-text"
-                    : "text-text-muted hover:bg-surface-hover hover:text-text",
+                sidebarItemClasses(active),
                 className
             )}
         >

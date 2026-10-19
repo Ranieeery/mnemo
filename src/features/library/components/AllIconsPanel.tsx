@@ -1,4 +1,5 @@
 import { use, useMemo, useState } from "react";
+import type { FolderColor } from "../../../shared/ipc/bindings";
 import { loadAllIcons, ScrollContainer, SearchInput, VirtualList } from "../../../shared/ui";
 import { filterIconNames } from "../lib/iconPicker";
 import { IconOption } from "./IconOption";
@@ -8,10 +9,12 @@ const COLUMNS = 8;
 type AllIconsPanelProps = {
     selected: string | null;
     onSelect: (name: string) => void;
+    /** The color being chosen, previewed on every icon. */
+    color: FolderColor | null;
 };
 
 /** Every lucide icon with a search field. Suspends until the icon set is loaded. */
-export function AllIconsPanel({ selected, onSelect }: AllIconsPanelProps) {
+export function AllIconsPanel({ selected, onSelect, color }: AllIconsPanelProps) {
     const icons = use(loadAllIcons());
     const [query, setQuery] = useState("");
     const names = useMemo(() => [...icons.keys()], [icons]);
@@ -48,6 +51,7 @@ export function AllIconsPanel({ selected, onSelect }: AllIconsPanelProps) {
                                                 name={name}
                                                 selected={selected === name}
                                                 onSelect={onSelect}
+                                                color={color}
                                             >
                                                 {Icon && <Icon aria-hidden />}
                                             </IconOption>

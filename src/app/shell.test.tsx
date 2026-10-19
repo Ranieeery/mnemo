@@ -165,7 +165,7 @@ describe("locating a folder that is not connected", () => {
             relocate_library_folder: ({ to }: { to: string }) => {
                 calls.relocated++;
                 return {
-                    folder: { id: 1, path: to, name: "Series", customIcon: null, createdAt: null },
+                    folder: { id: 1, path: to, name: "Series", customIcon: null, iconColor: null, createdAt: null },
                     totalVideos: 2,
                     foundVideos: 2,
                 };

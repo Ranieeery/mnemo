@@ -164,3 +164,35 @@
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, "Liberation Mono", monospace;
 }
+
+/*
+ * Library folder icon colors, picked by name at runtime (`var(--color-folder-${color})`), hence `static`. Each one
+ * keeps at least 3:1 (WCAG non-text contrast) on every background the icon sits on: `background`, `surface`,
+ * `surface-raised` and `surface-hover`. `folderColors.test.ts` checks it for both themes.
+ */
+@theme static {
+    --color-folder-red: #f87171;
+    --color-folder-orange: #fb923c;
+    --color-folder-amber: #fbbf24;
+    --color-folder-lime: #a3e635;
+    --color-folder-green: #4ade80;
+    --color-folder-teal: #2dd4bf;
+    --color-folder-cyan: #22d3ee;
+    --color-folder-blue: #60a5fa;
+    --color-folder-violet: #a78bfa;
+    --color-folder-pink: #f472b6;
+}
+
+/* The same colors, darker, for the light theme's surfaces (once it exists, it only redefines variables). */
+:root[data-theme="light"] {
+    --color-folder-red: #c81e1e;
+    --color-folder-orange: #b84a0c;
+    --color-folder-amber: #946200;
+    --color-folder-lime: #4d7c0f;
+    --color-folder-green: #15803d;
+    --color-folder-teal: #0f766e;
+    --color-folder-cyan: #0e7490;
+    --color-folder-blue: #2563eb;
+    --color-folder-violet: #7c3aed;
+    --color-folder-pink: #c0267a;
+}

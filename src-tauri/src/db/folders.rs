@@ -2,6 +2,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
+use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::media::display_name;
 use crate::domain::models::LibraryFolder;
@@ -15,13 +16,16 @@ fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
         name: display_name(Path::new(&path)),
         path,
         custom_icon: row.get::<_, Option<String>>(2)?.filter(|icon| !icon.is_empty()),
+        // A name this version does not know (written by a newer one, or by hand) shows the default color.
+        icon_color: row.get::<_, Option<String>>(4)?.as_deref().and_then(FolderColor::parse),
         created_at: row.get(3)?,
     })
 }
 
 pub fn list(connection: &Connection) -> AppResult<Vec<LibraryFolder>> {
-    let mut statement = connection
-        .prepare_cached("SELECT id, path, custom_icon, created_at FROM library_folders ORDER BY created_at, id")?;
+    let mut statement = connection.prepare_cached(
+        "SELECT id, path, custom_icon, created_at, icon_color FROM library_folders ORDER BY created_at, id",
+    )?;
     let folders = statement.query_map([], map_folder)?.collect::<Result<_, _>>()?;
     Ok(folders)
 }
@@ -33,7 +37,7 @@ pub fn paths(connection: &Connection) -> AppResult<Vec<String>> {
 pub fn find(connection: &Connection, path: &str) -> AppResult<Option<LibraryFolder>> {
     Ok(connection
         .query_row(
-            "SELECT id, path, custom_icon, created_at FROM library_folders WHERE path = ?1",
+            "SELECT id, path, custom_icon, created_at, icon_color FROM library_folders WHERE path = ?1",
             [path],
             map_folder,
         )
@@ -56,10 +60,16 @@ pub fn remove(connection: &Connection, path: &str) -> AppResult<()> {
     Ok(())
 }
 
-pub fn set_icon(connection: &Connection, path: &str, icon: Option<&str>) -> AppResult<()> {
+/// Sets the icon and its color (`None` restores each default).
+pub fn set_appearance(
+    connection: &Connection,
+    path: &str,
+    icon: Option<&str>,
+    color: Option<FolderColor>,
+) -> AppResult<()> {
     let changed = connection.execute(
-        "UPDATE library_folders SET custom_icon = ?2 WHERE path = ?1",
-        params![path, icon],
+        "UPDATE library_folders SET custom_icon = ?2, icon_color = ?3 WHERE path = ?1",
+        params![path, icon, color.map(FolderColor::as_str)],
     )?;
     if changed == 0 {
         return Err(AppError::NotFound(format!("library folder {path}")));
@@ -150,6 +160,7 @@ mod tests {
     use super::*;
     use crate::db::test_support;
     use crate::db::videos::tests::path;
+    use crate::domain::folder_color::FolderColor;
 
     #[test]
     fn relocates_a_folder_with_the_library_folders_inside_it() {
@@ -157,13 +168,14 @@ mod tests {
         let videos = add(&connection, &path(&["D:", "Videos"])).unwrap();
         let anime = add(&connection, &path(&["D:", "Videos", "Anime"])).unwrap();
         let sibling = add(&connection, &path(&["D:", "Videos 2"])).unwrap();
-        set_icon(&connection, &videos.path, Some("film")).unwrap();
+        set_appearance(&connection, &videos.path, Some("film"), Some(FolderColor::Teal)).unwrap();
 
         relocate(&connection, &videos.path, &path(&["E:", "Videos"])).unwrap();
         let folders = list(&connection).unwrap();
         let moved = folders.iter().find(|folder| folder.id == videos.id).unwrap();
         assert_eq!(moved.path, path(&["E:", "Videos"]));
         assert_eq!(moved.custom_icon.as_deref(), Some("film"));
+        assert_eq!(moved.icon_color, Some(FolderColor::Teal));
         assert_eq!(moved.created_at, videos.created_at);
         let nested = folders.iter().find(|folder| folder.id == anime.id).unwrap();
         assert_eq!(nested.path, path(&["E:", "Videos", "Anime"]));
@@ -189,16 +201,32 @@ mod tests {
     }
 
     #[test]
-    fn icon_can_be_set_and_cleared() {
+    fn icon_and_color_can_be_set_and_cleared() {
         let connection = test_support::connection();
         let folder = add(&connection, "Videos").unwrap();
-        set_icon(&connection, &folder.path, Some("🎬")).unwrap();
-        assert_eq!(
-            find(&connection, "Videos").unwrap().unwrap().custom_icon.as_deref(),
-            Some("🎬")
-        );
-        set_icon(&connection, &folder.path, None).unwrap();
-        assert_eq!(find(&connection, "Videos").unwrap().unwrap().custom_icon, None);
+        assert_eq!(folder.icon_color, None);
+        set_appearance(&connection, &folder.path, Some("🎬"), Some(FolderColor::Amber)).unwrap();
+        let styled = find(&connection, "Videos").unwrap().unwrap();
+        assert_eq!(styled.custom_icon.as_deref(), Some("🎬"));
+        assert_eq!(styled.icon_color, Some(FolderColor::Amber));
+
+        set_appearance(&connection, &folder.path, None, None).unwrap();
+        let plain = find(&connection, "Videos").unwrap().unwrap();
+        assert_eq!((plain.custom_icon, plain.icon_color), (None, None));
+        assert!(matches!(
+            set_appearance(&connection, "Missing", None, None),
+            Err(AppError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn an_unknown_stored_color_shows_the_default() {
+        let connection = test_support::connection();
+        add(&connection, "Videos").unwrap();
+        connection
+            .execute("UPDATE library_folders SET icon_color = 'chartreuse'", [])
+            .unwrap();
+        assert_eq!(find(&connection, "Videos").unwrap().unwrap().icon_color, None);
     }
 
     #[test]

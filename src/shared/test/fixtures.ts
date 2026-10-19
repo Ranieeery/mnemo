@@ -20,7 +20,15 @@ export function videoFixture(overrides: Partial<Video> = {}): Video {
 }
 
 export function libraryFolderFixture(overrides: Partial<LibraryFolder> = {}): LibraryFolder {
-    return { id: 1, path: "D:\\Videos", name: "Videos", customIcon: null, createdAt: null, ...overrides };
+    return {
+        id: 1,
+        path: "D:\\Videos",
+        name: "Videos",
+        customIcon: null,
+        iconColor: null,
+        createdAt: null,
+        ...overrides,
+    };
 }
 
 export function entryFixture(video: Video): VideoEntry {

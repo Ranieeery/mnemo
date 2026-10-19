@@ -2,6 +2,7 @@ export { Badge, Tag } from "./Badge";
 export { Button, buttonClasses } from "./Button";
 export { Card } from "./Card";
 export { ChoiceGroup } from "./ChoiceGroup";
+export { type ColorSwatch, ColorSwatches } from "./ColorSwatches";
 export { ConfirmDialog } from "./ConfirmDialog";
 export {
     ContextMenu,
@@ -24,7 +25,7 @@ export {
 } from "./DropdownMenu";
 export { EmptyState } from "./EmptyState";
 export { ErrorState } from "./ErrorState";
-export { FolderIcon, loadAllIcons, SUGGESTED_FOLDER_ICONS } from "./FolderIcon";
+export { FolderIcon, folderColorValue, loadAllIcons, SUGGESTED_FOLDER_ICONS } from "./FolderIcon";
 export { IconButton } from "./IconButton";
 export { Input } from "./Input";
 export { Kbd } from "./Kbd";
@@ -37,6 +38,7 @@ export { Skeleton } from "./Skeleton";
 export { Slider } from "./Slider";
 export { Spinner } from "./Spinner";
 export { Switch } from "./Switch";
+export { sidebarItemClasses } from "./sidebarItem";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { Textarea } from "./Textarea";
 export { resetToasts, Toaster, toast } from "./Toast";

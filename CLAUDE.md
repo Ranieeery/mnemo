@@ -111,7 +111,8 @@ src/
     ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns, useIsTruncated
     ├── video/          # UI e ações de vídeo usadas por várias features (card, thumbnail, grade, menu de contexto)
     ├── ipc/            # bindings gerados, client (`call()` → CommandError), queryKeys, queryClient, queries comuns
-    ├── lib/            # funções puras (duração, bytes, caminhos, classes, parsers de legenda, debounce)
+    ├── lib/            # funções puras (duração, bytes, caminhos, classes, parsers de legenda, debounce,
+    │                   # capitalize)
     ├── stores/         # Zustand: processamento em segundo plano e diálogos globais
     ├── styles/         # tokens (`@theme`) e estilos globais
     └── test/           # setup do Vitest, helpers, fixtures, stub de mídia
@@ -156,7 +157,7 @@ src/
 - `rusqlite` com `journal_mode=WAL`, `foreign_keys=ON` e `busy_timeout`. Arquivo `mnemo.db` no `app_config_dir` (no
   Windows e macOS coincide com o app data dir), o mesmo local usado pelas versões 1.x. O `identifier` `com.mnemo` não
   pode mudar.
-- Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`),
+- Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon` e `icon_color`),
   `watch_history`, `app_settings`, `folder_settings`.
 - `app_settings` é chave/valor em JSON com acesso tipado (`db/settings.rs`): cada setting implementa `Setting` (chave,
   tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
@@ -169,7 +170,8 @@ src/
 - **Migrações versionadas** (`rusqlite_migration`, em `db/migrations.rs`). A `1` é um baseline compatível com bancos
   das versões 1.x (adiciona colunas que versões antigas criavam depois); a `2` limpa órfãos, normaliza `is_watched`
   gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`; a `4` adiciona
-  a `videos` `file_size`, `fingerprint` e `missing_since` (vazios em bancos antigos).
+  a `videos` `file_size`, `fingerprint` e `missing_since` (vazios em bancos antigos); a `5` adiciona
+  `library_folders.icon_color` (nome do token da cor, `NULL` é a cor padrão; nome desconhecido é lido como padrão).
   `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
@@ -182,7 +184,8 @@ src/
   reaparecer; os com mais de 30 dias são apagados ao iniciar, só abaixo de pastas acessíveis, e Settings → Maintenance
   lista e limpa os sumidos.
 - Export/import JSON com `formatVersion` (atual: 2); o import aceita exports das versões 1.x e é atômico. Tamanho,
-  impressão digital e `missing_since` não vão no export (são refeitos a partir do disco).
+  impressão digital e `missing_since` não vão no export (são refeitos a partir do disco). `icon_color` vai no export
+  (opcional: exports antigos e cores desconhecidas importam como padrão), sem mudar o `formatVersion`.
 
 ## Mídia
 
@@ -283,6 +286,11 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 - O Tailwind só mantém no build as variáveis do `@theme` que aparecem por nome no código. Variáveis montadas em
   tempo de execução (ex.: `var(--color-subtitle-${cor})`) ficam num bloco `@theme static`, e um teste confere que
   estão lá.
+- Cores de ícone de pasta da biblioteca: `folder-red|orange|amber|lime|green|teal|cyan|blue|violet|pink`
+  (`@theme static`, valores do tema claro em `:root[data-theme="light"]`; a lista vem de `FOLDER_COLORS` nos
+  bindings). Cada uma tem pelo menos 3:1 sobre `background`, `surface`, `surface-raised` e `surface-hover` nos dois
+  temas; `shared/styles/folderColors.test.ts` confere (o tema claro ainda não existe: o teste usa fundos de
+  referência, a trocar pelos tokens dele).
 
 ### Componentes
 
@@ -291,7 +299,10 @@ Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interaç�
 `Skeleton`, `Card`, `Tabs`, `Slider` (`compact` para volume), `Switch`, `Badge`/`Tag`, `EmptyState`, `ErrorState`, `Kbd`,
 `Spinner`, `FolderIcon`, `ScrollToTopButton`, `ChoiceGroup` (poucas opções exclusivas em botões, ex.: Days/Weeks),
 `ResizablePanel` (painel lateral com a borda livre arrastável ou movida pelas setas, largura controlada pelo chamador,
-duplo clique para o padrão; com `collapsed`, anima a largura entre os estados e esconde a alça quando recolhido).
+duplo clique para o padrão; com `collapsed`, anima a largura entre os estados e esconde a alça quando recolhido),
+`ColorSwatches` (amostras de cor como radiogroup: uma parada de `Tab`, setas e `Home`/`End`, nome acessível e
+tooltip por amostra, a escolhida com anel e ✓; usado nas legendas e nas pastas), `sidebarItemClasses` (estados dos
+itens da sidebar: a atual tem fundo elevado, barra `accent` à esquerda e, expandida, nome mais forte).
 `toast()` pode ser chamado fora do React. `Tooltip` aceita `disabled` (fica fechado sem mudar o gatilho, ex.: só mostrar
 o texto completo quando `useIsTruncated` indica corte). Features compõem esses primitivos; não recriam botões, modais
 ou menus.
@@ -378,6 +389,12 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 - Ícones personalizados para pastas da biblioteca: qualquer ícone do lucide, salvo pelo nome em `custom_icon`. O
   seletor tem a aba "Suggested" (até 40: os 8 últimos usados, guardados em `app_settings`, e uma lista curada) e
   "All icons" (todos, com busca). Emojis salvos pela 1.x aparecem como o ícone padrão de pasta.
+- Cor do ícone da pasta, no mesmo diálogo ("Icon and color…" no menu de contexto): "Default" (a cor do texto, como
+  antes) ou uma das 10 cores da paleta, com prévia ao vivo sobre o fundo da sidebar e a grade de ícones já pintada.
+  "Save" grava ícone e cor (`set_library_folder_appearance`); "Reset to default" volta os dois. A cor aparece na
+  sidebar, no rail, na home e em Settings → Library; a pasta atual continua marcada pelo fundo, pela barra `accent`
+  e pelo `aria-current`, e uma pasta desconectada mantém a cor (o estado vem do ícone de tomada e do nome
+  esmaecido). A cor nunca identifica a pasta sozinha: o nome está sempre no link ou no tooltip.
 - Estatísticas por pasta: total, assistidos e percentual de progresso.
 - A biblioteca acompanha o disco sozinha (ver "Sincronização com o disco"):
   - vídeos novos são lidos;

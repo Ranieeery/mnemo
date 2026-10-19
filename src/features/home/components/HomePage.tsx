@@ -104,7 +104,11 @@ function HomeContent({ columns, home, hasFolders, addFolderAction }: HomeContent
                             search={{ path: folder.path }}
                             className="group flex items-center gap-2 self-start rounded-control text-title font-semibold text-text"
                         >
-                            <FolderIcon name={folder.customIcon} className="size-5 text-text-muted" />
+                            <FolderIcon
+                                name={folder.customIcon}
+                                color={folder.iconColor}
+                                className="size-5 text-text-muted"
+                            />
                             {folder.name}
                             <ChevronRight
                                 className="size-4 text-text-subtle transition-transform duration-(--duration-fast) ease-standard group-hover:translate-x-0.5"

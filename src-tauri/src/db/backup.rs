@@ -4,6 +4,7 @@ use rusqlite::{Connection, params};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::settings;
+use crate::domain::folder_color::FolderColor;
 use crate::domain::models::{AppSettings, ImportSummary};
 use crate::error::{AppError, AppResult};
 
@@ -45,6 +46,9 @@ pub struct LibraryFolderRecord {
     pub created_at: Option<String>,
     #[serde(default)]
     pub custom_icon: Option<String>,
+    /// Added in 2.4; older exports have none (the default color).
+    #[serde(default)]
+    pub icon_color: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -162,13 +166,14 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
         settings: Some(settings::load(connection)?),
         library_folders: select_all(
             connection,
-            "SELECT id, path, created_at, custom_icon FROM library_folders ORDER BY id",
+            "SELECT id, path, created_at, custom_icon, icon_color FROM library_folders ORDER BY id",
             |row| {
                 Ok(LibraryFolderRecord {
                     id: row.get(0)?,
                     path: row.get(1)?,
                     created_at: row.get(2)?,
                     custom_icon: row.get(3)?,
+                    icon_color: row.get(4)?,
                 })
             },
         )?,
@@ -249,9 +254,20 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
 
     for folder in &file.library_folders {
         transaction.execute(
-            "INSERT INTO library_folders (id, path, created_at, custom_icon)
-             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4)",
-            params![folder.id, folder.path, folder.created_at, folder.custom_icon],
+            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color)
+             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5)",
+            params![
+                folder.id,
+                folder.path,
+                folder.created_at,
+                folder.custom_icon,
+                // A color this version does not know is imported as the default.
+                folder
+                    .icon_color
+                    .as_deref()
+                    .and_then(FolderColor::parse)
+                    .map(FolderColor::as_str)
+            ],
         )?;
     }
     for setting in &file.folder_settings {
@@ -369,10 +385,27 @@ mod tests {
         assert_eq!(watched, vec![true, false, true]);
         assert_eq!(videos::get(&connection, 1).unwrap().watch_progress_seconds, 1100.5);
         assert_eq!(tags::for_video(&connection, 1).unwrap()[0].name, "anime");
-        assert_eq!(
-            folders::list(&connection).unwrap()[0].custom_icon.as_deref(),
-            Some("🎬")
-        );
+        let folder = folders::list(&connection).unwrap().remove(0);
+        assert_eq!(folder.custom_icon.as_deref(), Some("🎬"));
+        // Exports from before 2.4 have no color: the default.
+        assert_eq!(folder.icon_color, None);
+    }
+
+    #[test]
+    fn icon_colors_are_exported_and_unknown_ones_import_as_the_default() {
+        let mut source = test_support::connection();
+        import(&mut source, &parse(LEGACY_EXPORT)).unwrap();
+        folders::set_appearance(&source, "D:\\Videos", Some("tv"), Some(FolderColor::Violet)).unwrap();
+        let mut exported = export(&source).unwrap();
+        assert_eq!(exported.library_folders[0].icon_color.as_deref(), Some("violet"));
+
+        let mut target = test_support::connection();
+        import(&mut target, &parse(&serde_json::to_string(&exported).unwrap())).unwrap();
+        assert_eq!(folders::list(&target).unwrap()[0].icon_color, Some(FolderColor::Violet));
+
+        exported.library_folders[0].icon_color = Some("chartreuse".into());
+        import(&mut target, &exported).unwrap();
+        assert_eq!(folders::list(&target).unwrap()[0].icon_color, None);
     }
 
     #[test]
