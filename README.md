@@ -56,7 +56,8 @@ thumbnails, tags and watch progress in a local SQLite database.
   time, with progress, details per folder and a cancel button.
 - **Follows your folders:** new videos show up on their own. Renamed or moved videos keep their progress, tags and
   history, even when the change was made while Mnemo was closed. Deleted videos are kept aside for 30 days in case
-  they come back. Unplugged drives never lose anything.
+  they come back. Unplugged drives never lose anything, and a folder moved, renamed or whose drive got another
+  letter can be located again, keeping everything (files are never moved).
 - **Backup:** export the whole library to JSON and import it back (exports from Mnemo 1.x are accepted too).
 - **Maintenance:** library statistics, database details and cleanup of videos that no longer belong to a folder or
   whose file is gone.

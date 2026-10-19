@@ -212,7 +212,17 @@ src/
   - os eventos do watcher;
   - as pastas que voltaram a ficar acessíveis;
   - as pastas em verificação periódica;
-  - os pedidos de `process_folders`, que compara a pasta antes de enfileirar os vídeos novos.
+  - os pedidos de `process_folders`, que compara a pasta antes de enfileirar os vídeos novos;
+  - as realocações (`relocate_library_folder` → `LibrarySync::relocate`), aplicadas entre duas comparações.
+- Realocação de pasta da biblioteca (`services/relocation.rs`, regras puras em `domain/relocation.rs`): só para
+  pastas inacessíveis. `check_folder_relocation` só lê: recusa destino que não é pasta, igual à origem, origem que
+  voltou a ficar acessível, ou destino que é, está dentro ou contém outra pasta da biblioteca (as pastas da biblioteca
+  dentro da origem vão junto e não contam). Compara cada vídeo guardado pelo caminho relativo e, quando guardado,
+  pelo tamanho (só metadados), e classifica (`RelocationMatch`: `empty`, `complete`, `partial` ≥ 50%, `poor`,
+  `none`). A aplicação valida de novo e, numa transação, apaga registros fora da biblioteca que ocupariam o caminho
+  de um vídeo (com as thumbnails), move vídeos (`presence::move_folder`), modos de exibição e pastas da biblioteca
+  (`folders::relocate`, mantendo id e ícone). Depois o loop atualiza as raízes (watcher) e compara a pasta nova
+  (`read_new`), e o comando libera o asset scope do caminho novo. Thumbnails não dependem do caminho do vídeo.
 - `reconcile.rs` compara o disco com o banco sob os caminhos pedidos:
   - restaura sumidos que voltaram e marca sumidos os que desapareceram;
   - grava o tamanho dos vídeos antigos;
@@ -375,6 +385,14 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   - apagados ficam sumidos por 30 dias.
 - Pasta desconectada (HD externo, rede offline): aparece com um ícone na sidebar, e a tela da pasta explica e oferece
   "Try again". Os vídeos continuam na home e nada é perdido.
+- "Locate folder…" (só para pasta desconectada: menu de contexto da sidebar e tela "This folder is not connected")
+  aponta a pasta para o lugar novo quando ela foi movida, renomeada ou o drive mudou de letra. Nenhum arquivo é
+  movido. Abre o seletor nativo (cancelar não faz nada) e depois o diálogo global (`RelocateFolderDialog`, via
+  `openFolderRelocation`) com "Was/Now" e o resultado: "142 of 150 videos found", aviso de que pode não ser a mesma
+  pasta abaixo de 50% ("Use anyway"), arquivos com mesmo nome e tamanho diferente, ou o motivo da recusa, com
+  "Choose another folder…". Ao aplicar, vídeos, progresso, tags, histórico, ícone, thumbnails e modos de exibição
+  são mantidos; os não encontrados ficam sumidos. A pasta volta a ser monitorada sem reiniciar, um toast mostra o
+  resultado e a tela de uma pasta dentro do caminho antigo vai para o equivalente no novo.
 
 ### Processamento de mídia
 - Metadados e thumbnail em segundo plano, vários arquivos em paralelo. A barra mostra as pastas, os arquivos em

@@ -2,6 +2,7 @@ import { emit } from "@tauri-apps/api/event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { UserEvent } from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { useDialogStore } from "../../shared/stores/dialogs";
 import { followProcessing, processFolder } from "../../shared/stores/processing";
 import { libraryFolderFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
@@ -36,6 +37,26 @@ describe("LibraryNav", () => {
 
         expect(await screen.findByRole("link", { name: "Series, not connected" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Movies" })).toBeInTheDocument();
+    });
+
+    it("offers to locate only a folder that is not connected", async () => {
+        mockCommands({
+            list_library_folders: [series, movies],
+            get_library_folder_statuses: [
+                { path: series.path, watch: "unavailable", reason: null },
+                { path: movies.path, watch: "watching", reason: null },
+            ],
+        });
+        renderScreen(<LibraryNav currentPath={undefined} />);
+
+        fireEvent.contextMenu(await screen.findByRole("link", { name: "Movies" }));
+        expect(await screen.findByRole("menuitem", { name: "Sync folder" })).toBeInTheDocument();
+        expect(screen.queryByRole("menuitem", { name: "Locate folder…" })).not.toBeInTheDocument();
+        fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+        fireEvent.contextMenu(await screen.findByRole("link", { name: "Series, not connected" }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: "Locate folder…" }));
+        expect(useDialogStore.getState().folderRelocation).toBe(series.path);
     });
 
     it("removes a folder after confirmation", async () => {

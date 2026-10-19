@@ -4,8 +4,9 @@ use tauri::{AppHandle, State};
 
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::models::{FolderContents, FolderSummary, HomeData, LibraryFolder, LibraryFolderStatus, VideoEntry};
+use crate::domain::relocation::{RelocationCheck, RelocationResult};
 use crate::error::AppResult;
-use crate::services::{asset_scope, library};
+use crate::services::{asset_scope, library, relocation};
 use crate::state::AppState;
 
 #[tauri::command]
@@ -41,6 +42,35 @@ pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> 
     let removed = library::remove_folder(&state.db, &state.paths.thumbnails, path).await?;
     state.sync.refresh();
     Ok(removed)
+}
+
+/// Compares the videos of an unreachable library folder with the files at `to`, without changing anything. Fails
+/// when `to` cannot be its new location (not a folder, already in the library, containing a library folder).
+#[tauri::command]
+#[specta::specta]
+pub async fn check_folder_relocation(
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> AppResult<RelocationCheck> {
+    relocation::check(&state.db, from, to).await
+}
+
+/// Points an unreachable library folder at `to`, keeping every video's data, and compares it with the disk.
+/// Files are never moved.
+#[tauri::command]
+#[specta::specta]
+pub async fn relocate_library_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> AppResult<RelocationResult> {
+    // Nothing of the old path may be read after it moves.
+    state.processor.forget(Path::new(&from));
+    let result = state.sync.relocate(from, to).await?;
+    asset_scope::allow(&app, &result.folder.path)?;
+    Ok(result)
 }
 
 #[tauri::command]

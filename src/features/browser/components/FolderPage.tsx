@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, File, Unplug } from "lucide-react";
+import { ArrowDown, File, FolderSearch, Unplug } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { errorMessage, isErrorKind } from "../../../shared/ipc/client";
 import { useLibraryFolderStatus, useLibraryFolders, useMediaTools } from "../../../shared/ipc/queries";
 import { baseName } from "../../../shared/lib/paths";
 import { plural } from "../../../shared/lib/plural";
+import { openFolderRelocation } from "../../../shared/stores/dialogs";
 import { processFolder } from "../../../shared/stores/processing";
 import { Button, buttonClasses, EmptyState, ErrorState, Skeleton, scrollBehavior } from "../../../shared/ui";
 import { VideoGridSkeleton } from "../../../shared/video";
@@ -124,8 +125,19 @@ function FolderBody({ contents, unavailableRoot, onFolderAction, order, onShowAl
                 <EmptyState
                     icon={Unplug}
                     title="This folder is not connected"
-                    description={`The drive or network location of ${baseName(unavailableRoot)} cannot be reached. Its videos, progress and tags are kept; connect it and try again.`}
-                    action={<Button onClick={() => contents.refetch()}>Try again</Button>}
+                    description={`The drive or network location of ${baseName(unavailableRoot)} cannot be reached. Its videos, progress and tags are kept; connect it and try again, or locate it if it was moved or renamed.`}
+                    action={
+                        <div className="flex flex-wrap justify-center gap-2">
+                            <Button
+                                variant="primary"
+                                icon={<FolderSearch />}
+                                onClick={() => openFolderRelocation(unavailableRoot)}
+                            >
+                                Locate folder…
+                            </Button>
+                            <Button onClick={() => contents.refetch()}>Try again</Button>
+                        </div>
+                    }
                 />
             );
         }

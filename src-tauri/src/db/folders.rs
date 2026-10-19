@@ -122,11 +122,58 @@ pub fn move_view_modes(connection: &Connection, from: &str, to: &str) -> AppResu
     Ok(())
 }
 
+/// Points a library folder, and any library folder inside it, at a new location, keeping their ids and icons.
+pub fn relocate(connection: &Connection, from: &str, to: &str) -> AppResult<()> {
+    let source = FolderBounds::new(from);
+    let target = FolderBounds::new(to);
+    let changed = connection.execute(
+        "UPDATE library_folders
+         SET path = CASE WHEN path = ?1 THEN ?4 ELSE ?5 || substr(path, ?6) END
+         WHERE path = ?1 OR (path >= ?2 AND path < ?3)",
+        params![
+            from,
+            source.lower,
+            source.upper,
+            to,
+            target.lower,
+            source.prefix_chars() as i64 + 1
+        ],
+    )?;
+    if changed == 0 {
+        return Err(AppError::NotFound(format!("library folder {from}")));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::test_support;
     use crate::db::videos::tests::path;
+
+    #[test]
+    fn relocates_a_folder_with_the_library_folders_inside_it() {
+        let connection = test_support::connection();
+        let videos = add(&connection, &path(&["D:", "Videos"])).unwrap();
+        let anime = add(&connection, &path(&["D:", "Videos", "Anime"])).unwrap();
+        let sibling = add(&connection, &path(&["D:", "Videos 2"])).unwrap();
+        set_icon(&connection, &videos.path, Some("film")).unwrap();
+
+        relocate(&connection, &videos.path, &path(&["E:", "Videos"])).unwrap();
+        let folders = list(&connection).unwrap();
+        let moved = folders.iter().find(|folder| folder.id == videos.id).unwrap();
+        assert_eq!(moved.path, path(&["E:", "Videos"]));
+        assert_eq!(moved.custom_icon.as_deref(), Some("film"));
+        assert_eq!(moved.created_at, videos.created_at);
+        let nested = folders.iter().find(|folder| folder.id == anime.id).unwrap();
+        assert_eq!(nested.path, path(&["E:", "Videos", "Anime"]));
+        assert!(folders.contains(&sibling));
+
+        assert!(matches!(
+            relocate(&connection, &path(&["D:", "Gone"]), "E:"),
+            Err(AppError::NotFound(_))
+        ));
+    }
 
     #[test]
     fn adds_lists_and_removes_folders() {

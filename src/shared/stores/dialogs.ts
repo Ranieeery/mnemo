@@ -9,13 +9,19 @@ type DialogState = {
     videoDetails: Video | null;
     /** The keyboard shortcuts help, opened with "?" or the keyboard button. */
     shortcutsHelp: boolean;
+    /** Path of the unreachable library folder being located, from the sidebar or the folder screen. */
+    folderRelocation: string | null;
 };
 
-export const useDialogStore = create<DialogState>(() => ({ videoDetails: null, shortcutsHelp: false }));
+export const useDialogStore = create<DialogState>(() => ({
+    videoDetails: null,
+    shortcutsHelp: false,
+    folderRelocation: null,
+}));
 
 /** Closes every dialog. The store outlives screens, so tests start each case with none open. */
 export function resetDialogs() {
-    useDialogStore.setState({ videoDetails: null, shortcutsHelp: false });
+    useDialogStore.setState({ videoDetails: null, shortcutsHelp: false, folderRelocation: null });
 }
 
 export function openShortcutsHelp() {
@@ -32,4 +38,13 @@ export function openVideoDetails(video: Video) {
 
 export function closeVideoDetails() {
     useDialogStore.setState({ videoDetails: null });
+}
+
+/** Starts locating the library folder `path`: the folder picker opens first, then the dialog with what it found. */
+export function openFolderRelocation(path: string) {
+    useDialogStore.setState({ folderRelocation: path });
+}
+
+export function closeFolderRelocation() {
+    useDialogStore.setState({ folderRelocation: null });
 }

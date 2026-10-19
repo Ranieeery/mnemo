@@ -362,3 +362,41 @@ async fn added_and_removed_folders_are_picked_up() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn a_located_folder_is_watched_and_compared_at_its_new_path() {
+    let fixture = Fixture::new(&["Library/Ep 1.mkv", "Library/Ep 2.mkv"], true).await;
+    let kept = fixture.store_legacy("Library/Ep 1.mkv").await;
+    fixture.store_legacy("Library/Ep 2.mkv").await;
+    fixture.sync.start();
+    eventually("the folder is watched", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Watching)
+    })
+    .await;
+
+    // Moved outside the app, losing one video and gaining another on the way.
+    std::fs::rename(fixture.path("Library"), fixture.path("Moved")).unwrap();
+    std::fs::remove_file(fixture.path("Moved/Ep 2.mkv")).unwrap();
+    fixture.write("Moved/Ep 3.mkv", b"new episode");
+    eventually("the folder is unavailable", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Unavailable)
+    })
+    .await;
+
+    let result = fixture
+        .sync
+        .relocate(fixture.text("Library"), fixture.text("Moved"))
+        .await
+        .unwrap();
+    assert_eq!(result.folder.path, fixture.text("Moved"));
+    assert_eq!((result.total_videos, result.found_videos), (2, 1));
+    assert_eq!(fixture.watch_of("Moved"), Some(FolderWatch::Watching));
+    assert_eq!(fixture.watch_of("Library"), None);
+    assert_eq!(fixture.video_path(kept).await, Some(fixture.text("Moved/Ep 1.mkv")));
+    assert_eq!(fixture.missing("Moved/Ep 2.mkv").await, Some(true));
+    assert_eq!(fixture.harness.outcomes(1).await[0].summary.processed, 1);
+
+    // Watched at the new path like any library folder.
+    fixture.write("Moved/Ep 4.mkv", b"another episode");
+    assert_eq!(fixture.harness.outcomes(1).await[0].summary.processed, 1);
+}

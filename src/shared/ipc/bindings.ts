@@ -17,6 +17,16 @@ export const commands = {
 	addLibraryFolder: (path: string) => typedError<LibraryFolder, IpcError>(__TAURI_INVOKE("add_library_folder", { path })),
 	/**  Removes a library folder with its videos and thumbnails. Returns how many videos were removed. */
 	removeLibraryFolder: (path: string) => typedError<number, IpcError>(__TAURI_INVOKE("remove_library_folder", { path })),
+	/**
+	 *  Compares the videos of an unreachable library folder with the files at `to`, without changing anything. Fails
+	 *  when `to` cannot be its new location (not a folder, already in the library, containing a library folder).
+	 */
+	checkFolderRelocation: (from: string, to: string) => typedError<RelocationCheck, IpcError>(__TAURI_INVOKE("check_folder_relocation", { from, to })),
+	/**
+	 *  Points an unreachable library folder at `to`, keeping every video's data, and compares it with the disk.
+	 *  Files are never moved.
+	 */
+	relocateLibraryFolder: (from: string, to: string) => typedError<RelocationResult, IpcError>(__TAURI_INVOKE("relocate_library_folder", { from, to })),
 	setLibraryFolderIcon: (path: string, icon: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_library_folder_icon", { path, icon })),
 	/**  Folder icons chosen most recently, newest first, offered first by the icon picker. */
 	recentFolderIcons: () => typedError<string[], IpcError>(__TAURI_INVOKE("recent_folder_icons")),
@@ -465,6 +475,38 @@ export type ProcessingSummary = {
 	/**  Videos already in the library, or being read by another job. */
 	skipped: number,
 	failed: number,
+};
+
+/**  What a new location of a library folder would give, before anything changes. */
+export type RelocationCheck = {
+	from: string,
+	to: string,
+	totalVideos: number,
+	/**  Same relative path and, when it is stored, same size. */
+	foundVideos: number,
+	/**  Same relative path but another size: a different file. */
+	differentVideos: number,
+	quality: RelocationMatch,
+};
+
+/**  How well a new location matches the videos stored for a library folder. */
+export type RelocationMatch = 
+/**  The folder has no stored videos, so there is nothing to compare. */
+"empty" | 
+/**  Every stored video is there. */
+"complete" | 
+/**  Most stored videos are there. */
+"partial" | 
+/**  Few stored videos are there: probably not the same folder. */
+"poor" | 
+/**  None of the stored videos is there. */
+"none";
+
+/**  A library folder after it was located, with its videos found there once compared with the disk. */
+export type RelocationResult = {
+	folder: LibraryFolder,
+	totalVideos: number,
+	foundVideos: number,
 };
 
 /**  The effective view mode of a folder and the folder that defines it (`None` means the default applies). */

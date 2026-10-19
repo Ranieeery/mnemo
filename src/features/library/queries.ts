@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
-import { commands, type LibraryFolder } from "../../shared/ipc/bindings";
+import { commands, type LibraryFolder, type RelocationResult } from "../../shared/ipc/bindings";
 import { call, errorMessage } from "../../shared/ipc/client";
 import { queryKeys } from "../../shared/ipc/queryKeys";
+import { joinPath, relativeSegments } from "../../shared/lib/paths";
+import { plural } from "../../shared/lib/plural";
 import { processFolder } from "../../shared/stores/processing";
 import { toast } from "../../shared/ui";
 
@@ -69,4 +72,52 @@ export function useSetFolderIcon() {
             toast({ title: "Could not change the icon", description: errorMessage(error), tone: "danger" });
         },
     });
+}
+
+/** What `to` would give as the new location of the library folder `from`; nothing changes yet. */
+export function useFolderRelocationCheck(from: string, to: string | null) {
+    return useQuery({
+        queryKey: queryKeys.folderRelocation(from, to ?? ""),
+        queryFn: () => call(commands.checkFolderRelocation(from, to ?? "")),
+        enabled: to !== null,
+        // The disk can change between two looks, so every pick is checked afresh.
+        staleTime: 0,
+        gcTime: 0,
+        retry: false,
+    });
+}
+
+/**
+ * Points an unreachable library folder at its new location. The screen showing a folder inside it moves along, so
+ * it does not stay on a path that no longer belongs to the library.
+ */
+export function useRelocateFolder() {
+    const queryClient = useQueryClient();
+    const router = useRouter();
+    return useMutation({
+        mutationFn: ({ from, to }: { from: string; to: string }) => call(commands.relocateLibraryFolder(from, to)),
+        onSuccess: async (result, { from, to }) => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: queryKeys.library }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.libraryFolderStatuses() }),
+            ]);
+            toast({ title: `Located ${result.folder.name}`, description: relocationSummary(result), tone: "success" });
+            const { pathname, search } = router.state.location;
+            const segments =
+                pathname === "/folder" && "path" in search && typeof search.path === "string"
+                    ? relativeSegments(search.path, from)
+                    : null;
+            if (segments) {
+                await router.navigate({ to: "/folder", search: { path: joinPath(to, ...segments) }, replace: true });
+            }
+        },
+    });
+}
+
+function relocationSummary({ totalVideos, foundVideos }: RelocationResult): string {
+    if (totalVideos === 0) {
+        return "Its videos are read from the new location.";
+    }
+    const found = `${foundVideos} of ${plural(totalVideos, "video")} found.`;
+    return foundVideos === totalVideos ? found : `${found} The others keep their data and are listed as missing.`;
 }

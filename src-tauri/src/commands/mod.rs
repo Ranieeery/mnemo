@@ -37,6 +37,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             library::get_library_folder_statuses,
             library::add_library_folder,
             library::remove_library_folder,
+            library::check_folder_relocation,
+            library::relocate_library_folder,
             library::set_library_folder_icon,
             library::recent_folder_icons,
             library::set_folder_view_mode,

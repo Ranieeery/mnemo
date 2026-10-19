@@ -1,10 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Palette, RefreshCw, Trash2, Unplug } from "lucide-react";
+import { FolderSearch, Palette, RefreshCw, Trash2, Unplug } from "lucide-react";
 import { useRef, useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { useLibraryFolderStatus } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { isWithin } from "../../../shared/lib/paths";
+import { openFolderRelocation } from "../../../shared/stores/dialogs";
 import { processFolder, useProcessingStore } from "../../../shared/stores/processing";
 import {
     ConfirmDialog,
@@ -112,6 +113,11 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
                     >
                         Sync folder
                     </ContextMenuItem>
+                    {unavailable && (
+                        <ContextMenuItem icon={<FolderSearch />} onSelect={() => openFolderRelocation(folder.path)}>
+                            Locate folder…
+                        </ContextMenuItem>
+                    )}
                     <ContextMenuItem icon={<Palette />} onSelect={() => setIconOpen(true)}>
                         Change icon
                     </ContextMenuItem>

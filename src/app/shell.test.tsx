@@ -141,6 +141,50 @@ describe("app shell", () => {
     });
 });
 
+describe("locating a folder that is not connected", () => {
+    it("moves the screen to the folder's new location", async () => {
+        const calls = { relocated: 0 };
+        const { user, router } = renderApp("/", {
+            get_library_folder_statuses: [{ path: "D:\\Series", watch: "unavailable", reason: null }],
+            browse_folder: ({ path }: { path: string }) => {
+                if (path.startsWith("D:")) {
+                    // The screen follows the folder's status; a permanent kind just skips the query's retry.
+                    throw commandError("notFound", "D:\\Series");
+                }
+                return folderContentsFixture({ path });
+            },
+            "plugin:dialog|open": "E:\\Series",
+            check_folder_relocation: ({ to }: { to: string }) => ({
+                from: "D:\\Series",
+                to,
+                totalVideos: 2,
+                foundVideos: 2,
+                differentVideos: 0,
+                quality: "complete",
+            }),
+            relocate_library_folder: ({ to }: { to: string }) => {
+                calls.relocated++;
+                return {
+                    folder: { id: 1, path: to, name: "Series", customIcon: null, createdAt: null },
+                    totalVideos: 2,
+                    foundVideos: 2,
+                };
+            },
+        });
+        await user.click(await screen.findByRole("link", { name: "Series, not connected" }));
+        expect(await screen.findByRole("heading", { name: "This folder is not connected" })).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Locate folder…" }));
+        const dialog = await screen.findByRole("dialog", { name: "Locate Series" });
+        await user.click(await within(dialog).findByRole("button", { name: "Use this folder" }));
+
+        expect(await screen.findByText("Located Series")).toBeInTheDocument();
+        await waitFor(() => expect(router.state.location.search).toEqual({ path: "E:\\Series" }));
+        expect(calls.relocated).toBe(1);
+        expect(screen.queryByRole("dialog", { name: "Locate Series" })).not.toBeInTheDocument();
+    });
+});
+
 describe("sidebar", () => {
     it("starts expanded and collapses to a rail that still navigates", async () => {
         const { user, calls } = renderApp("/");

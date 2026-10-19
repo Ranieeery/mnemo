@@ -108,6 +108,33 @@ pub fn move_folder(connection: &Connection, from: &str, to: &str) -> AppResult<u
     )?)
 }
 
+/// Before the videos of `from` move to `to`: deletes the records already stored in `to` at a path one of them is
+/// about to take, so the move keeps every video of `from`. Those records lie outside every library folder (the
+/// target never overlaps one), like the orphans Maintenance cleans. Returns their thumbnails.
+pub fn clear_move_target(connection: &Connection, from: &str, to: &str) -> AppResult<Vec<String>> {
+    let source = FolderBounds::new(from);
+    let target = FolderBounds::new(to);
+    let mut statement = connection.prepare(
+        "DELETE FROM videos
+         WHERE file_path >= ?3 AND file_path < ?4
+           AND ?1 || substr(file_path, ?5) IN (SELECT file_path FROM videos WHERE file_path >= ?1 AND file_path < ?2)
+         RETURNING thumbnail_path",
+    )?;
+    let thumbnails = statement
+        .query_map(
+            params![
+                source.lower,
+                source.upper,
+                target.lower,
+                target.upper,
+                target.prefix_chars() as i64 + 1
+            ],
+            |row| row.get::<_, Option<String>>(0),
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(thumbnails.into_iter().flatten().collect())
+}
+
 /// Stores the size of a video stored before sizes were kept, so a later rename can be recognized by it.
 pub fn set_size(connection: &Connection, id: i64, size: i64) -> AppResult<()> {
     connection.execute("UPDATE videos SET file_size = ?2 WHERE id = ?1", params![id, size])?;
@@ -286,6 +313,28 @@ mod tests {
         assert_eq!(
             videos::get(&connection, episode.id).unwrap().file_path,
             path(&["D:", "Pilot.mkv"])
+        );
+    }
+
+    #[test]
+    fn clearing_a_move_target_deletes_only_records_in_the_way() {
+        let connection = test_support::connection();
+        let kept = add_video(&connection, &path(&["D:", "Show", "Ep 1.mkv"]), 60.0);
+        let in_the_way = add_video(&connection, &path(&["E:", "Show", "Ep 1.mkv"]), 60.0);
+        let unrelated = add_video(&connection, &path(&["E:", "Show", "Extra.mkv"]), 60.0);
+
+        let thumbnails = clear_move_target(&connection, &path(&["D:", "Show"]), &path(&["E:", "Show"])).unwrap();
+        assert_eq!(thumbnails, ["thumb.jpg"]);
+        assert!(videos::find_by_id(&connection, in_the_way.id).unwrap().is_none());
+        assert!(videos::find_by_id(&connection, unrelated.id).unwrap().is_some());
+
+        assert_eq!(
+            move_folder(&connection, &path(&["D:", "Show"]), &path(&["E:", "Show"])).unwrap(),
+            1
+        );
+        assert_eq!(
+            videos::get(&connection, kept.id).unwrap().file_path,
+            path(&["E:", "Show", "Ep 1.mkv"])
         );
     }
 

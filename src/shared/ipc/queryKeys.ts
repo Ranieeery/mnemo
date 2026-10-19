@@ -31,5 +31,6 @@ export const queryKeys = {
     sidebarPreferences: () => ["sidebar-preferences"] as const,
     keyboardShortcuts: () => ["keyboard-shortcuts"] as const,
     subtitleStyle: () => ["subtitle-style"] as const,
+    folderRelocation: (from: string, to: string) => ["folder-relocation", from, to] as const,
     mediaTools: () => ["media-tools"] as const,
 };
