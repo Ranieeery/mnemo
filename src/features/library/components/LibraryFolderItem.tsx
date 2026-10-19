@@ -15,6 +15,7 @@ import {
     ContextMenuTrigger,
     FolderIcon,
     Spinner,
+    Tooltip,
 } from "../../../shared/ui";
 import { useRemoveLibraryFolder } from "../queries";
 import { ChangeIconDialog } from "./ChangeIconDialog";
@@ -23,9 +24,11 @@ type LibraryFolderItemProps = {
     folder: LibraryFolder;
     /** Path of the folder being browsed, to highlight the library folder that contains it. */
     currentPath: string | undefined;
+    /** Only the icon shows (the collapsed sidebar); the name moves to a tooltip and the status to a corner badge. */
+    compact?: boolean;
 };
 
-export function LibraryFolderItem({ folder, currentPath }: LibraryFolderItemProps) {
+export function LibraryFolderItem({ folder, currentPath, compact = false }: LibraryFolderItemProps) {
     const navigate = useNavigate();
     const removeFolder = useRemoveLibraryFolder();
     const processing = useProcessingStore((state) =>
@@ -36,34 +39,47 @@ export function LibraryFolderItem({ folder, currentPath }: LibraryFolderItemProp
     const [removeOpen, setRemoveOpen] = useState(false);
     const active = currentPath !== undefined && isWithin(currentPath, folder.path);
 
+    const statusIcon = (className?: string) =>
+        cx("size-3.5 shrink-0", compact && "absolute top-0.5 right-0.5", className);
+    const trigger = (
+        <ContextMenuTrigger asChild>
+            <Link
+                to="/folder"
+                search={{ path: folder.path }}
+                aria-current={active ? "page" : undefined}
+                className={cx(
+                    "flex h-9 items-center gap-2.5 rounded-control text-body",
+                    "transition-colors duration-(--duration-fast) ease-standard",
+                    compact ? "relative w-10 justify-center" : "px-2.5",
+                    active && "bg-surface-raised font-medium text-text",
+                    !active && "hover:bg-surface-hover hover:text-text",
+                    !active && (unavailable ? "text-text-subtle" : "text-text-muted")
+                )}
+            >
+                <FolderIcon name={folder.customIcon} />
+                <span
+                    className={compact ? "sr-only" : "min-w-0 flex-1 truncate"}
+                    title={compact ? undefined : unavailable ? `${folder.path} (not connected)` : folder.path}
+                >
+                    {folder.name}
+                    {unavailable && <span className="sr-only">, not connected</span>}
+                </span>
+                {unavailable && <Unplug aria-hidden className={statusIcon("text-warning")} />}
+                {processing && <Spinner label={`Reading videos in ${folder.name}`} className={statusIcon()} />}
+            </Link>
+        </ContextMenuTrigger>
+    );
+
     return (
         <li>
             <ContextMenu>
-                <ContextMenuTrigger asChild>
-                    <Link
-                        to="/folder"
-                        search={{ path: folder.path }}
-                        aria-current={active ? "page" : undefined}
-                        className={cx(
-                            "flex h-9 items-center gap-2.5 rounded-control px-2.5 text-body",
-                            "transition-colors duration-(--duration-fast) ease-standard",
-                            active && "bg-surface-raised font-medium text-text",
-                            !active && "hover:bg-surface-hover hover:text-text",
-                            !active && (unavailable ? "text-text-subtle" : "text-text-muted")
-                        )}
-                    >
-                        <FolderIcon name={folder.customIcon} />
-                        <span
-                            className="min-w-0 flex-1 truncate"
-                            title={unavailable ? `${folder.path} (not connected)` : folder.path}
-                        >
-                            {folder.name}
-                            {unavailable && <span className="sr-only">, not connected</span>}
-                        </span>
-                        {unavailable && <Unplug aria-hidden className="size-3.5 shrink-0 text-warning" />}
-                        {processing && <Spinner label={`Reading videos in ${folder.name}`} className="size-3.5" />}
-                    </Link>
-                </ContextMenuTrigger>
+                {compact ? (
+                    <Tooltip content={unavailable ? `${folder.name} (not connected)` : folder.name} side="right">
+                        {trigger}
+                    </Tooltip>
+                ) : (
+                    trigger
+                )}
                 <ContextMenuContent>
                     <ContextMenuItem
                         icon={<RefreshCw />}

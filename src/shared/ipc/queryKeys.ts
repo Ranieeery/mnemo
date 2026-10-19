@@ -28,6 +28,7 @@ export const queryKeys = {
     embeddedSubtitle: (path: string, index: number) => ["embedded-subtitle", path, index] as const,
     settings: () => ["settings"] as const,
     playerPreferences: () => ["player-preferences"] as const,
+    sidebarPreferences: () => ["sidebar-preferences"] as const,
     keyboardShortcuts: () => ["keyboard-shortcuts"] as const,
     subtitleStyle: () => ["subtitle-style"] as const,
     mediaTools: () => ["media-tools"] as const,

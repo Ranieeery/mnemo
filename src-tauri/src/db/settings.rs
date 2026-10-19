@@ -5,6 +5,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use crate::domain::layout::{SidebarPreferences, validate_sidebar_width};
 use crate::domain::models::{AppSettings, PlayerPreferences};
 use crate::domain::player::{validate_speed, validate_up_next_width, validate_volume};
 use crate::domain::shortcuts::{KeyboardShortcuts, repair_shortcuts, validate_shortcuts};
@@ -158,6 +159,35 @@ impl Setting for Player {
             volume: validate_volume(preferences.volume).unwrap_or(defaults.volume),
             speed: validate_speed(preferences.speed).unwrap_or(defaults.speed),
             up_next_width: validate_up_next_width(preferences.up_next_width).unwrap_or(defaults.up_next_width),
+            ..preferences
+        })
+    }
+}
+
+/// Width of the sidebar and whether it is collapsed, kept between sessions.
+pub struct Sidebar;
+
+impl Setting for Sidebar {
+    const KEY: &'static str = "sidebar_preferences";
+    type Value = SidebarPreferences;
+
+    fn default_value() -> SidebarPreferences {
+        SidebarPreferences::default()
+    }
+
+    fn decode(stored: serde_json::Value) -> Option<SidebarPreferences> {
+        merge_onto_default(SidebarPreferences::default(), stored)
+    }
+
+    fn validate(preferences: SidebarPreferences) -> AppResult<SidebarPreferences> {
+        validate_sidebar_width(preferences.width)?;
+        Ok(preferences)
+    }
+
+    /// A width out of range goes back to the default without losing whether the sidebar was collapsed.
+    fn repair(preferences: SidebarPreferences) -> Option<SidebarPreferences> {
+        Some(SidebarPreferences {
+            width: validate_sidebar_width(preferences.width).unwrap_or(SidebarPreferences::default().width),
             ..preferences
         })
     }
@@ -353,6 +383,56 @@ mod tests {
         };
         assert_eq!(set::<Player>(&connection, preferences.clone()).unwrap(), preferences);
         assert_eq!(get::<Player>(&connection).unwrap(), preferences);
+    }
+
+    #[test]
+    fn sidebar_preferences_round_trip_and_start_expanded() {
+        let connection = test_support::connection();
+        assert_eq!(get::<Sidebar>(&connection).unwrap(), SidebarPreferences::default());
+        let preferences = SidebarPreferences {
+            collapsed: true,
+            width: 320,
+        };
+        assert_eq!(set::<Sidebar>(&connection, preferences).unwrap(), preferences);
+        assert_eq!(get::<Sidebar>(&connection).unwrap(), preferences);
+
+        let too_wide = SidebarPreferences {
+            width: 900,
+            ..preferences
+        };
+        assert!(matches!(
+            set::<Sidebar>(&connection, too_wide),
+            Err(AppError::InvalidInput(_))
+        ));
+        assert_eq!(get::<Sidebar>(&connection).unwrap(), preferences);
+    }
+
+    #[test]
+    fn sidebar_preferences_repair_the_width_and_keep_the_rest() {
+        let connection = test_support::connection();
+        store_raw(&connection, "sidebar_preferences", r#"{"collapsed":true,"width":9000}"#);
+        assert_eq!(
+            get::<Sidebar>(&connection).unwrap(),
+            SidebarPreferences {
+                collapsed: true,
+                width: SidebarPreferences::default().width
+            }
+        );
+
+        // Stored before a field existed: the missing field takes its default.
+        connection.execute("DELETE FROM app_settings", []).unwrap();
+        store_raw(&connection, "sidebar_preferences", r#"{"width":300}"#);
+        assert_eq!(
+            get::<Sidebar>(&connection).unwrap(),
+            SidebarPreferences {
+                collapsed: false,
+                width: 300
+            }
+        );
+
+        connection.execute("DELETE FROM app_settings", []).unwrap();
+        store_raw(&connection, "sidebar_preferences", "not json");
+        assert_eq!(get::<Sidebar>(&connection).unwrap(), SidebarPreferences::default());
     }
 
     #[test]

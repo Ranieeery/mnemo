@@ -37,6 +37,8 @@ thumbnails, tags and watch progress in a local SQLite database.
 - **Two ways to view a folder:** *Folders* shows only what is directly inside it; *Continuous* lists every video below
   it grouped by subfolder, and playback continues from one subfolder to the next (great for courses). Subfolders
   inherit the choice until you change it.
+- **Adjustable sidebar:** drag its edge to resize it, or collapse it to a rail of icons that still reaches every
+  screen and folder. It opens the way you left it.
 - **Home:** continue watching, suggestions, recently watched and a preview of each library folder.
 - **Built-in player:** resumes where you stopped, subtitles from a file next to the video (`.srt`, `.vtt`, `.sub`,
   `.ass`) or embedded in it (text tracks of MKV and MP4), switching between audio tracks where the system's webview

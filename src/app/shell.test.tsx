@@ -1,9 +1,9 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_KEYBOARD_SHORTCUTS } from "../shared/ipc/bindings";
+import { DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_SIDEBAR_PREFERENCES } from "../shared/ipc/bindings";
 import { entryFixture, folderContentsFixture, videoFixture } from "../shared/test/fixtures";
-import { callsOf } from "../shared/test/ipc";
+import { callsOf, commandError } from "../shared/test/ipc";
 import { renderApp } from "./testApp";
 
 async function openSeries(user: ReturnType<typeof userEvent.setup>) {
@@ -138,5 +138,69 @@ describe("app shell", () => {
         const { user } = renderApp("/");
         await openSeries(user);
         expect(screen.getByRole("searchbox", { name: "Search in Series" })).toBeInTheDocument();
+    });
+});
+
+describe("sidebar", () => {
+    it("starts expanded and collapses to a rail that still navigates", async () => {
+        const { user, calls } = renderApp("/");
+        const toggle = await screen.findByRole("button", { name: "Collapse sidebar" });
+        expect(toggle).toHaveAttribute("aria-expanded", "true");
+        expect(toggle).toHaveAttribute("aria-controls", "sidebar");
+        expect(screen.getByRole("separator", { name: "Resize sidebar" })).toHaveAttribute("aria-valuenow", "240");
+
+        await user.click(toggle);
+        // The same button, so the focus stays on it.
+        expect(toggle).toHaveAccessibleName("Expand sidebar");
+        expect(toggle).toHaveAttribute("aria-expanded", "false");
+        expect(toggle).toHaveFocus();
+        expect(screen.queryByRole("separator", { name: "Resize sidebar" })).not.toBeInTheDocument();
+        await waitFor(() =>
+            expect(callsOf(calls, "update_sidebar_preferences")).toEqual([
+                { preferences: { ...DEFAULT_SIDEBAR_PREFERENCES, collapsed: true } },
+            ])
+        );
+
+        // Icons only, with their names still available to tooltips and assistive technology.
+        expect(screen.queryByText("Mnemo")).not.toBeInTheDocument();
+        await openSeries(user);
+        expect(screen.getByRole("link", { name: "Series" })).toHaveAttribute("aria-current", "page");
+        await user.click(screen.getByRole("link", { name: "History" }));
+        expect(await screen.findByRole("heading", { name: "History", level: 1 })).toBeInTheDocument();
+    });
+
+    it("opens the way it was left", async () => {
+        renderApp("/", { get_sidebar_preferences: { collapsed: true, width: 320 } });
+        expect(await screen.findByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+        expect(screen.getByRole("complementary", { name: "Sidebar" })).toHaveClass("w-14");
+    });
+
+    it("saves a new width once, after the edge stops moving", async () => {
+        const { user, calls } = renderApp("/", { get_sidebar_preferences: { collapsed: false, width: 300 } });
+        const edge = await screen.findByRole("separator", { name: "Resize sidebar" });
+        const sidebar = screen.getByRole("complementary", { name: "Sidebar" });
+        expect(sidebar).toHaveStyle({ width: "300px" });
+
+        edge.focus();
+        await user.keyboard("{ArrowRight}{ArrowRight}");
+        expect(sidebar).toHaveStyle({ width: "332px" });
+        await waitFor(() =>
+            expect(callsOf(calls, "update_sidebar_preferences")).toEqual([
+                { preferences: { collapsed: false, width: 332 } },
+            ])
+        );
+
+        await user.dblClick(edge);
+        expect(sidebar).toHaveStyle({ width: `${DEFAULT_SIDEBAR_PREFERENCES.width}px` });
+    });
+
+    it("uses the defaults when the saved layout cannot be read", async () => {
+        renderApp("/", {
+            get_sidebar_preferences: () => {
+                throw commandError("invalidInput", "unreadable");
+            },
+        });
+        expect(await screen.findByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+        expect(await screen.findByText("Could not load the sidebar layout")).toBeInTheDocument();
     });
 });

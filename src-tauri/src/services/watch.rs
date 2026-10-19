@@ -1,6 +1,7 @@
-//! Watch status, playback progress and the settings that drive them.
+//! Watch status, playback progress and the settings that drive them, plus the layout of the window.
 
 use crate::db::{Db, history, settings, watch as watch_status};
+use crate::domain::layout::SidebarPreferences;
 use crate::domain::models::{AppSettings, DailyWatchTotal, HistoryCursor, HistoryPage, PlayerPreferences, Video};
 use crate::domain::shortcuts::KeyboardShortcuts;
 use crate::domain::subtitle_style::SubtitleStyle;
@@ -71,6 +72,17 @@ pub async fn player_preferences(db: &Db) -> AppResult<PlayerPreferences> {
 /// Validates and stores the player preferences, returning what was stored.
 pub async fn update_player_preferences(db: &Db, preferences: PlayerPreferences) -> AppResult<PlayerPreferences> {
     db.call(move |connection| settings::set::<settings::Player>(connection, preferences))
+        .await
+}
+
+pub async fn sidebar_preferences(db: &Db) -> AppResult<SidebarPreferences> {
+    db.call(|connection| settings::get::<settings::Sidebar>(connection))
+        .await
+}
+
+/// Validates and stores the sidebar's layout, returning what was stored.
+pub async fn update_sidebar_preferences(db: &Db, preferences: SidebarPreferences) -> AppResult<SidebarPreferences> {
+    db.call(move |connection| settings::set::<settings::Sidebar>(connection, preferences))
         .await
 }
 

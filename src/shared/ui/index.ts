@@ -29,6 +29,7 @@ export { IconButton } from "./IconButton";
 export { Input } from "./Input";
 export { Kbd } from "./Kbd";
 export { Progress } from "./Progress";
+export { ResizablePanel } from "./ResizablePanel";
 export { ScrollContainer, scrollBehavior } from "./ScrollContainer";
 export { ScrollToTopButton } from "./ScrollToTopButton";
 export { SearchInput } from "./SearchInput";

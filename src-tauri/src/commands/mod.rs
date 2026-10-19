@@ -11,6 +11,7 @@ mod videos;
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
+use crate::domain::layout::{DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, SidebarPreferences};
 use crate::domain::models::PlayerPreferences;
 use crate::domain::player::{
     MAX_PLAYBACK_SPEED, MAX_UP_NEXT_WIDTH, MIN_PLAYBACK_SPEED, MIN_UP_NEXT_WIDTH, PLAYBACK_SPEED_STEP,
@@ -76,6 +77,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             settings::update_settings,
             settings::get_player_preferences,
             settings::update_player_preferences,
+            settings::get_sidebar_preferences,
+            settings::update_sidebar_preferences,
             settings::get_keyboard_shortcuts,
             settings::update_keyboard_shortcuts,
             settings::get_subtitle_style,
@@ -101,6 +104,10 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("MIN_UP_NEXT_WIDTH", MIN_UP_NEXT_WIDTH)
         .constant("MAX_UP_NEXT_WIDTH", MAX_UP_NEXT_WIDTH)
         .constant("DEFAULT_PLAYER_PREFERENCES", PlayerPreferences::default())
+        .constant("DEFAULT_SIDEBAR_WIDTH", DEFAULT_SIDEBAR_WIDTH)
+        .constant("MIN_SIDEBAR_WIDTH", MIN_SIDEBAR_WIDTH)
+        .constant("MAX_SIDEBAR_WIDTH", MAX_SIDEBAR_WIDTH)
+        .constant("DEFAULT_SIDEBAR_PREFERENCES", SidebarPreferences::default())
         .constant("DEFAULT_KEYBOARD_SHORTCUTS", KeyboardShortcuts::default())
         .constant("RESERVED_SHORTCUT_KEYS", RESERVED_SHORTCUT_KEYS)
         .constant("MAX_KEYS_PER_SHORTCUT", MAX_KEYS_PER_SHORTCUT)

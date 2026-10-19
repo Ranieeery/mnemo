@@ -119,6 +119,10 @@ export const commands = {
 	/**  Volume, speed, subtitles and layout of the player, as it was last left. */
 	getPlayerPreferences: () => typedError<PlayerPreferences, IpcError>(__TAURI_INVOKE("get_player_preferences")),
 	updatePlayerPreferences: (preferences: PlayerPreferences) => typedError<PlayerPreferences, IpcError>(__TAURI_INVOKE("update_player_preferences", { preferences })),
+	/**  Width of the sidebar and whether it is collapsed, as it was last left. */
+	getSidebarPreferences: () => typedError<SidebarPreferences, IpcError>(__TAURI_INVOKE("get_sidebar_preferences")),
+	/**  Stores the sidebar's layout; rejects widths out of range. */
+	updateSidebarPreferences: (preferences: SidebarPreferences) => typedError<SidebarPreferences, IpcError>(__TAURI_INVOKE("update_sidebar_preferences", { preferences })),
 	/**  The keys of every configurable action, with defaults filling anything not customized. */
 	getKeyboardShortcuts: () => typedError<KeyboardShortcuts, IpcError>(__TAURI_INVOKE("get_keyboard_shortcuts")),
 	/**  Stores the keyboard shortcuts; rejects malformed, reserved or repeated keys and more than two keys per action. */
@@ -157,6 +161,10 @@ export const DEFAULT_KEYBOARD_SHORTCUTS = {"fullscreen":["F"],"historyBack":["Al
 
 export const DEFAULT_PLAYER_PREFERENCES = {"muted":false,"speed":1.0,"subtitlesEnabled":true,"theater":false,"upNextWidth":null,"volume":1.0} as const;
 
+export const DEFAULT_SIDEBAR_PREFERENCES = {"collapsed":false,"width":240} as const;
+
+export const DEFAULT_SIDEBAR_WIDTH = 240 as const;
+
 export const DEFAULT_SUBTITLE_STYLE = {"background":true,"backgroundOpacity":78,"color":"white","edge":"shadow","font":"app","position":6,"size":100} as const;
 
 export const DEFAULT_WATCHED_THRESHOLD = 0.9 as const;
@@ -164,6 +172,8 @@ export const DEFAULT_WATCHED_THRESHOLD = 0.9 as const;
 export const MAX_KEYS_PER_SHORTCUT = 2 as const;
 
 export const MAX_PLAYBACK_SPEED = 2.0 as const;
+
+export const MAX_SIDEBAR_WIDTH = 400 as const;
 
 export const MAX_SUBTITLE_POSITION = 40 as const;
 
@@ -174,6 +184,8 @@ export const MAX_UP_NEXT_WIDTH = 800 as const;
 export const MAX_WATCHED_THRESHOLD = 1.0 as const;
 
 export const MIN_PLAYBACK_SPEED = 0.25 as const;
+
+export const MIN_SIDEBAR_WIDTH = 200 as const;
 
 export const MIN_SUBTITLE_SIZE = 50 as const;
 
@@ -465,6 +477,17 @@ export type ResolvedViewMode = {
 export type SearchProgress = {
 	scannedFiles: number,
 	currentFolder: string,
+};
+
+/**
+ *  The sidebar as it was last left, kept between sessions. Fields missing from a stored value take their default
+ *  (see `db::settings::Sidebar`), so fields can be added later without a migration.
+ */
+export type SidebarPreferences = {
+	/**  Collapsed to a narrow rail of icons. */
+	collapsed: boolean,
+	/**  Width in pixels when expanded, set by dragging its edge. */
+	width: number,
 };
 
 export type SubfolderEntry = {

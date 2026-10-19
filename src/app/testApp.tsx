@@ -1,7 +1,7 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { HomeData } from "../shared/ipc/bindings";
+import { DEFAULT_SIDEBAR_PREFERENCES, type HomeData } from "../shared/ipc/bindings";
 import { folderContentsFixture, libraryFolderFixture } from "../shared/test/fixtures";
 import { mockCommands } from "../shared/test/ipc";
 import { createAppRouter } from "./router";
@@ -20,6 +20,8 @@ export function renderApp(path = "/", extraCommands: Record<string, unknown> = {
         get_library_folder_statuses: [],
         browse_folder: folderContentsFixture({ path: seriesFolder.path }),
         get_folder_summary: { totalVideos: 0, watchedVideos: 0, taggedVideos: 0 },
+        get_sidebar_preferences: DEFAULT_SIDEBAR_PREFERENCES,
+        update_sidebar_preferences: ({ preferences }: { preferences: unknown }) => preferences,
         ...extraCommands,
     });
     const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));

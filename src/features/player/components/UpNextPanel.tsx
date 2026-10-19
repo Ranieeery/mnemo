@@ -1,11 +1,8 @@
-import { useRef } from "react";
-import type { VideoEntry } from "../../../shared/ipc/bindings";
-import { cx } from "../../../shared/lib/cx";
+import { MAX_UP_NEXT_WIDTH, MIN_UP_NEXT_WIDTH, type VideoEntry } from "../../../shared/ipc/bindings";
 import { formatDuration } from "../../../shared/lib/formatDuration";
-import { ScrollContainer, VirtualList } from "../../../shared/ui";
+import { ResizablePanel, ScrollContainer, VirtualList } from "../../../shared/ui";
 import { entryTitle, VideoThumbnail, watchedFraction } from "../../../shared/video";
-import { usePlayerStore } from "../store";
-import { UpNextResizeHandle } from "./UpNextResizeHandle";
+import { playerPreferences, usePlayerStore } from "../store";
 
 type UpNextPanelProps = {
     /** Videos after the current one, in playback order. */
@@ -16,7 +13,6 @@ type UpNextPanelProps = {
 };
 
 export function UpNextPanel({ entries, onSelect, scrollsWithPage = false }: UpNextPanelProps) {
-    const panelRef = useRef<HTMLElement>(null);
     const width = usePlayerStore((state) => state.upNextWidth);
     const list = entries.length > 0 && (
         <VirtualList
@@ -49,17 +45,21 @@ export function UpNextPanel({ entries, onSelect, scrollsWithPage = false }: UpNe
     );
 
     return (
-        <aside
-            ref={panelRef}
+        // Follows the window until the user drags its edge; never more than half the window either way. The width
+        // is saved with the player preferences, and double-clicking the edge goes back to the automatic width.
+        <ResizablePanel
+            side="right"
+            width={width}
+            minWidth={MIN_UP_NEXT_WIDTH}
+            maxWidth={MAX_UP_NEXT_WIDTH}
+            maxViewportFraction={1 / 2}
+            onWidthChange={playerPreferences.setUpNextWidth}
+            onReset={() => playerPreferences.setUpNextWidth(null)}
+            resizeLabel="Resize Up next"
+            autoWidthClassName="w-[clamp(16rem,25vw,28rem)]"
             aria-labelledby="up-next-heading"
-            // Follows the window until the user drags its edge; never more than half the window either way.
-            style={width === null ? undefined : { width }}
-            className={cx(
-                "relative flex max-w-[50vw] min-w-60 shrink-0 flex-col border-l border-border bg-surface",
-                width === null && "w-[clamp(16rem,25vw,28rem)]"
-            )}
+            className="relative flex max-w-[50vw] min-w-60 shrink-0 flex-col border-l border-border bg-surface"
         >
-            <UpNextResizeHandle panelRef={panelRef} width={width} />
             <header className="flex items-baseline justify-between gap-2 border-b border-border px-4 py-3">
                 <h2 id="up-next-heading" className="text-body font-semibold text-text">
                     Up next
@@ -73,6 +73,6 @@ export function UpNextPanel({ entries, onSelect, scrollsWithPage = false }: UpNe
             ) : (
                 <ScrollContainer className="flex-1">{list}</ScrollContainer>
             )}
-        </aside>
+        </ResizablePanel>
     );
 }

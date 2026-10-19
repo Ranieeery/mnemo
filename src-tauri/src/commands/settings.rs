@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, State};
 
+use crate::domain::layout::SidebarPreferences;
 use crate::domain::models::{AppSettings, DatabaseInfo, ImportSummary, LibraryStats, PlayerPreferences, Video};
 use crate::domain::shortcuts::KeyboardShortcuts;
 use crate::domain::subtitle_style::SubtitleStyle;
@@ -37,6 +38,23 @@ pub async fn update_player_preferences(
     preferences: PlayerPreferences,
 ) -> AppResult<PlayerPreferences> {
     watch::update_player_preferences(&state.db, preferences).await
+}
+
+/// Width of the sidebar and whether it is collapsed, as it was last left.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_sidebar_preferences(state: State<'_, AppState>) -> AppResult<SidebarPreferences> {
+    watch::sidebar_preferences(&state.db).await
+}
+
+/// Stores the sidebar's layout; rejects widths out of range.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_sidebar_preferences(
+    state: State<'_, AppState>,
+    preferences: SidebarPreferences,
+) -> AppResult<SidebarPreferences> {
+    watch::update_sidebar_preferences(&state.db, preferences).await
 }
 
 /// The keys of every configurable action, with defaults filling anything not customized.

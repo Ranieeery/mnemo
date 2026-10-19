@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { DEFAULT_PLAYER_PREFERENCES, type PlayerPreferences } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
+import { debounce } from "../../../shared/lib/debounce";
 import { toast } from "../../../shared/ui";
 import { savePlayerPreferences, useSavedPlayerPreferences } from "../queries";
 import { playerPreferences, preferencesOf, usePlayerStore } from "../store";
@@ -41,27 +42,20 @@ export function usePreferencesSession(): boolean {
         if (!hydrated) {
             return;
         }
-        let pending: PlayerPreferences | null = null;
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const flush = () => {
-            clearTimeout(timer);
-            if (pending) {
-                void savePlayerPreferences(pending);
-                pending = null;
-            }
-        };
+        const saver = debounce(
+            (preferences: PlayerPreferences) => void savePlayerPreferences(preferences),
+            SAVE_DELAY_MS
+        );
         const unsubscribe = usePlayerStore.subscribe((state, previous) => {
             const next = preferencesOf(state);
             if (!samePreferences(next, preferencesOf(previous))) {
-                pending = next;
-                clearTimeout(timer);
-                timer = setTimeout(flush, SAVE_DELAY_MS);
+                saver.schedule(next);
             }
         });
         // Closing the player saves what is still waiting.
         return () => {
             unsubscribe();
-            flush();
+            saver.flush();
         };
     }, [hydrated]);
 
