@@ -1,5 +1,5 @@
 import { Tooltip as TooltipPrimitive } from "radix-ui";
-import type { ReactElement, ReactNode } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { Kbd } from "./Kbd";
 
 type TooltipProps = {
@@ -7,15 +7,18 @@ type TooltipProps = {
     /** Keyboard shortcut shown next to the content, e.g. "K". */
     shortcut?: string;
     side?: "top" | "right" | "bottom" | "left";
+    /** Keeps the tooltip closed (e.g. when the text it repeats is fully visible) without changing the trigger. */
+    disabled?: boolean;
     /** The trigger. Must be a single focusable element that accepts a ref. */
     children: ReactElement;
 };
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 
-export function Tooltip({ content, shortcut, side = "top", children }: TooltipProps) {
+export function Tooltip({ content, shortcut, side = "top", disabled = false, children }: TooltipProps) {
+    const [open, setOpen] = useState(false);
     return (
-        <TooltipPrimitive.Root>
+        <TooltipPrimitive.Root open={open && !disabled} onOpenChange={setOpen}>
             <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
             <TooltipPrimitive.Portal>
                 <TooltipPrimitive.Content

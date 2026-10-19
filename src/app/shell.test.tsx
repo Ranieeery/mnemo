@@ -1,6 +1,6 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_SIDEBAR_PREFERENCES } from "../shared/ipc/bindings";
 import { entryFixture, folderContentsFixture, videoFixture } from "../shared/test/fixtures";
 import { callsOf, commandError } from "../shared/test/ipc";
@@ -202,5 +202,51 @@ describe("sidebar", () => {
         });
         expect(await screen.findByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
         expect(await screen.findByText("Could not load the sidebar layout")).toBeInTheDocument();
+    });
+});
+
+describe("long library folder names", () => {
+    /** jsdom never resizes: records the observers so the test can report the sidebar getting narrower. */
+    const observers: { callback: ResizeObserverCallback; observer: ResizeObserver }[] = [];
+    class RecordingResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+            observers.push({ callback, observer: this });
+        }
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+    }
+
+    afterEach(() => {
+        observers.length = 0;
+        vi.unstubAllGlobals();
+    });
+
+    it("show the full name in a tooltip only while it is cut", async () => {
+        vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+        renderApp("/");
+        const link = await screen.findByRole("link", { name: "Series" });
+        const name = within(link).getByText("Series");
+        expect(name).toHaveClass("line-clamp-2");
+        expect(name).toHaveAttribute("title", "D:\\Series");
+
+        act(() => link.focus());
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+        act(() => link.blur());
+
+        // Narrower: the name needs more than its two lines.
+        Object.defineProperty(name, "scrollHeight", { value: 60, configurable: true });
+        Object.defineProperty(name, "clientHeight", { value: 40, configurable: true });
+        act(() => {
+            for (const { callback, observer } of observers) {
+                callback([], observer);
+            }
+        });
+        expect(name).not.toHaveAttribute("title");
+
+        act(() => link.focus());
+        const tooltip = await screen.findByRole("tooltip");
+        expect(tooltip).toHaveTextContent("Series");
+        expect(tooltip).toHaveTextContent("D:\\Series");
     });
 });

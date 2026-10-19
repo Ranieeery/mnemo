@@ -42,4 +42,5 @@ export { Textarea } from "./Textarea";
 export { resetToasts, Toaster, toast } from "./Toast";
 export { Tooltip, TooltipProvider } from "./Tooltip";
 export { useColumns } from "./useColumns";
+export { useIsTruncated } from "./useIsTruncated";
 export { VirtualList } from "./VirtualList";

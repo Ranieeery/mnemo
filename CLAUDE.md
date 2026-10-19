@@ -108,7 +108,7 @@ src/
 │   │                   # shortcuts, dev-catalog (catálogo do design system, só em dev)
 │   └── <feature>/      # components/, hooks/, lib/, queries.ts, index.ts e testes ao lado (*.test.ts[x])
 └── shared/
-    ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns
+    ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns, useIsTruncated
     ├── video/          # UI e ações de vídeo usadas por várias features (card, thumbnail, grade, menu de contexto)
     ├── ipc/            # bindings gerados, client (`call()` → CommandError), queryKeys, queryClient, queries comuns
     ├── lib/            # funções puras (duração, bytes, caminhos, classes, parsers de legenda, debounce)
@@ -282,7 +282,9 @@ Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interaç�
 `Spinner`, `FolderIcon`, `ScrollToTopButton`, `ChoiceGroup` (poucas opções exclusivas em botões, ex.: Days/Weeks),
 `ResizablePanel` (painel lateral com a borda livre arrastável ou movida pelas setas, largura controlada pelo chamador,
 duplo clique para o padrão; com `collapsed`, anima a largura entre os estados e esconde a alça quando recolhido).
-`toast()` pode ser chamado fora do React. Features compõem esses primitivos; não recriam botões, modais ou menus.
+`toast()` pode ser chamado fora do React. `Tooltip` aceita `disabled` (fica fechado sem mudar o gatilho, ex.: só mostrar
+o texto completo quando `useIsTruncated` indica corte). Features compõem esses primitivos; não recriam botões, modais
+ou menus.
 
 Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` alterna entre ele e o app, ou abra
 `http://localhost:1420/#/dev/catalog` no navegador.
@@ -360,6 +362,9 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
     contexto mantido) e Settings. O rail mantém toda a navegação a um clique;
   - a transição da largura usa `--duration-base` (zerada com `prefers-reduced-motion`);
   - largura e estado ficam salvos entre sessões; na primeira abertura ela começa expandida, com 240 px.
+- Nomes longos de pastas na sidebar expandida quebram em até duas linhas e terminam com reticências. Só quando o nome
+  está cortado (medido de novo ao redimensionar) um tooltip mostra o nome completo e o caminho, ao passar o mouse ou
+  focar pelo teclado; sem corte, o caminho continua no `title`.
 - Ícones personalizados para pastas da biblioteca: qualquer ícone do lucide, salvo pelo nome em `custom_icon`. O
   seletor tem a aba "Suggested" (até 40: os 8 últimos usados, guardados em `app_settings`, e uma lista curada) e
   "All icons" (todos, com busca). Emojis salvos pela 1.x aparecem como o ícone padrão de pasta.

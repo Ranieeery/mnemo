@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Palette, RefreshCw, Trash2, Unplug } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { useLibraryFolderStatus } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
@@ -16,6 +16,7 @@ import {
     FolderIcon,
     Spinner,
     Tooltip,
+    useIsTruncated,
 } from "../../../shared/ui";
 import { useRemoveLibraryFolder } from "../queries";
 import { ChangeIconDialog } from "./ChangeIconDialog";
@@ -39,47 +40,71 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
     const [removeOpen, setRemoveOpen] = useState(false);
     const active = currentPath !== undefined && isWithin(currentPath, folder.path);
 
+    const nameRef = useRef<HTMLSpanElement>(null);
+    const nameTruncated = useIsTruncated(nameRef, folder.name);
+
     const statusIcon = (className?: string) =>
         cx("size-3.5 shrink-0", compact && "absolute top-0.5 right-0.5", className);
-    const trigger = (
-        <ContextMenuTrigger asChild>
-            <Link
-                to="/folder"
-                search={{ path: folder.path }}
-                aria-current={active ? "page" : undefined}
-                className={cx(
-                    "flex h-9 items-center gap-2.5 rounded-control text-body",
-                    "transition-colors duration-(--duration-fast) ease-standard",
-                    compact ? "relative w-10 justify-center" : "px-2.5",
-                    active && "bg-surface-raised font-medium text-text",
-                    !active && "hover:bg-surface-hover hover:text-text",
-                    !active && (unavailable ? "text-text-subtle" : "text-text-muted")
-                )}
-            >
-                <FolderIcon name={folder.customIcon} />
-                <span
-                    className={compact ? "sr-only" : "min-w-0 flex-1 truncate"}
-                    title={compact ? undefined : unavailable ? `${folder.path} (not connected)` : folder.path}
-                >
-                    {folder.name}
-                    {unavailable && <span className="sr-only">, not connected</span>}
-                </span>
-                {unavailable && <Unplug aria-hidden className={statusIcon("text-warning")} />}
-                {processing && <Spinner label={`Reading videos in ${folder.name}`} className={statusIcon()} />}
-            </Link>
-        </ContextMenuTrigger>
-    );
+    const fullName = unavailable ? `${folder.name} (not connected)` : folder.name;
 
     return (
         <li>
             <ContextMenu>
-                {compact ? (
-                    <Tooltip content={unavailable ? `${folder.name} (not connected)` : folder.name} side="right">
-                        {trigger}
-                    </Tooltip>
-                ) : (
-                    trigger
-                )}
+                {/* The rail shows only icons, so it always has the tooltip; the full sidebar only for a cut name. */}
+                <Tooltip
+                    content={
+                        compact ? (
+                            fullName
+                        ) : (
+                            <span className="flex max-w-80 flex-col whitespace-normal">
+                                <span className="break-words">{fullName}</span>
+                                <span className="text-caption break-all text-text-subtle">{folder.path}</span>
+                            </span>
+                        )
+                    }
+                    side="right"
+                    disabled={!compact && !nameTruncated}
+                >
+                    <ContextMenuTrigger asChild>
+                        <Link
+                            to="/folder"
+                            search={{ path: folder.path }}
+                            aria-current={active ? "page" : undefined}
+                            className={cx(
+                                "flex items-center gap-2.5 rounded-control text-body",
+                                "transition-colors duration-(--duration-fast) ease-standard",
+                                compact ? "relative h-9 w-10 justify-center" : "min-h-9 px-2.5 py-1.5",
+                                active && "bg-surface-raised font-medium text-text",
+                                !active && "hover:bg-surface-hover hover:text-text",
+                                !active && (unavailable ? "text-text-subtle" : "text-text-muted")
+                            )}
+                        >
+                            <FolderIcon name={folder.customIcon} />
+                            {/* Long names wrap to two lines, then end with an ellipsis. */}
+                            <span
+                                ref={nameRef}
+                                className={
+                                    compact ? "sr-only" : "line-clamp-2 min-w-0 flex-1 whitespace-normal break-words"
+                                }
+                                // The tooltip shows the path of a cut name; a native one would show on top of it.
+                                title={
+                                    compact || nameTruncated
+                                        ? undefined
+                                        : unavailable
+                                          ? `${folder.path} (not connected)`
+                                          : folder.path
+                                }
+                            >
+                                {folder.name}
+                                {unavailable && <span className="sr-only">, not connected</span>}
+                            </span>
+                            {unavailable && <Unplug aria-hidden className={statusIcon("text-warning")} />}
+                            {processing && (
+                                <Spinner label={`Reading videos in ${folder.name}`} className={statusIcon()} />
+                            )}
+                        </Link>
+                    </ContextMenuTrigger>
+                </Tooltip>
                 <ContextMenuContent>
                     <ContextMenuItem
                         icon={<RefreshCw />}
