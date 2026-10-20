@@ -5,8 +5,10 @@
 
 pub mod backup;
 pub mod folders;
+pub mod groups;
 pub mod hidden;
 pub mod history;
+pub mod layout;
 mod migrations;
 pub mod orphans;
 pub mod presence;

@@ -1,11 +1,13 @@
 import { FolderPlus, RefreshCw } from "lucide-react";
 import { errorMessage } from "../../../shared/ipc/client";
-import { useLibraryFolders } from "../../../shared/ipc/queries";
+import { useLibraryLayout } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { Button, IconButton, Skeleton } from "../../../shared/ui";
+import { flatFolders } from "../lib/folderLayout";
 import { useAddLibraryFolder } from "../queries";
+import { GroupedFolderList } from "./GroupedFolderList";
 import { LibrarySortMenu } from "./LibrarySortMenu";
-import { SortableFolderList } from "./SortableFolderList";
+import { NewGroupProvider, useNewGroup } from "./NewGroupContext";
 
 type LibraryNavProps = {
     currentPath: string | undefined;
@@ -13,9 +15,18 @@ type LibraryNavProps = {
     compact?: boolean;
 };
 
-/** The library folders in the sidebar, with the actions to add and manage them. */
-export function LibraryNav({ currentPath, compact = false }: LibraryNavProps) {
-    const folders = useLibraryFolders();
+/** The library folders in the sidebar, with their groups, and the actions to add and manage them. */
+export function LibraryNav(props: LibraryNavProps) {
+    return (
+        <NewGroupProvider>
+            <LibraryFolders {...props} />
+        </NewGroupProvider>
+    );
+}
+
+function LibraryFolders({ currentPath, compact = false }: LibraryNavProps) {
+    const library = useLibraryLayout();
+    const { pending } = useNewGroup();
     const addFolder = useAddLibraryFolder();
 
     return (
@@ -40,7 +51,7 @@ export function LibraryNav({ currentPath, compact = false }: LibraryNavProps) {
                     {compact && <LibrarySortMenu compact />}
                 </div>
             </div>
-            {folders.isPending &&
+            {library.isPending &&
                 (compact ? (
                     <div className="flex flex-col gap-1" role="status" aria-label="Loading folders">
                         <Skeleton className="size-9" />
@@ -52,14 +63,14 @@ export function LibraryNav({ currentPath, compact = false }: LibraryNavProps) {
                         <Skeleton className="h-5 w-1/2" />
                     </div>
                 ))}
-            {folders.isError &&
+            {library.isError &&
                 (compact ? (
                     <div role="alert">
                         <IconButton
-                            label={`Could not load the folders: ${errorMessage(folders.error)}. Try again`}
+                            label={`Could not load the folders: ${errorMessage(library.error)}. Try again`}
                             icon={<RefreshCw />}
                             tooltipSide="right"
-                            onClick={() => folders.refetch()}
+                            onClick={() => library.refetch()}
                         />
                     </div>
                 ) : (
@@ -67,17 +78,17 @@ export function LibraryNav({ currentPath, compact = false }: LibraryNavProps) {
                         className="flex flex-col items-start gap-2 px-2.5 py-1 text-small text-text-muted"
                         role="alert"
                     >
-                        <p>Could not load the folders: {errorMessage(folders.error)}</p>
-                        <Button size="sm" onClick={() => folders.refetch()}>
+                        <p>Could not load the folders: {errorMessage(library.error)}</p>
+                        <Button size="sm" onClick={() => library.refetch()}>
                             Try again
                         </Button>
                     </div>
                 ))}
-            {folders.data?.length === 0 && (
+            {library.data && flatFolders(library.data).length === 0 && (
                 <p className={compact ? "sr-only" : "px-2.5 py-1 text-small text-text-subtle"}>No folders yet.</p>
             )}
-            {folders.data && folders.data.length > 0 && (
-                <SortableFolderList folders={folders.data} currentPath={currentPath} compact={compact} />
+            {library.data && (library.data.length > 0 || pending) && (
+                <GroupedFolderList entries={library.data} currentPath={currentPath} compact={compact} />
             )}
         </section>
     );

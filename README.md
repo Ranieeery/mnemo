@@ -45,6 +45,12 @@ thumbnails, tags and watch progress in a local SQLite database.
 - **Library folder order:** sort the library folders by name, date added or the most recently watched, or arrange
   them yourself by holding and dragging them (or with the keyboard, or "Move up"/"Move down"). The order is kept
   everywhere they are listed, including backups.
+- **Folder groups:** organize the library folders into groups of your own (such as "Series" or "Courses") from the
+  sort menu or a folder's "Move to group". Groups sit among the other folders in the order you choose, and the sort
+  modes apply to them too (by name, date created or the most recently watched folder inside). Drag folders into a
+  group, out of it or between groups (holding a folder over a collapsed group opens it), collapse a group to its
+  name and folder count, and move groups by dragging their headers. Deleting a group never removes its folders: they
+  stay where the group was. With no groups, the sidebar looks as it always did.
 - **Home:** continue watching, suggestions, recently watched and a preview of each library folder.
 - **Hidden folders:** hide any folder from the home page, search and history (right-click it and choose "Hide from
   home and history"). Its videos still play normally when you open the folder, progress is still saved, and

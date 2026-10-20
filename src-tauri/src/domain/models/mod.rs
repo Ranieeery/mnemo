@@ -57,10 +57,44 @@ pub struct LibraryFolder {
     pub folder_name: String,
     /// Given in the app; the folder on disk is never renamed.
     pub custom_name: Option<String>,
+    /// The group it is listed in, if any.
+    pub group_id: Option<i64>,
     pub custom_icon: Option<String>,
     /// `None` draws the icon in the surrounding text color.
     pub icon_color: Option<FolderColor>,
     pub created_at: Option<String>,
+}
+
+/// A group of library folders in the sidebar.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryGroup {
+    pub id: i64,
+    pub name: String,
+    /// Its folders are hidden in the expanded sidebar (the rail always shows them).
+    pub collapsed: bool,
+    pub created_at: String,
+}
+
+/// One item of the library list: a folder without a group, or a group with its folders, in the order shown.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum LibraryEntry {
+    Folder {
+        folder: LibraryFolder,
+    },
+    Group {
+        group: LibraryGroup,
+        folders: Vec<LibraryFolder>,
+    },
+}
+
+/// One item of the library list by id: how the custom order is stored, and how an arrangement is sent.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum LayoutEntry {
+    Folder { id: i64 },
+    Group { id: i64, folders: Vec<i64> },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Type)]

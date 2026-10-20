@@ -1,10 +1,16 @@
 import { RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
-import { useHiddenFolders, useLibraryFolderStatuses, useLibraryFolders } from "../../../shared/ipc/queries";
+import {
+    useHiddenFolders,
+    useLibraryFolderStatuses,
+    useLibraryFolders,
+    useLibraryLayout,
+} from "../../../shared/ipc/queries";
 import { processFolder } from "../../../shared/stores/processing";
 import { Card, ConfirmDialog, FolderIcon, IconButton, Skeleton } from "../../../shared/ui";
 import { folderVisibility, HiddenFolderMark } from "../../../shared/video";
+import { groupsOf } from "../lib/folderLayout";
 import { useRemoveLibraryFolder } from "../queries";
 import { FolderWatchStatus } from "./FolderWatchStatus";
 import { AddFolderButton } from "./LibraryNav";
@@ -14,6 +20,8 @@ export function LibraryFoldersPanel() {
     const folders = useLibraryFolders();
     const statuses = useLibraryFolderStatuses();
     const hiddenFolders = useHiddenFolders();
+    const groups = groupsOf(useLibraryLayout().data ?? []);
+    const groupName = (folder: LibraryFolder) => groups.find((group) => group.id === folder.groupId)?.name;
     const removeFolder = useRemoveLibraryFolder();
     const [removing, setRemoving] = useState<LibraryFolder | null>(null);
 
@@ -50,6 +58,11 @@ export function LibraryFoldersPanel() {
                                     <span className="truncate text-small text-text-subtle" title={folder.path}>
                                         {folder.path}
                                     </span>
+                                    {groupName(folder) && (
+                                        <span className="truncate text-small text-text-subtle">
+                                            Group: {groupName(folder)}
+                                        </span>
+                                    )}
                                     {status && <FolderWatchStatus status={status} />}
                                 </div>
                                 <IconButton

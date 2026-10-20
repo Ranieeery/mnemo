@@ -22,8 +22,9 @@ import { HiddenFolderMark, hiddenFolderLabel, useFolderVisibility } from "../../
 import { renamed } from "../lib/rename";
 import { useRemoveLibraryFolder, useRenameLibraryFolder } from "../queries";
 import { ChangeIconDialog } from "./ChangeIconDialog";
-import { type FolderNameDone, InlineFolderNameEditor, RenameFolderPopover } from "./FolderNameEditor";
+import { InlineFolderNameEditor, RenameFolderPopover } from "./FolderNameEditor";
 import { LibraryFolderMenu } from "./LibraryFolderMenu";
+import type { NameDone } from "./NameField";
 
 /** How long a folder must be pressed before it can be dragged, so a click, or a slip of the mouse, never moves it. */
 export const HOLD_TO_DRAG_MS = 400;
@@ -41,6 +42,8 @@ type LibraryFolderItemProps = {
     /** Missing at the top (or the bottom) of the list, where the menu item is disabled. */
     onMoveUp?: () => void;
     onMoveDown?: () => void;
+    /** Its group, named in the rail's tooltip (the rail shows groups only as lines). */
+    groupName?: string;
 };
 
 export function LibraryFolderItem({
@@ -51,10 +54,12 @@ export function LibraryFolderItem({
     held = false,
     onMoveUp,
     onMoveDown,
+    groupName,
 }: LibraryFolderItemProps) {
     const [renaming, setRenaming] = useState(false);
     const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
         id: folder.id,
+        data: { type: "folder" },
         disabled: !sortable || renaming,
     });
     const navigate = useNavigate();
@@ -81,7 +86,7 @@ export function LibraryFolderItem({
         }
     }, [renaming]);
 
-    const finishRename: FolderNameDone = (name, restoreFocus) => {
+    const finishRename: NameDone = (name, restoreFocus) => {
         if (!renaming) {
             return;
         }
@@ -124,6 +129,7 @@ export function LibraryFolderItem({
                         <span className="flex flex-col">
                             <span>{fullName}</span>
                             {folderOnDisk}
+                            {groupName && <span className="text-caption text-text-muted">Group: {groupName}</span>}
                         </span>
                     ) : (
                         <span className="flex max-w-80 flex-col whitespace-normal">

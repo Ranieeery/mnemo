@@ -10,6 +10,9 @@ export {
     ContextMenuItem,
     ContextMenuLabel,
     ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from "./ContextMenu";
 export { Dialog } from "./Dialog";

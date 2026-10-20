@@ -6,6 +6,7 @@ pub mod backup;
 pub mod folder_order;
 pub mod hidden;
 pub mod library;
+pub mod library_groups;
 pub mod maintenance;
 pub mod media;
 pub mod relocation;

@@ -147,7 +147,7 @@ mod tests {
         let info = database_info(&db, thumbnails_dir.path().join("missing.db"))
             .await
             .unwrap();
-        assert_eq!(info.schema_version, 8);
+        assert_eq!(info.schema_version, 10);
     }
 
     #[tokio::test]

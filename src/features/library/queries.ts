@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
     commands,
     type FolderColor,
+    type LibraryEntry,
     type LibraryFolder,
     type LibraryFolderSort,
     type RelocationResult,
@@ -14,6 +15,7 @@ import { joinPath, relativeSegments } from "../../shared/lib/paths";
 import { plural } from "../../shared/lib/plural";
 import { processFolder } from "../../shared/stores/processing";
 import { toast } from "../../shared/ui";
+import { flatFolders, layoutOf, mapFolders } from "./lib/folderLayout";
 import { renamed } from "./lib/rename";
 
 /** Asks for a folder with the native dialog, adds it and starts reading its videos in the background. */
@@ -144,10 +146,11 @@ export function useLibraryFolderSort() {
     });
 }
 
-/** Shows the folders in the order the backend returned, wherever they are listed. */
-async function showFolderOrder(queryClient: QueryClient, sort: LibraryFolderSort, folders: LibraryFolder[]) {
+/** Shows the library in the order the backend returned, wherever it is listed. */
+async function showLibraryOrder(queryClient: QueryClient, sort: LibraryFolderSort, entries: LibraryEntry[]) {
     queryClient.setQueryData(queryKeys.libraryFolderSort(), sort);
-    queryClient.setQueryData(queryKeys.libraryFolders(), folders);
+    queryClient.setQueryData(queryKeys.libraryLayout(), entries);
+    queryClient.setQueryData(queryKeys.libraryFolders(), flatFolders(entries));
     // The home lists its folder previews in the same order.
     await queryClient.invalidateQueries({ queryKey: queryKeys.homeSections() });
 }
@@ -156,7 +159,7 @@ export function useSetLibraryFolderSort() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (sort: LibraryFolderSort) => call(commands.setLibraryFolderSort(sort)),
-        onSuccess: (folders, sort) => showFolderOrder(queryClient, sort, folders),
+        onSuccess: (entries, sort) => showLibraryOrder(queryClient, sort, entries),
         onError: (error) => {
             toast({ title: "Could not sort the folders", description: errorMessage(error), tone: "danger" });
         },
@@ -164,32 +167,33 @@ export function useSetLibraryFolderSort() {
 }
 
 /**
- * Saves `folders` (as listed on screen, after the move) as the custom order and switches to it. The new order shows
- * at once and goes back if it cannot be saved.
+ * Saves `entries` (the library as listed on screen after a folder or a group moved) as the custom order, and
+ * switches to the custom order. The new order shows at once and goes back if it cannot be saved.
  */
-export function useReorderLibraryFolders() {
+export function useArrangeLibrary() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (folders: LibraryFolder[]) =>
-            call(commands.reorderLibraryFolders(folders.map((folder) => folder.id))),
-        onMutate: async (folders) => {
-            await Promise.all([
-                queryClient.cancelQueries({ queryKey: queryKeys.libraryFolders() }),
-                queryClient.cancelQueries({ queryKey: queryKeys.libraryFolderSort() }),
-            ]);
+        mutationFn: ({ entries }: { entries: LibraryEntry[]; moved: "folder" | "group" }) =>
+            call(commands.arrangeLibrary(layoutOf(entries))),
+        onMutate: async ({ entries }) => {
+            const keys = [queryKeys.libraryLayout(), queryKeys.libraryFolders(), queryKeys.libraryFolderSort()];
+            await Promise.all(keys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
             const previous = {
+                entries: queryClient.getQueryData<LibraryEntry[]>(queryKeys.libraryLayout()),
                 folders: queryClient.getQueryData<LibraryFolder[]>(queryKeys.libraryFolders()),
                 sort: queryClient.getQueryData<LibraryFolderSort>(queryKeys.libraryFolderSort()),
             };
-            queryClient.setQueryData(queryKeys.libraryFolders(), folders);
+            queryClient.setQueryData(queryKeys.libraryLayout(), entries);
+            queryClient.setQueryData(queryKeys.libraryFolders(), flatFolders(entries));
             queryClient.setQueryData<LibraryFolderSort>(queryKeys.libraryFolderSort(), "custom");
             return previous;
         },
-        onSuccess: (folders) => showFolderOrder(queryClient, "custom", folders),
-        onError: (error, _folders, previous) => {
+        onSuccess: (entries) => showLibraryOrder(queryClient, "custom", entries),
+        onError: (error, { moved }, previous) => {
+            queryClient.setQueryData(queryKeys.libraryLayout(), previous?.entries);
             queryClient.setQueryData(queryKeys.libraryFolders(), previous?.folders);
             queryClient.setQueryData(queryKeys.libraryFolderSort(), previous?.sort);
-            toast({ title: "Could not move the folder", description: errorMessage(error), tone: "danger" });
+            toast({ title: `Could not move the ${moved}`, description: errorMessage(error), tone: "danger" });
         },
     });
 }
@@ -204,15 +208,26 @@ export function useRenameLibraryFolder() {
         mutationFn: ({ folder, name }: { folder: LibraryFolder; name: string }) =>
             call(commands.renameLibraryFolder(folder.path, name)),
         onMutate: async ({ folder, name }) => {
-            await queryClient.cancelQueries({ queryKey: queryKeys.libraryFolders() });
-            const previous = queryClient.getQueryData<LibraryFolder[]>(queryKeys.libraryFolders());
-            queryClient.setQueryData<LibraryFolder[]>(queryKeys.libraryFolders(), (folders) =>
-                folders?.map((candidate) => (candidate.id === folder.id ? renamed(candidate, name) : candidate))
+            const rename = (candidate: LibraryFolder) =>
+                candidate.id === folder.id ? renamed(candidate, name) : candidate;
+            await Promise.all([
+                queryClient.cancelQueries({ queryKey: queryKeys.libraryFolders() }),
+                queryClient.cancelQueries({ queryKey: queryKeys.libraryLayout() }),
+            ]);
+            const previous = {
+                folders: queryClient.getQueryData<LibraryFolder[]>(queryKeys.libraryFolders()),
+                entries: queryClient.getQueryData<LibraryEntry[]>(queryKeys.libraryLayout()),
+            };
+            queryClient.setQueryData<LibraryFolder[]>(queryKeys.libraryFolders(), (folders) => folders?.map(rename));
+            queryClient.setQueryData<LibraryEntry[]>(
+                queryKeys.libraryLayout(),
+                (entries) => entries && mapFolders(entries, rename)
             );
             return previous;
         },
         onError: (error, _variables, previous) => {
-            queryClient.setQueryData(queryKeys.libraryFolders(), previous);
+            queryClient.setQueryData(queryKeys.libraryFolders(), previous?.folders);
+            queryClient.setQueryData(queryKeys.libraryLayout(), previous?.entries);
             toast({ title: "Could not rename the folder", description: errorMessage(error), tone: "danger" });
         },
         // Everything that shows the name (the home, hidden folders, an order by name) is read again.

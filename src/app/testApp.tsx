@@ -2,7 +2,7 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DEFAULT_SIDEBAR_PREFERENCES, type HomeData } from "../shared/ipc/bindings";
-import { folderContentsFixture, libraryFolderFixture } from "../shared/test/fixtures";
+import { folderContentsFixture, libraryCommandsFixture, libraryFolderFixture } from "../shared/test/fixtures";
 import { mockCommands } from "../shared/test/ipc";
 import { createAppRouter } from "./router";
 
@@ -12,7 +12,7 @@ const emptyHome: HomeData = { continueWatching: [], recentlyWatched: [], suggest
 /** Test helper: the whole app at `path` (with its real router and root layout) over a small mocked backend. */
 export function renderApp(path = "/", extraCommands: Record<string, unknown> = {}) {
     const calls = mockCommands({
-        list_library_folders: [seriesFolder],
+        ...libraryCommandsFixture([seriesFolder]),
         get_library_folder_sort: "custom",
         get_home: emptyHome,
         media_tools_status: { ffmpeg: true, ffprobe: true },

@@ -4,8 +4,8 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use super::hidden::VISIBLE;
+use super::layout::{self, NEXT_TOP_LEVEL};
 use crate::domain::folder_color::FolderColor;
-use crate::domain::folder_order::reordered;
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::media::display_name;
 use crate::domain::models::LibraryFolder;
@@ -22,6 +22,7 @@ fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
         name: custom_name.clone().unwrap_or_else(|| folder_name.clone()),
         folder_name,
         custom_name,
+        group_id: row.get(6)?,
         path,
         custom_icon: row.get::<_, Option<String>>(2)?.filter(|icon| !icon.is_empty()),
         // A name this version does not know (written by a newer one, or by hand) shows the default color.
@@ -30,11 +31,11 @@ fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
     })
 }
 
-/// The library folders in their custom order.
+/// The library folders, in the order they were added (see `layout` for the custom order).
 pub fn list(connection: &Connection) -> AppResult<Vec<LibraryFolder>> {
     let mut statement = connection.prepare_cached(
-        "SELECT id, path, custom_icon, created_at, icon_color, custom_name FROM library_folders
-         ORDER BY sort_order, created_at, id",
+        "SELECT id, path, custom_icon, created_at, icon_color, custom_name, group_id FROM library_folders
+         ORDER BY created_at, id",
     )?;
     let folders = statement.query_map([], map_folder)?.collect::<Result<_, _>>()?;
     Ok(folders)
@@ -47,19 +48,20 @@ pub fn paths(connection: &Connection) -> AppResult<Vec<String>> {
 pub fn find(connection: &Connection, path: &str) -> AppResult<Option<LibraryFolder>> {
     Ok(connection
         .query_row(
-            "SELECT id, path, custom_icon, created_at, icon_color, custom_name FROM library_folders WHERE path = ?1",
+            "SELECT id, path, custom_icon, created_at, icon_color, custom_name, group_id FROM library_folders
+             WHERE path = ?1",
             [path],
             map_folder,
         )
         .optional()?)
 }
 
-/// Adds a library folder at the end of the custom order; adding an existing one returns it unchanged.
+/// Adds a library folder at the end of the list, without a group; adding an existing one returns it unchanged.
 pub fn add(connection: &Connection, path: &str) -> AppResult<LibraryFolder> {
     connection.execute(
-        "INSERT INTO library_folders (path, sort_order)
-         VALUES (?1, (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM library_folders))
-         ON CONFLICT (path) DO NOTHING",
+        &format!(
+            "INSERT INTO library_folders (path, sort_order) VALUES (?1, {NEXT_TOP_LEVEL}) ON CONFLICT (path) DO NOTHING"
+        ),
         [path],
     )?;
     find(connection, path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))
@@ -70,29 +72,27 @@ pub fn remove(connection: &Connection, path: &str) -> AppResult<()> {
     if connection.execute("DELETE FROM library_folders WHERE path = ?1", [path])? == 0 {
         return Err(AppError::NotFound(format!("library folder {path}")));
     }
-    compact_order(connection)
+    layout::compact(connection)
 }
 
-/// Numbers the custom order 0, 1, 2… keeping it. Positions shared after an import fall back to the date added.
-pub fn compact_order(connection: &Connection) -> AppResult<()> {
-    connection.execute(
-        "UPDATE library_folders SET sort_order = ranked.position
-         FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY sort_order, created_at, id) - 1 AS position
-               FROM library_folders) AS ranked
-         WHERE ranked.id = library_folders.id AND library_folders.sort_order <> ranked.position",
-        [],
+/// Puts a folder at the end of a group, or with `None` at the end of the list, closing the gap it leaves. Call it
+/// inside a transaction.
+pub fn move_to_group(connection: &Connection, id: i64, group_id: Option<i64>) -> AppResult<()> {
+    let changed = connection.execute(
+        &format!(
+            "UPDATE library_folders
+             SET sort_order = CASE WHEN ?2 IS NULL THEN {NEXT_TOP_LEVEL}
+                 ELSE (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM library_folders WHERE group_id = ?2 AND id <> ?1)
+                 END,
+                 group_id = ?2
+             WHERE id = ?1"
+        ),
+        params![id, group_id],
     )?;
-    Ok(())
-}
-
-/// Stores a new custom order, given as folder ids (see `folder_order::reordered`). Call it inside a transaction.
-pub fn reorder(connection: &Connection, ids: &[i64]) -> AppResult<()> {
-    let current: Vec<i64> = list(connection)?.iter().map(|folder| folder.id).collect();
-    let mut statement = connection.prepare_cached("UPDATE library_folders SET sort_order = ?2 WHERE id = ?1")?;
-    for (position, id) in reordered(&current, ids).into_iter().enumerate() {
-        statement.execute(params![id, position as i64])?;
+    if changed == 0 {
+        return Err(AppError::NotFound(format!("library folder {id}")));
     }
-    Ok(())
+    layout::compact(connection)
 }
 
 /// When a video inside each library folder was last watched (`last_watched_at`), for the folders with any. Each
@@ -225,6 +225,7 @@ mod tests {
     use crate::db::test_support;
     use crate::db::videos::tests::path;
     use crate::domain::folder_color::FolderColor;
+    use crate::domain::models::LayoutEntry;
 
     #[test]
     fn relocates_a_folder_with_the_library_folders_inside_it() {
@@ -235,6 +236,8 @@ mod tests {
         set_appearance(&connection, &videos.path, Some("film"), Some(FolderColor::Teal)).unwrap();
         set_custom_name(&connection, &videos.path, Some("Movies")).unwrap();
         set_custom_name(&connection, &anime.path, Some("Shows")).unwrap();
+        let group = crate::db::groups::create(&connection, "Series").unwrap();
+        move_to_group(&connection, videos.id, Some(group.id)).unwrap();
 
         relocate(&connection, &videos.path, &path(&["E:", "Films"])).unwrap();
         let folders = list(&connection).unwrap();
@@ -254,6 +257,7 @@ mod tests {
         let nested = folders.iter().find(|folder| folder.id == anime.id).unwrap();
         assert_eq!(nested.path, path(&["E:", "Films", "Anime"]));
         assert_eq!(nested.name, "Shows");
+        assert_eq!((moved.group_id, nested.group_id), (Some(group.id), None));
         assert!(folders.contains(&sibling));
 
         assert!(matches!(
@@ -275,8 +279,21 @@ mod tests {
         assert!(matches!(remove(&connection, &added.path), Err(AppError::NotFound(_))));
     }
 
+    /// The folders of the list, in the custom order (no groups in these tests).
     fn ids(connection: &Connection) -> Vec<i64> {
-        list(connection).unwrap().iter().map(|folder| folder.id).collect()
+        layout::read(connection)
+            .unwrap()
+            .into_iter()
+            .filter_map(|entry| match entry {
+                LayoutEntry::Folder { id } => Some(id),
+                LayoutEntry::Group { .. } => None,
+            })
+            .collect()
+    }
+
+    fn arrange(connection: &Connection, ids: &[i64]) {
+        let order: Vec<LayoutEntry> = ids.iter().map(|id| LayoutEntry::Folder { id: *id }).collect();
+        layout::write(connection, &order).unwrap();
     }
 
     #[test]
@@ -285,7 +302,7 @@ mod tests {
         let a = add(&connection, "A").unwrap().id;
         let b = add(&connection, "B").unwrap().id;
         let c = add(&connection, "C").unwrap().id;
-        reorder(&connection, &[c, a, b]).unwrap();
+        arrange(&connection, &[c, a, b]);
         let d = add(&connection, "D").unwrap().id;
         assert_eq!(ids(&connection), [c, a, b, d]);
 
@@ -303,13 +320,31 @@ mod tests {
     }
 
     #[test]
-    fn reordering_keeps_left_out_folders_after_the_requested_ones() {
+    fn moving_to_a_group_goes_to_its_end_and_out_of_it_to_the_end_of_the_list() {
         let connection = test_support::connection();
         let a = add(&connection, "A").unwrap().id;
+        let series = crate::db::groups::create(&connection, "Series").unwrap().id;
         let b = add(&connection, "B").unwrap().id;
         let c = add(&connection, "C").unwrap().id;
-        reorder(&connection, &[c, 999, c]).unwrap();
-        assert_eq!(ids(&connection), [c, a, b]);
+        move_to_group(&connection, c, Some(series)).unwrap();
+        move_to_group(&connection, a, Some(series)).unwrap();
+        assert_eq!(
+            layout::read(&connection).unwrap(),
+            [
+                LayoutEntry::Group {
+                    id: series,
+                    folders: vec![c, a]
+                },
+                LayoutEntry::Folder { id: b },
+            ]
+        );
+
+        move_to_group(&connection, c, None).unwrap();
+        assert_eq!(ids(&connection), [b, c]);
+        assert!(matches!(
+            move_to_group(&connection, 99, None),
+            Err(AppError::NotFound(_))
+        ));
     }
 
     #[test]
@@ -318,7 +353,7 @@ mod tests {
         let videos = add(&connection, &path(&["D:", "Videos"])).unwrap().id;
         let anime = add(&connection, &path(&["D:", "Videos", "Anime"])).unwrap().id;
         let other = add(&connection, &path(&["F:", "Other"])).unwrap().id;
-        reorder(&connection, &[anime, other, videos]).unwrap();
+        arrange(&connection, &[anime, other, videos]);
         relocate(&connection, &path(&["D:", "Videos"]), &path(&["E:", "Videos"])).unwrap();
         assert_eq!(ids(&connection), [anime, other, videos]);
     }

@@ -6,17 +6,26 @@ use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::models::{
-    FolderContents, FolderSummary, HiddenFolder, HomeData, LibraryFolder, LibraryFolderStatus, VideoEntry,
+    FolderContents, FolderSummary, HiddenFolder, HomeData, LayoutEntry, LibraryEntry, LibraryFolder,
+    LibraryFolderStatus, VideoEntry,
 };
 use crate::domain::relocation::{RelocationCheck, RelocationResult};
 use crate::error::AppResult;
 use crate::services::{asset_scope, folder_order, hidden, library, relocation};
 use crate::state::AppState;
 
+/// Every library folder in the order of the sidebar, a group's folders where the group is.
 #[tauri::command]
 #[specta::specta]
 pub async fn list_library_folders(state: State<'_, AppState>) -> AppResult<Vec<LibraryFolder>> {
     folder_order::list_folders(&state.db).await
+}
+
+/// The library as the sidebar lists it: folders without a group and groups with their folders, in order.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_library_layout(state: State<'_, AppState>) -> AppResult<Vec<LibraryEntry>> {
+    folder_order::layout(&state.db).await
 }
 
 #[tauri::command]
@@ -25,22 +34,23 @@ pub async fn get_library_folder_sort(state: State<'_, AppState>) -> AppResult<Li
     folder_order::folder_sort(&state.db).await
 }
 
-/// Changes how the library folders are sorted. Returns them in the new order.
+/// Changes how the library is sorted. Returns it in the new order.
 #[tauri::command]
 #[specta::specta]
 pub async fn set_library_folder_sort(
     state: State<'_, AppState>,
     sort: LibraryFolderSort,
-) -> AppResult<Vec<LibraryFolder>> {
+) -> AppResult<Vec<LibraryEntry>> {
     folder_order::set_folder_sort(&state.db, sort).await
 }
 
-/// Puts the library folders in the order of `ids` and switches to the custom order. Folders left out keep their
-/// relative order after them; unknown ids are ignored. Returns the folders in the new order.
+/// Puts folders and groups where they were moved to, in the order of `entries` (each group with its folders), and
+/// switches to the custom order. What is left out stays where it was, after the rest (a folder at the end of its
+/// group); unknown ids are ignored. Returns the library in the new order.
 #[tauri::command]
 #[specta::specta]
-pub async fn reorder_library_folders(state: State<'_, AppState>, ids: Vec<i64>) -> AppResult<Vec<LibraryFolder>> {
-    folder_order::reorder_folders(&state.db, ids).await
+pub async fn arrange_library(state: State<'_, AppState>, entries: Vec<LayoutEntry>) -> AppResult<Vec<LibraryEntry>> {
+    folder_order::arrange(&state.db, entries).await
 }
 
 /// Whether each library folder is reachable and how changes in it are followed. Empty until the first check, a few

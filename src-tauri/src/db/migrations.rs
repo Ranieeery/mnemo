@@ -140,6 +140,33 @@ CREATE INDEX idx_hidden_folders_lower_bound ON hidden_folders (lower_bound);
 /// own name, so every existing folder keeps the name it had.
 const FOLDER_CUSTOM_NAME: &str = "ALTER TABLE library_folders ADD COLUMN custom_name TEXT;";
 
+/// Version 2.5: library folders can be put in groups. A folder belongs to at most one; deleting a group leaves its
+/// folders without one. Existing folders start without a group, which lists them as before.
+const LIBRARY_GROUPS: &str = r#"
+CREATE TABLE library_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    collapsed INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE library_folders ADD COLUMN group_id INTEGER REFERENCES library_groups (id) ON DELETE SET NULL;
+CREATE INDEX idx_library_folders_group_id ON library_folders (group_id);
+"#;
+
+/// Version 2.5: folders without a group and groups share one list, so `sort_order` numbers them together, and the
+/// folders of each group on their own. The list keeps the order it was shown in: the folders without a group, then
+/// the groups.
+const SHARED_LIBRARY_ORDER: &str = r#"
+UPDATE library_folders SET sort_order = ranked.position
+FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY group_id ORDER BY sort_order, created_at, id) - 1 AS position
+      FROM library_folders) AS ranked
+WHERE ranked.id = library_folders.id;
+UPDATE library_groups SET sort_order = ranked.position + (SELECT COUNT(*) FROM library_folders WHERE group_id IS NULL)
+FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY sort_order, created_at, id) - 1 AS position FROM library_groups) AS ranked
+WHERE ranked.id = library_groups.id;
+"#;
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
@@ -150,6 +177,8 @@ fn migrations() -> Migrations<'static> {
         M::up(FOLDER_SORT_ORDER),
         M::up(HIDDEN_FOLDERS),
         M::up(FOLDER_CUSTOM_NAME),
+        M::up(LIBRARY_GROUPS),
+        M::up(SHARED_LIBRARY_ORDER),
     ])
 }
 
@@ -293,7 +322,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 8);
+        assert_eq!(user_version(&connection), 10);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -317,7 +346,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 8);
+        assert_eq!(user_version(&connection), 10);
         for table in [
             "videos",
             "tags",
@@ -326,6 +355,7 @@ mod tests {
             "watch_history",
             "app_settings",
             "hidden_folders",
+            "library_groups",
         ] {
             assert!(!columns(&connection, table).is_empty(), "{table}");
         }
@@ -366,6 +396,69 @@ mod tests {
             .unwrap();
         assert_eq!(icon.as_deref(), Some("🎬"));
         assert_eq!(color, None);
+        assert_legacy_data_preserved(&connection);
+    }
+
+    #[test]
+    fn groups_join_the_list_after_the_folders_without_a_group() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrations().to_version(&mut connection, 9).unwrap();
+        // One sequence for every folder, and one for the groups.
+        connection
+            .execute_batch(
+                "INSERT INTO library_groups (id, name, sort_order) VALUES (1, 'Courses', 1), (2, 'Series', 0);
+                 INSERT INTO library_folders (id, path, sort_order, group_id) VALUES
+                     (1, 'A', 0, NULL), (2, 'B', 1, 2), (3, 'C', 2, NULL), (4, 'D', 3, 2), (5, 'E', 4, 1);",
+            )
+            .unwrap();
+        run(&mut connection).unwrap();
+
+        let positions = |sql: &str| -> Vec<(i64, i64)> {
+            let mut statement = connection.prepare(sql).unwrap();
+            statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        assert_eq!(
+            positions("SELECT id, sort_order FROM library_folders ORDER BY id"),
+            [(1, 0), (2, 0), (3, 1), (4, 1), (5, 0)]
+        );
+        assert_eq!(
+            positions("SELECT id, sort_order FROM library_groups ORDER BY id"),
+            [(1, 3), (2, 2)]
+        );
+    }
+
+    #[test]
+    fn legacy_library_folders_start_without_a_group_and_deleting_a_group_keeps_its_folders() {
+        let mut connection = legacy_database(true);
+        run(&mut connection).unwrap();
+        let grouped: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM library_folders WHERE group_id IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(grouped, 0);
+
+        connection
+            .execute_batch(
+                "INSERT INTO library_groups (id, name) VALUES (1, 'Series');
+                 UPDATE library_folders SET group_id = 1;
+                 DELETE FROM library_groups;",
+            )
+            .unwrap();
+        let ungrouped: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM library_folders WHERE group_id IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(ungrouped > 0);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -427,7 +520,7 @@ mod tests {
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 8);
+        assert_eq!(user_version(&connection), 10);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -497,7 +590,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 8);
+        assert_eq!(user_version(&connection), 10);
         assert_legacy_data_preserved(&connection);
     }
 

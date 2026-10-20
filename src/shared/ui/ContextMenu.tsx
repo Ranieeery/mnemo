@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { ContextMenu as Primitive } from "radix-ui";
 import type { ComponentProps, ReactNode } from "react";
 import { cx } from "../lib/cx";
@@ -45,6 +46,35 @@ export function ContextMenuItem({
             {children}
             {shortcut && <span className={menuShortcutClasses}>{shortcut}</span>}
         </Primitive.Item>
+    );
+}
+
+export const ContextMenuSub = Primitive.Sub;
+
+/** An item that opens a submenu: with the pointer, or with `→`/`Enter` (and `←` goes back). */
+export function ContextMenuSubTrigger({
+    icon,
+    className,
+    children,
+    ...props
+}: ComponentProps<typeof Primitive.SubTrigger> & { icon?: ReactNode }) {
+    return (
+        <Primitive.SubTrigger
+            className={cx(menuItemClasses, "data-[state=open]:bg-surface-hover", className)}
+            {...props}
+        >
+            {icon}
+            {children}
+            <ChevronRight aria-hidden className="ml-auto" />
+        </Primitive.SubTrigger>
+    );
+}
+
+export function ContextMenuSubContent({ className, ...props }: ComponentProps<typeof Primitive.SubContent>) {
+    return (
+        <Primitive.Portal>
+            <Primitive.SubContent className={cx(menuContentClasses, className)} {...props} />
+        </Primitive.Portal>
     );
 }
 

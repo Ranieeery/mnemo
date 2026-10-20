@@ -6,7 +6,7 @@ import { FOLDER_COLORS } from "../../shared/ipc/bindings";
 import { capitalize } from "../../shared/lib/capitalize";
 import { useDialogStore } from "../../shared/stores/dialogs";
 import { followProcessing, processFolder } from "../../shared/stores/processing";
-import { libraryFolderFixture } from "../../shared/test/fixtures";
+import { libraryCommandsFixture, libraryFolderFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { loadAllIcons } from "../../shared/ui";
@@ -18,7 +18,7 @@ const movies = libraryFolderFixture({ id: 2, path: "D:\\Movies", name: "Movies" 
 
 describe("LibraryNav", () => {
     it("lists the folders and highlights the one being browsed", async () => {
-        mockCommands({ list_library_folders: [series, movies] });
+        mockCommands(libraryCommandsFixture([series, movies]));
         renderScreen(<LibraryNav currentPath={"D:\\Series\\Show"} />);
 
         const current = await screen.findByRole("link", { name: /Series/ });
@@ -29,7 +29,7 @@ describe("LibraryNav", () => {
 
     it("marks a folder whose drive is not connected", async () => {
         mockCommands({
-            list_library_folders: [series, movies],
+            ...libraryCommandsFixture([series, movies]),
             get_library_folder_statuses: [
                 { path: series.path, watch: "unavailable", reason: null },
                 { path: movies.path, watch: "watching", reason: null },
@@ -43,7 +43,7 @@ describe("LibraryNav", () => {
 
     it("offers to locate only a folder that is not connected", async () => {
         mockCommands({
-            list_library_folders: [series, movies],
+            ...libraryCommandsFixture([series, movies]),
             get_library_folder_statuses: [
                 { path: series.path, watch: "unavailable", reason: null },
                 { path: movies.path, watch: "watching", reason: null },
@@ -62,7 +62,7 @@ describe("LibraryNav", () => {
     });
 
     it("removes a folder after confirmation", async () => {
-        const calls = mockCommands({ list_library_folders: [series], remove_library_folder: 42 });
+        const calls = mockCommands({ ...libraryCommandsFixture([series]), remove_library_folder: 42 });
         const { user } = renderScreen(<LibraryNav currentPath={undefined} />);
 
         fireEvent.contextMenu(await screen.findByRole("link", { name: /Series/ }));
@@ -78,7 +78,7 @@ describe("LibraryNav", () => {
     // Regression: a folder removed and added back in the same session was taken as already read.
     it("reads the videos of a folder added back to the library", async () => {
         const calls = mockCommands({
-            list_library_folders: [],
+            ...libraryCommandsFixture([]),
             process_folders: null,
             add_library_folder: series,
             "plugin:dialog|open": series.path,
@@ -93,7 +93,7 @@ describe("LibraryNav", () => {
 
     it("syncs a folder, shows it is being read and reports what was found", async () => {
         const calls = mockCommands({
-            list_library_folders: [series],
+            ...libraryCommandsFixture([series]),
             process_folders: null,
             get_processing_status: { jobs: [], inFlight: [], cancelling: false, errors: [] },
         });
@@ -133,7 +133,7 @@ describe("LibraryNav", () => {
 
     async function openIconDialog(recent: string[] = [], folder = movies) {
         const calls = mockCommands({
-            list_library_folders: [folder],
+            ...libraryCommandsFixture([folder]),
             recent_folder_icons: recent,
             set_library_folder_appearance: null,
         });
@@ -216,7 +216,7 @@ describe("LibraryNav", () => {
     });
 
     it("shows a folder's color and marks the current folder without relying on it", async () => {
-        mockCommands({ list_library_folders: [{ ...series, iconColor: "red" }, movies] });
+        mockCommands(libraryCommandsFixture([{ ...series, iconColor: "red" }, movies]));
         renderScreen(<LibraryNav currentPath={"D:\\Series"} />);
         const current = await screen.findByRole("link", { name: "Series" });
         expect(current.querySelector("svg")).toHaveStyle({ color: "var(--color-folder-red)" });
@@ -261,7 +261,7 @@ describe("LibraryNav", () => {
     it("hides a folder from home and history, and shows it again", async () => {
         let hidden = false;
         const calls = mockCommands({
-            list_library_folders: [series, movies],
+            ...libraryCommandsFixture([series, movies]),
             list_hidden_folders: () =>
                 hidden ? [{ path: series.path, name: "Series", libraryFolder: series, available: true }] : [],
             set_folder_hidden: (args: { hidden: boolean }) => {

@@ -7,15 +7,31 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
+	/**  Every library folder in the order of the sidebar, a group's folders where the group is. */
 	listLibraryFolders: () => typedError<LibraryFolder[], IpcError>(__TAURI_INVOKE("list_library_folders")),
 	getLibraryFolderSort: () => typedError<LibraryFolderSort, IpcError>(__TAURI_INVOKE("get_library_folder_sort")),
-	/**  Changes how the library folders are sorted. Returns them in the new order. */
-	setLibraryFolderSort: (sort: LibraryFolderSort) => typedError<LibraryFolder[], IpcError>(__TAURI_INVOKE("set_library_folder_sort", { sort })),
+	/**  Changes how the library is sorted. Returns it in the new order. */
+	setLibraryFolderSort: (sort: LibraryFolderSort) => typedError<LibraryEntry[], IpcError>(__TAURI_INVOKE("set_library_folder_sort", { sort })),
+	/**  The library as the sidebar lists it: folders without a group and groups with their folders, in order. */
+	getLibraryLayout: () => typedError<LibraryEntry[], IpcError>(__TAURI_INVOKE("get_library_layout")),
 	/**
-	 *  Puts the library folders in the order of `ids` and switches to the custom order. Folders left out keep their
-	 *  relative order after them; unknown ids are ignored. Returns the folders in the new order.
+	 *  Puts folders and groups where they were moved to, in the order of `entries` (each group with its folders), and
+	 *  switches to the custom order. What is left out stays where it was, after the rest (a folder at the end of its
+	 *  group); unknown ids are ignored. Returns the library in the new order.
 	 */
-	reorderLibraryFolders: (ids: number[]) => typedError<LibraryFolder[], IpcError>(__TAURI_INVOKE("reorder_library_folders", { ids })),
+	arrangeLibrary: (entries: LayoutEntry[]) => typedError<LibraryEntry[], IpcError>(__TAURI_INVOKE("arrange_library", { entries })),
+	/**  Creates a group at the end of the list; with `folder_id`, that folder moves into it at the same time. */
+	createLibraryGroup: (name: string, folderId: number | null) => typedError<LibraryGroup, IpcError>(__TAURI_INVOKE("create_library_group", { name, folderId })),
+	renameLibraryGroup: (id: number, name: string) => typedError<LibraryGroup, IpcError>(__TAURI_INVOKE("rename_library_group", { id, name })),
+	/**  Deletes a group; its folders stay where it was in the list, without a group. Returns how many folders it had. */
+	deleteLibraryGroup: (id: number) => typedError<number, IpcError>(__TAURI_INVOKE("delete_library_group", { id })),
+	/**  Whether the group's folders are hidden in the expanded sidebar; kept between sessions. */
+	setLibraryGroupCollapsed: (id: number, collapsed: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_library_group_collapsed", { id, collapsed })),
+	/**
+	 *  Puts a folder at the end of a group (`null` takes it out of its group, to the end of the list), keeping the sort
+	 *  mode.
+	 */
+	moveLibraryFolderToGroup: (folderId: number, groupId: number | null) => typedError<null, IpcError>(__TAURI_INVOKE("move_library_folder_to_group", { folderId, groupId })),
 	/**
 	 *  Whether each library folder is reachable and how changes in it are followed. Empty until the first check, a few
 	 *  seconds after startup.
@@ -404,8 +420,14 @@ export type KeyboardShortcuts = {
 	historyForward: string[],
 };
 
+/**  One item of the library list by id: how the custom order is stored, and how an arrangement is sent. */
+export type LayoutEntry = { kind: "folder"; id: number } | { kind: "group"; id: number; folders: number[] };
+
 /**  Videos or files in the library folders changed on disk: screens showing the library are stale. */
 export type LibraryChanged = null;
+
+/**  One item of the library list: a folder without a group, or a group with its folders, in the order shown. */
+export type LibraryEntry = { kind: "folder"; folder: LibraryFolder } | { kind: "group"; group: LibraryGroup; folders: LibraryFolder[] };
 
 export type LibraryFolder = {
 	id: number,
@@ -416,6 +438,8 @@ export type LibraryFolder = {
 	folderName: string,
 	/**  Given in the app; the folder on disk is never renamed. */
 	customName: string | null,
+	/**  The group it is listed in, if any. */
+	groupId: number | null,
 	customIcon: string | null,
 	/**  `None` draws the icon in the surrounding text color. */
 	iconColor: FolderColor | null,
@@ -423,11 +447,14 @@ export type LibraryFolder = {
 };
 
 /**
- *  How the library folders are sorted. `Custom` is the order the user arranged (by dragging or moving them), and
- *  starts as the order they were added in.
+ *  How the library is sorted: the folders without a group and the groups among them, and the folders inside each
+ *  group. `Custom` is the order the user arranged (by dragging or moving), and starts as the order they were added in.
  */
 export type LibraryFolderSort = "custom" | "nameAscending" | "nameDescending" | "newestFirst" | "oldestFirst" | 
-/**  By the latest time any video inside was watched; folders never watched go last, by name. */
+/**
+ *  By the latest time any video inside was watched (for a group, inside any of its folders); never watched go
+ *  last, by name.
+ */
 "recentlyWatched";
 
 export type LibraryFolderStatus = {
@@ -439,6 +466,15 @@ export type LibraryFolderStatus = {
 
 /**  A library folder became reachable or unreachable, or the way its changes are followed changed. */
 export type LibraryFoldersChanged = null;
+
+/**  A group of library folders in the sidebar. */
+export type LibraryGroup = {
+	id: number,
+	name: string,
+	/**  Its folders are hidden in the expanded sidebar (the rail always shows them). */
+	collapsed: boolean,
+	createdAt: string,
+};
 
 export type LibraryStats = {
 	totalVideos: number,

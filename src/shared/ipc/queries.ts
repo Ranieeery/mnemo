@@ -21,6 +21,14 @@ export function useLibraryFolders() {
     });
 }
 
+/** The library as the sidebar lists it: folders without a group and groups with their folders, in order. */
+export function useLibraryLayout() {
+    return useQuery({
+        queryKey: queryKeys.libraryLayout(),
+        queryFn: () => call(commands.getLibraryLayout()),
+    });
+}
+
 /** The name the app shows for the folder at `path` (see `folderName`). */
 export function useFolderName(path: string): string {
     return folderName(path, useLibraryFolders().data);

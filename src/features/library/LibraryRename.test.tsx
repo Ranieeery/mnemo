@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { LibraryFolder } from "../../shared/ipc/bindings";
-import { libraryFolderFixture } from "../../shared/test/fixtures";
+import { libraryFolderFixture, libraryLayoutFixture } from "../../shared/test/fixtures";
 import { callsOf, commandError, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { LibraryNav } from "./components/LibraryNav";
@@ -15,6 +15,7 @@ function mockLibrary(initial: LibraryFolder[], { fail = false } = {}) {
     let folders = initial;
     return mockCommands({
         list_library_folders: () => folders,
+        get_library_layout: () => libraryLayoutFixture(folders),
         rename_library_folder: ({ path, name }: { path: string; name: string | null }) => {
             if (fail) {
                 throw commandError("invalidInput", "folder names can have at most 100 characters");

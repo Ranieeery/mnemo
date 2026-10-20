@@ -2,6 +2,7 @@
 
 pub mod events;
 mod library;
+mod library_groups;
 mod media;
 mod search;
 mod settings;
@@ -38,7 +39,13 @@ pub fn builder() -> Builder<tauri::Wry> {
             library::list_library_folders,
             library::get_library_folder_sort,
             library::set_library_folder_sort,
-            library::reorder_library_folders,
+            library::get_library_layout,
+            library::arrange_library,
+            library_groups::create_library_group,
+            library_groups::rename_library_group,
+            library_groups::delete_library_group,
+            library_groups::set_library_group_collapsed,
+            library_groups::move_library_folder_to_group,
             library::get_library_folder_statuses,
             library::add_library_folder,
             library::remove_library_folder,

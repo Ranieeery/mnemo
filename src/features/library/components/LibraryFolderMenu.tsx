@@ -5,6 +5,8 @@ import { openFolderRelocation } from "../../../shared/stores/dialogs";
 import { processFolder } from "../../../shared/stores/processing";
 import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "../../../shared/ui";
 import { useFolderVisibilityItem } from "../../../shared/video";
+import { MoveToGroupMenu } from "./MoveToGroupMenu";
+import { useNewGroup } from "./NewGroupContext";
 
 type LibraryFolderMenuProps = {
     folder: LibraryFolder;
@@ -32,17 +34,20 @@ export function LibraryFolderMenu({
     onRemove,
 }: LibraryFolderMenuProps) {
     const visibilityItem = useFolderVisibilityItem(folder);
-    // The name field opens once the menu is gone: while the menu is open it holds the focus (it pulls the focus back
-    // from a field opened next to it, which closes the rail's popover), and once closed it gives it to the folder.
-    const renameChosen = useRef(false);
+    const newGroup = useNewGroup();
+    // A name field (renaming, or a new group) opens once the menu is gone: while the menu is open it holds the focus
+    // (it pulls the focus back from a field opened next to it, which closes the rail's popover), and once closed it
+    // gives it to the folder.
+    const afterClose = useRef<(() => void) | null>(null);
 
     return (
         <ContextMenuContent
             onCloseAutoFocus={(event) => {
-                if (renameChosen.current) {
-                    renameChosen.current = false;
+                const action = afterClose.current;
+                if (action) {
+                    afterClose.current = null;
                     event.preventDefault();
-                    onRename();
+                    action();
                 }
             }}
         >
@@ -61,7 +66,7 @@ export function LibraryFolderMenu({
                 icon={<Pencil />}
                 shortcut="F2"
                 onSelect={() => {
-                    renameChosen.current = true;
+                    afterClose.current = onRename;
                 }}
             >
                 Rename
@@ -74,6 +79,12 @@ export function LibraryFolderMenu({
             <ContextMenuItem icon={<Palette />} onSelect={onChangeIcon}>
                 Icon and color…
             </ContextMenuItem>
+            <MoveToGroupMenu
+                folder={folder}
+                onNewGroup={() => {
+                    afterClose.current = () => newGroup.start(folder);
+                }}
+            />
             <ContextMenuItem
                 icon={visibilityItem.icon}
                 disabled={visibilityItem.disabled}

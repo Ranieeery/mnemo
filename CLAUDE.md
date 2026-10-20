@@ -96,10 +96,10 @@ src-tauri/src/
 ├── error.rs            # AppError (thiserror), serializado como { kind, message }
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
 ├── services/           # regras: biblioteca e navegação, ordem das pastas, scanner, mídia (ffprobe/ffmpeg e pipeline), sync com o
-│                       # disco (watcher e reconciliação), busca, visualização, pastas escondidas, tags, backup, manutenção,
+│                       # disco (watcher e reconciliação), busca, visualização, pastas escondidas, grupos, tags, backup, manutenção,
 │                       # legendas, sistema, escopo de assets
 ├── db/                 # conexão, migrations.rs e repositórios (videos, presence, watch, orphans, tags, folders,
-│                       # settings, history, backup, hidden)
+│                       # settings, history, backup, hidden, groups, layout)
 └── domain/             # tipos e regras puras: extensões, limiar, ordem natural, faixas de pasta, modo de exibição,
                         # ordem das pastas da biblioteca, pastas escondidas, layout da janela
 
@@ -164,8 +164,8 @@ src/
   Windows e macOS coincide com o app data dir), o mesmo local usado pelas versões 1.x. O `identifier` `com.mnemo` não
   pode mudar.
 - Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`, `icon_color`,
-  `sort_order` e `custom_name`),
-  `watch_history`, `app_settings`, `folder_settings`, `hidden_folders`.
+  `sort_order`, `custom_name` e `group_id`), `library_groups` (`name`, `sort_order`, `collapsed`), `watch_history`,
+  `app_settings`, `folder_settings`, `hidden_folders`.
 - `app_settings` é chave/valor em JSON com acesso tipado (`db/settings.rs`): cada setting implementa `Setting` (chave,
   tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
   `settings::set::<S>`. Valores ilegíveis viram o padrão (com log), nunca erro. Settings: `watched_threshold`,
@@ -182,7 +182,10 @@ src/
   `library_folders.icon_color` (nome do token da cor, `NULL` é a cor padrão; nome desconhecido é lido como padrão); a `6` adiciona
   `library_folders.sort_order` (ordem custom, preenchida pela ordem de adição, a mesma de antes); a `7` cria
   `hidden_folders` (`path`, `lower_bound`, `upper_bound` de `FolderBounds`, índice em `lower_bound`; vazia em bancos
-  antigos); a `8` adiciona `library_folders.custom_name` (nome dado no app, `NULL` usa o nome da pasta).
+  antigos); a `8` adiciona `library_folders.custom_name` (nome dado no app, `NULL` usa o nome da pasta). A `9`
+  cria `library_groups` e adiciona `library_folders.group_id` (`ON DELETE SET NULL`, índice; vazio em bancos antigos).
+  A `10` renumera `sort_order` para a lista única (pastas sem grupo e grupos numa sequência, as pastas de cada grupo
+  em outra), mantendo a ordem exibida antes: as pastas sem grupo, depois os grupos; bancos sem grupos não mudam.
   `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
@@ -211,7 +214,11 @@ src/
   de adição, e um arquivo sem modo (ou com modo desconhecido) mantém o modo atual. `hiddenFolders` (opcional) vai
   também: exports antigos importam sem nada escondido, e entradas fora das pastas importadas são descartadas.
   `custom_name` (opcional) vai em cada pasta: exports antigos importam sem nome personalizado, e um nome que o app
-  recusaria (em branco, longo demais) importa como nenhum.
+  recusaria (em branco, longo demais) importa como nenhum. `libraryGroups` (opcional; `id`, `name`, `sort_order`,
+  `collapsed`, `created_at`) e `group_id` em cada pasta: exports antigos importam sem grupos, um grupo com nome que o
+  app recusaria é descartado e uma pasta com `group_id` que o arquivo não tem fica sem grupo. O `sort_order` segue a
+  lista única (ver `db/layout.rs`), e o import renumera tudo (`layout::compact`), resolvendo posições repetidas pela
+  data de adição.
 
 ## Mídia
 
@@ -321,7 +328,8 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 ### Componentes
 
 Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interação: `Button`, `IconButton`, `Input`,
-`Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu`, `ContextMenu`, `Tooltip`, `Toast`, `Progress`,
+`Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu`, `ContextMenu` (com submenu: `ContextMenuSub`),
+`Tooltip`, `Toast`, `Progress`,
 `Skeleton`, `Card`, `Tabs`, `Slider` (`compact` para volume), `Switch`, `Badge`/`Tag`, `EmptyState`, `ErrorState`, `Kbd`,
 `Spinner`, `FolderIcon`, `ScrollToTopButton`, `Popover` (painel flutuante não modal para uma edição rápida; `Esc` e o clique fora são
 tratados por quem usa), `ChoiceGroup` (poucas opções exclusivas em botões, ex.: Days/Weeks),
@@ -444,14 +452,48 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
     o ícone e o nome do botão mostram o modo atual, salvo em `library_folder_sort`;
   - "Recently watched": o `last_watched_at` mais recente dos vídeos de cada pasta (uma faixa sobre o índice de
     `file_path` por pasta, inclusive sumidos e marcações em massa); pastas nunca assistidas ficam no fim, por nome;
-  - empates: nome, depois caminho e id; data de adição, depois id;
-  - a ordem custom (`sort_order`) muda arrastando a pasta depois de segurá-la por 400 ms (uma barra `accent` enche enquanto ela é segurada; soltar antes é um clique, que abre a pasta, e mover o mouse mais de 5 px desiste; só o eixo vertical; a vaga
+  - empates: nome, depois caminho, pasta antes de grupo e id; data de adição, depois pasta antes de grupo e id;
+  - a ordem custom muda arrastando a pasta depois de segurá-la por 400 ms (uma barra `accent` enche enquanto ela é segurada; soltar antes é um clique, que abre a pasta, e mover o mouse mais de 5 px desiste; só o eixo vertical; a vaga
     marca com uma linha `accent` onde ela vai cair), pelo teclado (`Space` pega, `↑`/`↓` movem, `Space`/`Enter`
-    soltam, `Esc` cancela, com anúncios para leitor de tela) ou por "Move up"/"Move down" no menu de contexto.
-    Mover em outro modo troca para custom a partir da ordem na tela (`reorder_library_folders` grava ordem e modo
-    numa transação). É otimista, com rollback e toast. Com uma pasta só, não há arraste nem "Move up/down";
-  - pastas novas vão para o fim da ordem custom; remover renumera sem lacunas; realocar mantém a posição; uma pasta
+    soltam, `Esc` cancela, com anúncios para leitor de tela) ou por "Move up"/"Move down" no menu de contexto (dentro
+    da lista da pasta: o grupo dela, ou a lista principal, onde um grupo conta como uma posição).
+    Mover em outro modo troca para custom a partir da ordem na tela (`arrange_library` grava grupos, ordem e modo numa
+    transação; o que o pedido deixa de fora fica depois, no grupo em que estava). É otimista, com rollback e toast.
+    Com uma pasta só e sem grupos, não há arraste nem "Move up/down";
+  - pastas e grupos novos vão para o fim da lista; remover renumera sem lacunas; realocar mantém a posição; uma pasta
     desconectada continua no lugar e pode ser movida.
+- Grupos de pastas da biblioteca (`services/library_groups`, `db/groups.rs`; nome validado como o nome personalizado,
+  `normalize_group_name`, mas nunca vazio; nomes repetidos são permitidos):
+  - pastas sem grupo e grupos formam uma lista só, intercalados (`db/layout.rs`: `sort_order` numera juntos as pastas
+    sem grupo e os grupos, e as pastas de cada grupo têm a sua sequência). `get_library_layout` devolve a lista
+    (`LibraryEntry`: pasta, ou grupo com as pastas dele) já ordenada; `list_library_folders` é a mesma ordem plana
+    (as pastas de um grupo no lugar dele), seguida pela home e por Settings → Library, sem cabeçalhos (Settings mostra
+    "Group: …"). Sem grupos, o painel é o de sempre;
+  - o modo de ordenação vale na lista e dentro de cada grupo (`folder_order::sort_entries`): o grupo é comparado
+    pelo nome, pela data de criação e, em "Recently watched", pela pasta dele assistida mais recentemente (nunca
+    assistido vai para o fim, por nome);
+  - cabeçalho (`LibraryGroupHeader`): botão com `aria-expanded`, seta, nome e contagem ("Series, 3 folders");
+    clique, `Enter` ou `Space` recolhe/expande (salvo em `collapsed`, otimista). Recolhido com a pasta atual dentro,
+    leva a barra `accent`. As pastas expandidas ficam recuadas, ao longo de uma linha-guia. Menu: "Rename group"
+    (`F2`, vazio mantém o nome), "Move up"/"Move down", "Delete group" (com confirmação só se tiver pastas, que
+    ficam sem grupo no lugar onde o grupo estava; toast);
+  - "New group…" no menu de ordenação ou em "Move to group" da pasta (que já move a pasta, numa transação): o nome
+    é editado no fim da lista (no rail, num popover); `Enter`/blur cria, `Esc` ou vazio desiste. O campo só abre
+    depois que o menu fecha (o menu prende o foco);
+  - "Move to group" (submenu da pasta): os grupos (o atual marcado e desabilitado), "New group…" e "Remove from
+    group"; vai para o fim do grupo (ou, ao sair, para o fim da lista) e mantém o modo de ordenação;
+  - arrastar (`GroupedFolderList` e `hooks/useLibraryDrag`, um `SortableContext` só; regras puras em
+    `lib/libraryRows.ts`): a lista vira linhas (pasta, cabeçalho de grupo e fim de grupo, `GroupEndRow`), e o
+    arraste aplica cada passo a uma cópia da biblioteca, então a vaga mostra onde a pasta cai. Uma pasta pertence ao
+    grupo cujo cabeçalho vem antes dela, até o fim dele: soltar antes do fim põe no grupo, depois dele tira. Grupo
+    vazio mostra "Drag folders here". Uma pasta segura 500 ms sobre o cabeçalho de um grupo recolhido abre o grupo
+    só durante o arraste (`OPEN_GROUP_DELAY_MS`). Segurar o cabeçalho 400 ms arrasta o grupo: só as pastas dele
+    somem (o resto fica no lugar, sob o ponteiro), e ele nunca cai dentro de outro grupo (vai para antes ou depois
+    dele). Os anúncios dizem quando a pasta entra ou sai de um grupo;
+  - rail: cada grupo começa com uma linha discreta (`RailGroupSeparator`, tooltip "Series · 3 folders") e termina
+    com outra quando vem algo depois, mostra as pastas mesmo recolhido (navegação a um clique), some quando vazio
+    (sem perder o lugar na lista); o tooltip da pasta diz "Group: …";
+  - pastas desconectadas, escondidas, renomeadas ou realocadas continuam no grupo; pastas novas entram sem grupo.
 - Estatísticas por pasta: total, assistidos e percentual de progresso.
 - A biblioteca acompanha o disco sozinha (ver "Sincronização com o disco"):
   - vídeos novos são lidos;

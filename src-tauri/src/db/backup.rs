@@ -6,9 +6,9 @@ use rusqlite::{Connection, params};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::{folders, hidden, settings};
+use super::{hidden, layout, settings};
 use crate::domain::folder_color::FolderColor;
-use crate::domain::folder_name::normalize_custom_name;
+use crate::domain::folder_name::{normalize_custom_name, normalize_group_name};
 use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::media::display_name;
 use crate::domain::models::{AppSettings, ImportSummary};
@@ -45,6 +45,9 @@ pub struct LibraryFile {
     /// hidden.
     #[serde(default)]
     pub hidden_folders: Vec<String>,
+    /// Groups of library folders, added in 2.5. Files without them import with no groups.
+    #[serde(default)]
+    pub library_groups: Vec<LibraryGroupRecord>,
     pub videos: Vec<VideoRecord>,
     pub tags: Vec<TagRecord>,
     pub video_tags: Vec<VideoTagRecord>,
@@ -69,6 +72,21 @@ pub struct LibraryFolderRecord {
     /// The name given in the app, added in 2.5. Older exports have none (the folder's own name).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_name: Option<String>,
+    /// Added in 2.5. A group missing from the file leaves the folder without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LibraryGroupRecord {
+    pub id: i64,
+    pub name: String,
+    #[serde(default)]
+    pub sort_order: Option<i64>,
+    #[serde(default)]
+    pub collapsed: bool,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -192,7 +210,8 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
         library_folder_sort: Some(settings::get::<settings::FolderSort>(connection)?),
         library_folders: select_all(
             connection,
-            "SELECT id, path, created_at, custom_icon, icon_color, sort_order, custom_name FROM library_folders ORDER BY id",
+            "SELECT id, path, created_at, custom_icon, icon_color, sort_order, custom_name, group_id
+             FROM library_folders ORDER BY id",
             |row| {
                 Ok(LibraryFolderRecord {
                     id: row.get(0)?,
@@ -202,6 +221,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
                     icon_color: row.get(4)?,
                     sort_order: row.get(5)?,
                     custom_name: row.get(6)?,
+                    group_id: row.get(7)?,
                 })
             },
         )?,
@@ -216,6 +236,19 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
             },
         )?,
         hidden_folders: hidden::list(connection)?,
+        library_groups: select_all(
+            connection,
+            "SELECT id, name, sort_order, collapsed, created_at FROM library_groups ORDER BY id",
+            |row| {
+                Ok(LibraryGroupRecord {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    sort_order: row.get(2)?,
+                    collapsed: row.get::<_, i64>(3)? != 0,
+                    created_at: row.get(4)?,
+                })
+            },
+        )?,
         videos: select_all(
             connection,
             "SELECT id, file_path, title, description, duration_seconds, thumbnail_path, is_watched,
@@ -278,13 +311,33 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
     let transaction = connection.transaction()?;
     transaction.execute_batch(
         "DELETE FROM video_tags; DELETE FROM watch_history; DELETE FROM videos; DELETE FROM tags;
-         DELETE FROM library_folders; DELETE FROM folder_settings; DELETE FROM hidden_folders;",
+         DELETE FROM library_folders; DELETE FROM folder_settings; DELETE FROM hidden_folders;
+         DELETE FROM library_groups;",
     )?;
+
+    // A group whose name the app would refuse is left out, and its folders imported without a group.
+    let mut imported_groups = Vec::new();
+    for group in &file.library_groups {
+        if let Ok(name) = normalize_group_name(&group.name) {
+            transaction.execute(
+                "INSERT INTO library_groups (id, name, sort_order, collapsed, created_at)
+                 VALUES (?1, ?2, ?3, ?4, COALESCE(?5, CURRENT_TIMESTAMP))",
+                params![
+                    group.id,
+                    name,
+                    group.sort_order.unwrap_or(i64::MAX),
+                    group.collapsed,
+                    group.created_at
+                ],
+            )?;
+            imported_groups.push(group.id);
+        }
+    }
 
     for folder in &file.library_folders {
         transaction.execute(
-            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color, sort_order, custom_name)
-             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5, ?6, ?7)",
+            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color, sort_order, custom_name, group_id)
+             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5, ?6, ?7, ?8)",
             params![
                 folder.id,
                 folder.path,
@@ -296,18 +349,19 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
                     .as_deref()
                     .and_then(FolderColor::parse)
                     .map(FolderColor::as_str),
-                // Folders without a position go last; `compact_order` then orders them by date added.
+                // Items without a position go last; `layout::compact` then orders them by date added.
                 folder.sort_order.unwrap_or(i64::MAX),
                 // A name the app would refuse (too long, written by hand) is imported as none.
                 folder.custom_name.as_deref().and_then(|name| {
                     normalize_custom_name(name, &display_name(Path::new(&folder.path)))
                         .ok()
                         .flatten()
-                })
+                }),
+                folder.group_id.filter(|id| imported_groups.contains(id))
             ],
         )?;
     }
-    folders::compact_order(&transaction)?;
+    layout::compact(&transaction)?;
     for setting in &file.folder_settings {
         transaction.execute(
             "INSERT INTO folder_settings (path, view_mode) VALUES (?1, ?2)",
@@ -390,7 +444,9 @@ mod tests {
     use super::*;
     use crate::db::test_support;
     use crate::db::videos::tests::path;
-    use crate::db::{folders, tags, videos, watch};
+    use crate::db::{folders, groups, tags, videos, watch};
+    use crate::domain::folder_order::{flatten, library_entries};
+    use crate::domain::models::LayoutEntry;
 
     /// Shape of a real export produced by the legacy frontend (`exportLibraryData` with `SELECT *`).
     const LEGACY_EXPORT: &str = r#"{
@@ -490,12 +546,72 @@ mod tests {
         assert_eq!(folders::list(&target).unwrap()[0].custom_name.as_deref(), Some("Films"));
     }
 
+    #[test]
+    fn groups_round_trip_and_older_or_broken_ones_import_without_groups() {
+        let mut source = test_support::connection();
+        import(&mut source, &parse(LEGACY_EXPORT)).unwrap();
+        // Exports from before 2.5 have no groups.
+        assert!(groups::list(&source).unwrap().is_empty());
+        assert_eq!(folders::list(&source).unwrap()[0].group_id, None);
+
+        let courses = groups::create(&source, "Courses").unwrap();
+        let series = groups::create(&source, "Series").unwrap();
+        groups::set_collapsed(&source, series.id, true).unwrap();
+        let folder = folders::list(&source).unwrap().remove(0);
+        let other = folders::add(&source, "E:\\Other").unwrap();
+        folders::move_to_group(&source, folder.id, Some(series.id)).unwrap();
+        // Folders and groups mixed in the list.
+        layout::write(
+            &source,
+            &[
+                LayoutEntry::Group {
+                    id: series.id,
+                    folders: vec![folder.id],
+                },
+                LayoutEntry::Folder { id: other.id },
+                LayoutEntry::Group {
+                    id: courses.id,
+                    folders: vec![],
+                },
+            ],
+        )
+        .unwrap();
+        let mut exported = export(&source).unwrap();
+
+        let mut target = test_support::connection();
+        import(&mut target, &parse(&serde_json::to_string(&exported).unwrap())).unwrap();
+        assert_eq!(groups::list(&target).unwrap(), groups::list(&source).unwrap());
+        assert_eq!(layout::read(&target).unwrap(), layout::read(&source).unwrap());
+        assert_eq!(folders::list(&target).unwrap()[0].group_id, Some(series.id));
+
+        // A group the app would refuse is left out, and its folders come without a group.
+        let series_record = exported
+            .library_groups
+            .iter_mut()
+            .find(|group| group.id == series.id)
+            .unwrap();
+        series_record.name = "  ".into();
+        import(&mut target, &exported).unwrap();
+        assert_eq!(groups::list(&target).unwrap(), [courses]);
+        assert_eq!(folders::list(&target).unwrap()[0].group_id, None);
+
+        // So does a folder pointing at a group the file does not have.
+        exported.library_folders[0].group_id = Some(999);
+        import(&mut target, &exported).unwrap();
+        assert_eq!(folders::list(&target).unwrap()[0].group_id, None);
+    }
+
+    /// The folders in the custom order.
     fn folder_paths(connection: &Connection) -> Vec<String> {
-        folders::list(connection)
-            .unwrap()
-            .into_iter()
-            .map(|folder| folder.path)
-            .collect()
+        let layout = layout::read(connection).unwrap();
+        flatten(library_entries(
+            &layout,
+            folders::list(connection).unwrap(),
+            groups::list(connection).unwrap(),
+        ))
+        .into_iter()
+        .map(|folder| folder.path)
+        .collect()
     }
 
     #[test]
@@ -504,7 +620,7 @@ mod tests {
         let first = folders::add(&source, "A").unwrap().id;
         let second = folders::add(&source, "B").unwrap().id;
         let third = folders::add(&source, "C").unwrap().id;
-        folders::reorder(&source, &[third, first, second]).unwrap();
+        layout::write(&source, &[third, first, second].map(|id| LayoutEntry::Folder { id })).unwrap();
         settings::set::<settings::FolderSort>(&source, LibraryFolderSort::RecentlyWatched).unwrap();
         let exported = export(&source).unwrap();
         assert_eq!(exported.library_folder_sort, Some(LibraryFolderSort::RecentlyWatched));
@@ -536,6 +652,7 @@ mod tests {
             icon_color: None,
             sort_order: None,
             custom_name: None,
+            group_id: None,
         })
         .collect();
         import(&mut connection, &file).unwrap();
