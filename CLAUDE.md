@@ -28,6 +28,11 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
   anteriores), `## Highlights` (3 a 5 itens com início em negrito), uma seção `##` por área com o que mudou para o
   usuário, `## Fixes` quando houver, e `## Upgrading from X.Y` (dados preservados, mudanças de comportamento,
   requisitos). Atalhos e formatos entre crases; nada de nomes de código, comandos ou tabelas.
+- **Versão:** muda em `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json` e
+  no `README.md`. Tag leve sem `v` (`2.5.0`); a release tem o mesmo título, começa com
+  `**Full Changelog**: …/compare/<anterior>...<nova>` e leva o `.msi` (`bundle/msi`) e o `-setup.exe` (`bundle/nsis`).
+- Skills e plugins (design, React, revisão) são referência geral: em conflito, valem este arquivo, os tokens e os
+  componentes de `src/shared/ui`. Regras de Next.js ou de servidor não se aplicam (app Tauri, sem SSR).
 
 ## Stack
 
@@ -67,11 +72,13 @@ bun run lint             # biome check
 bun run format           # biome format --write
 bun run test             # vitest run
 bun run check            # typecheck + lint + test (frontend)
+bun run test src/features/player   # só os testes de um caminho
 
 cd src-tauri
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test               # também regenera src/shared/ipc/bindings.ts (teste export_typescript_bindings)
+cargo test sync::        # só os testes cujo nome contém o filtro
 cargo test -- --ignored real_ffmpeg                    # requer ffmpeg/ffprobe no PATH
 MNEMO_LEGACY_DB=<cópia>/mnemo.db cargo test -- --ignored migrates_a_real_legacy_database   # nunca o arquivo real
 ```
@@ -100,8 +107,9 @@ src-tauri/src/
 │                       # legendas, sistema, escopo de assets
 ├── db/                 # conexão, migrations.rs e repositórios (videos, presence, watch, orphans, tags, folders,
 │                       # settings, history, backup, hidden, groups, layout)
-└── domain/             # tipos e regras puras: extensões, limiar, ordem natural, faixas de pasta, modo de exibição,
-                        # ordem das pastas da biblioteca, pastas escondidas, layout da janela
+└── domain/             # tipos e regras puras: extensões e mídia, limiar, ordem natural, faixas de pasta, modo de
+                        # exibição, ordem, nome e cor das pastas da biblioteca, pastas escondidas, realocação, layout
+                        # da janela, player, estilo de legenda, atalhos, tags, modelos (models/)
 
 src/
 ├── app/                # entrada, router, RootLayout, layout (shell), rotas que compõem features, DialogHost
