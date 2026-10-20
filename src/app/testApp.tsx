@@ -13,6 +13,7 @@ const emptyHome: HomeData = { continueWatching: [], recentlyWatched: [], suggest
 export function renderApp(path = "/", extraCommands: Record<string, unknown> = {}) {
     const calls = mockCommands({
         list_library_folders: [seriesFolder],
+        get_library_folder_sort: "custom",
         get_home: emptyHome,
         media_tools_status: { ffmpeg: true, ffprobe: true },
         process_folders: null,

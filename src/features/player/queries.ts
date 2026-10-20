@@ -69,6 +69,13 @@ export async function saveProgress(
     if (updated.isWatched !== video.isWatched) {
         // Becoming watched moves the video between home sections and changes folder progress.
         await queryClient.invalidateQueries({ queryKey: queryKeys.library });
+    } else {
+        // Watching moves its library folder up when the folders are sorted by "Recently watched" (a small query;
+        // the home, not shown while playing, only refreshes when it is shown again).
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.libraryFolders() }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.homeSections() }),
+        ]);
     }
     return updated;
 }

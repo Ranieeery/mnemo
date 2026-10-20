@@ -5,6 +5,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::layout::{SidebarPreferences, validate_sidebar_width};
 use crate::domain::models::{AppSettings, PlayerPreferences};
 use crate::domain::player::{validate_speed, validate_up_next_width, validate_volume};
@@ -193,6 +194,18 @@ impl Setting for Sidebar {
     }
 }
 
+/// How the library folders are sorted. A mode this version does not know reads as the default.
+pub struct FolderSort;
+
+impl Setting for FolderSort {
+    const KEY: &'static str = "library_folder_sort";
+    type Value = LibraryFolderSort;
+
+    fn default_value() -> LibraryFolderSort {
+        LibraryFolderSort::default()
+    }
+}
+
 /// The configurable keyboard shortcuts.
 pub struct Shortcuts;
 
@@ -368,6 +381,25 @@ mod tests {
             Err(AppError::InvalidInput(_))
         ));
         assert_eq!(get::<Player>(&connection).unwrap(), PlayerPreferences::default());
+    }
+
+    #[test]
+    fn folder_sort_round_trips_and_an_unknown_mode_reads_as_custom() {
+        let connection = test_support::connection();
+        assert_eq!(get::<FolderSort>(&connection).unwrap(), LibraryFolderSort::Custom);
+        set::<FolderSort>(&connection, LibraryFolderSort::RecentlyWatched).unwrap();
+        assert_eq!(
+            get::<FolderSort>(&connection).unwrap(),
+            LibraryFolderSort::RecentlyWatched
+        );
+
+        connection
+            .execute(
+                "UPDATE app_settings SET value = '\"bySize\"' WHERE key = 'library_folder_sort'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(get::<FolderSort>(&connection).unwrap(), LibraryFolderSort::Custom);
     }
 
     #[test]

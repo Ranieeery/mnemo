@@ -1,7 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
-import { commands, type FolderColor, type LibraryFolder, type RelocationResult } from "../../shared/ipc/bindings";
+import {
+    commands,
+    type FolderColor,
+    type LibraryFolder,
+    type LibraryFolderSort,
+    type RelocationResult,
+} from "../../shared/ipc/bindings";
 import { call, errorMessage } from "../../shared/ipc/client";
 import { queryKeys } from "../../shared/ipc/queryKeys";
 import { joinPath, relativeSegments } from "../../shared/lib/paths";
@@ -128,4 +134,61 @@ function relocationSummary({ totalVideos, foundVideos }: RelocationResult): stri
     }
     const found = `${foundVideos} of ${plural(totalVideos, "video")} found.`;
     return foundVideos === totalVideos ? found : `${found} The others keep their data and are listed as missing.`;
+}
+
+export function useLibraryFolderSort() {
+    return useQuery({
+        queryKey: queryKeys.libraryFolderSort(),
+        queryFn: () => call(commands.getLibraryFolderSort()),
+    });
+}
+
+/** Shows the folders in the order the backend returned, wherever they are listed. */
+async function showFolderOrder(queryClient: QueryClient, sort: LibraryFolderSort, folders: LibraryFolder[]) {
+    queryClient.setQueryData(queryKeys.libraryFolderSort(), sort);
+    queryClient.setQueryData(queryKeys.libraryFolders(), folders);
+    // The home lists its folder previews in the same order.
+    await queryClient.invalidateQueries({ queryKey: queryKeys.homeSections() });
+}
+
+export function useSetLibraryFolderSort() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (sort: LibraryFolderSort) => call(commands.setLibraryFolderSort(sort)),
+        onSuccess: (folders, sort) => showFolderOrder(queryClient, sort, folders),
+        onError: (error) => {
+            toast({ title: "Could not sort the folders", description: errorMessage(error), tone: "danger" });
+        },
+    });
+}
+
+/**
+ * Saves `folders` (as listed on screen, after the move) as the custom order and switches to it. The new order shows
+ * at once and goes back if it cannot be saved.
+ */
+export function useReorderLibraryFolders() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (folders: LibraryFolder[]) =>
+            call(commands.reorderLibraryFolders(folders.map((folder) => folder.id))),
+        onMutate: async (folders) => {
+            await Promise.all([
+                queryClient.cancelQueries({ queryKey: queryKeys.libraryFolders() }),
+                queryClient.cancelQueries({ queryKey: queryKeys.libraryFolderSort() }),
+            ]);
+            const previous = {
+                folders: queryClient.getQueryData<LibraryFolder[]>(queryKeys.libraryFolders()),
+                sort: queryClient.getQueryData<LibraryFolderSort>(queryKeys.libraryFolderSort()),
+            };
+            queryClient.setQueryData(queryKeys.libraryFolders(), folders);
+            queryClient.setQueryData<LibraryFolderSort>(queryKeys.libraryFolderSort(), "custom");
+            return previous;
+        },
+        onSuccess: (folders) => showFolderOrder(queryClient, "custom", folders),
+        onError: (error, _folders, previous) => {
+            queryClient.setQueryData(queryKeys.libraryFolders(), previous?.folders);
+            queryClient.setQueryData(queryKeys.libraryFolderSort(), previous?.sort);
+            toast({ title: "Could not move the folder", description: errorMessage(error), tone: "danger" });
+        },
+    });
 }

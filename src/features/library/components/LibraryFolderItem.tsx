@@ -1,5 +1,7 @@
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FolderSearch, Palette, RefreshCw, Trash2, Unplug } from "lucide-react";
+import { ArrowDown, ArrowUp, FolderSearch, Palette, RefreshCw, Trash2, Unplug } from "lucide-react";
 import { useRef, useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { useLibraryFolderStatus } from "../../../shared/ipc/queries";
@@ -23,15 +25,37 @@ import {
 import { useRemoveLibraryFolder } from "../queries";
 import { ChangeIconDialog } from "./ChangeIconDialog";
 
+/** How long a folder must be pressed before it can be dragged, so a click, or a slip of the mouse, never moves it. */
+export const HOLD_TO_DRAG_MS = 400;
+
 type LibraryFolderItemProps = {
     folder: LibraryFolder;
     /** Path of the folder being browsed, to highlight the library folder that contains it. */
     currentPath: string | undefined;
     /** Only the icon shows (the collapsed sidebar); the name moves to a tooltip and the status to a corner badge. */
     compact?: boolean;
+    /** It can be dragged and moved; off when it is the only folder. Needs a surrounding `SortableContext`. */
+    sortable: boolean;
+    /** Being pressed: a bar fills while the press lasts, until the folder is picked up. */
+    held?: boolean;
+    /** Missing at the top (or the bottom) of the list, where the menu item is disabled. */
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
 };
 
-export function LibraryFolderItem({ folder, currentPath, compact = false }: LibraryFolderItemProps) {
+export function LibraryFolderItem({
+    folder,
+    currentPath,
+    compact = false,
+    sortable,
+    held = false,
+    onMoveUp,
+    onMoveDown,
+}: LibraryFolderItemProps) {
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+        id: folder.id,
+        disabled: !sortable,
+    });
     const navigate = useNavigate();
     const removeFolder = useRemoveLibraryFolder();
     const processing = useProcessingStore((state) =>
@@ -50,7 +74,17 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
     const fullName = unavailable ? `${folder.name} (not connected)` : folder.name;
 
     return (
-        <li>
+        <li
+            ref={setNodeRef}
+            style={{ transform: CSS.Translate.toString(transform) }}
+            className={cx(
+                // The motion uses the tokens (zeroed with reduced motion) whenever dnd-kit would animate.
+                transition && "transition-transform duration-(--duration-base) ease-standard",
+                // While dragged, its slot marks where it will land.
+                isDragging &&
+                    "relative before:absolute before:inset-x-1 before:top-1/2 before:h-0.5 before:-translate-y-1/2 before:rounded-full before:bg-accent [&>*]:opacity-0"
+            )}
+        >
             <ContextMenu>
                 {/* The rail shows only icons, so it always has the tooltip; the full sidebar only for a cut name. */}
                 <Tooltip
@@ -69,9 +103,15 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
                 >
                     <ContextMenuTrigger asChild>
                         <Link
+                            ref={setActivatorNodeRef}
                             to="/folder"
                             search={{ path: folder.path }}
                             aria-current={active ? "page" : undefined}
+                            // Only the instructions: dnd-kit's role and tab index would hide that this is a link.
+                            aria-describedby={sortable ? attributes["aria-describedby"] : undefined}
+                            // The browser's own link dragging would compete with moving the folder.
+                            draggable={false}
+                            {...listeners}
                             className={cx(
                                 "relative flex items-center gap-2.5",
                                 compact ? "h-9 w-10 justify-center" : "min-h-9 px-2.5 py-1.5",
@@ -102,6 +142,14 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
                             {processing && (
                                 <Spinner label={`Reading videos in ${folder.name}`} className={statusIcon()} />
                             )}
+                            {held && (
+                                // With reduced motion the bar shows full at once: holding still picks the folder up.
+                                <span
+                                    aria-hidden
+                                    className="absolute inset-x-1.5 bottom-0.5 h-0.5 origin-left animate-hold-fill rounded-full bg-accent motion-reduce:animate-none"
+                                    style={{ animationDuration: `${HOLD_TO_DRAG_MS}ms` }}
+                                />
+                            )}
                         </Link>
                     </ContextMenuTrigger>
                 </Tooltip>
@@ -120,6 +168,17 @@ export function LibraryFolderItem({ folder, currentPath, compact = false }: Libr
                     <ContextMenuItem icon={<Palette />} onSelect={() => setIconOpen(true)}>
                         Icon and color…
                     </ContextMenuItem>
+                    {sortable && (
+                        <>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem icon={<ArrowUp />} disabled={!onMoveUp} onSelect={onMoveUp}>
+                                Move up
+                            </ContextMenuItem>
+                            <ContextMenuItem icon={<ArrowDown />} disabled={!onMoveDown} onSelect={onMoveDown}>
+                                Move down
+                            </ContextMenuItem>
+                        </>
+                    )}
                     <ContextMenuSeparator />
                     <ContextMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setRemoveOpen(true)}>
                         Remove from library

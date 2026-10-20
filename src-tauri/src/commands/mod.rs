@@ -35,6 +35,9 @@ pub fn builder() -> Builder<tauri::Wry> {
         ])
         .commands(collect_commands![
             library::list_library_folders,
+            library::get_library_folder_sort,
+            library::set_library_folder_sort,
+            library::reorder_library_folders,
             library::get_library_folder_statuses,
             library::add_library_folder,
             library::remove_library_folder,

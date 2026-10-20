@@ -8,6 +8,14 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	listLibraryFolders: () => typedError<LibraryFolder[], IpcError>(__TAURI_INVOKE("list_library_folders")),
+	getLibraryFolderSort: () => typedError<LibraryFolderSort, IpcError>(__TAURI_INVOKE("get_library_folder_sort")),
+	/**  Changes how the library folders are sorted. Returns them in the new order. */
+	setLibraryFolderSort: (sort: LibraryFolderSort) => typedError<LibraryFolder[], IpcError>(__TAURI_INVOKE("set_library_folder_sort", { sort })),
+	/**
+	 *  Puts the library folders in the order of `ids` and switches to the custom order. Folders left out keep their
+	 *  relative order after them; unknown ids are ignored. Returns the folders in the new order.
+	 */
+	reorderLibraryFolders: (ids: number[]) => typedError<LibraryFolder[], IpcError>(__TAURI_INVOKE("reorder_library_folders", { ids })),
 	/**
 	 *  Whether each library folder is reachable and how changes in it are followed. Empty until the first check, a few
 	 *  seconds after startup.
@@ -384,6 +392,14 @@ export type LibraryFolder = {
 	iconColor: FolderColor | null,
 	createdAt: string | null,
 };
+
+/**
+ *  How the library folders are sorted. `Custom` is the order the user arranged (by dragging or moving them), and
+ *  starts as the order they were added in.
+ */
+export type LibraryFolderSort = "custom" | "nameAscending" | "nameDescending" | "newestFirst" | "oldestFirst" | 
+/**  By the latest time any video inside was watched; folders never watched go last, by name. */
+"recentlyWatched";
 
 export type LibraryFolderStatus = {
 	path: string,

@@ -45,6 +45,7 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
 | Estado de servidor | TanStack Query (dados vindos do Rust: cache, invalidação, loading/erro) |
 | Estado de UI | Estado local; Zustand apenas para estado global de UI (processamento, diálogos, player) |
 | Listas grandes | TanStack Virtual |
+| Arrastar e soltar | dnd-kit (`@dnd-kit/core`, `sortable`, `utilities`): reordenar as pastas da biblioteca, com teclado e anúncios para leitor de tela. A `@dnd-kit/react` ainda é 0.x |
 | Animações | CSS com tokens de movimento, respeitando `prefers-reduced-motion` |
 | Ícones | lucide-react |
 | Validação | `serde` no Rust (o JSON de import é lido e validado no backend) |
@@ -94,13 +95,13 @@ src-tauri/src/
 ├── state.rs            # AppState (banco, caminhos, processador em segundo plano, busca em andamento)
 ├── error.rs            # AppError (thiserror), serializado como { kind, message }
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
-├── services/           # regras: biblioteca e navegação, scanner, mídia (ffprobe/ffmpeg e pipeline), sync com o
-│                       # disco (watcher e reconciliação), busca, visualização, tags, backup, manutenção, legendas,
-│                       # sistema, escopo de assets
+├── services/           # regras: biblioteca e navegação, ordem das pastas, scanner, mídia (ffprobe/ffmpeg e pipeline), sync com o
+│                       # disco (watcher e reconciliação), busca, visualização, tags, backup, manutenção,
+│                       # legendas, sistema, escopo de assets
 ├── db/                 # conexão, migrations.rs e repositórios (videos, presence, watch, orphans, tags, folders,
 │                       # settings, history, backup)
 └── domain/             # tipos e regras puras: extensões, limiar, ordem natural, faixas de pasta, modo de exibição,
-                        # layout da janela
+                        # ordem das pastas da biblioteca, layout da janela
 
 src/
 ├── app/                # entrada, router, RootLayout, layout (shell), rotas que compõem features, DialogHost
@@ -132,7 +133,8 @@ src/
 - Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências
   entre sessões (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e
   salvas 400 ms após a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada
-  5 s e ao pausar, fechar e terminar.
+  5 s e ao pausar, fechar e terminar; cada gravação invalida a lista de pastas da biblioteca e a home (a ordem
+  "Recently watched" acompanha o que se assiste).
 - Sidebar (`app/layout/Sidebar`): largura e estado recolhido são preferências entre sessões
   (`get_sidebar_preferences`/`update_sidebar_preferences`, `app/layout/useSidebarPreferences`), mantidas no cache
   do TanStack Query e salvas 400 ms após a última mudança (recolher/expandir salva na hora). A sidebar só aparece
@@ -157,7 +159,8 @@ src/
 - `rusqlite` com `journal_mode=WAL`, `foreign_keys=ON` e `busy_timeout`. Arquivo `mnemo.db` no `app_config_dir` (no
   Windows e macOS coincide com o app data dir), o mesmo local usado pelas versões 1.x. O `identifier` `com.mnemo` não
   pode mudar.
-- Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon` e `icon_color`),
+- Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`, `icon_color` e
+  `sort_order`),
   `watch_history`, `app_settings`, `folder_settings`.
 - `app_settings` é chave/valor em JSON com acesso tipado (`db/settings.rs`): cada setting implementa `Setting` (chave,
   tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
@@ -165,13 +168,15 @@ src/
   `watch_folders`,
   `recent_folder_icons`, `player_preferences` (campos ausentes recebem o padrão; campos inválidos, um a um),
   `keyboard_shortcuts` (ações ausentes recebem o padrão; teclas inválidas são descartadas ação por ação),
-  `subtitle_style`, `sidebar_preferences` (largura inválida volta ao padrão sem perder o estado recolhido). A leitura toma cada campo salvo que ainda é válido para o tipo (`merge_onto_default`), então um
+  `subtitle_style`, `sidebar_preferences` (largura inválida volta ao padrão sem perder o estado recolhido),
+  `library_folder_sort` (modo desconhecido vira `custom`). A leitura toma cada campo salvo que ainda é válido para o tipo (`merge_onto_default`), então um
   campo ilegível volta ao padrão sem perder os outros.
 - **Migrações versionadas** (`rusqlite_migration`, em `db/migrations.rs`). A `1` é um baseline compatível com bancos
   das versões 1.x (adiciona colunas que versões antigas criavam depois); a `2` limpa órfãos, normaliza `is_watched`
   gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`; a `4` adiciona
   a `videos` `file_size`, `fingerprint` e `missing_since` (vazios em bancos antigos); a `5` adiciona
-  `library_folders.icon_color` (nome do token da cor, `NULL` é a cor padrão; nome desconhecido é lido como padrão).
+  `library_folders.icon_color` (nome do token da cor, `NULL` é a cor padrão; nome desconhecido é lido como padrão); a `6` adiciona
+  `library_folders.sort_order` (ordem custom, preenchida pela ordem de adição, a mesma de antes).
   `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
@@ -185,7 +190,9 @@ src/
   lista e limpa os sumidos.
 - Export/import JSON com `formatVersion` (atual: 2); o import aceita exports das versões 1.x e é atômico. Tamanho,
   impressão digital e `missing_since` não vão no export (são refeitos a partir do disco). `icon_color` vai no export
-  (opcional: exports antigos e cores desconhecidas importam como padrão), sem mudar o `formatVersion`.
+  (opcional: exports antigos e cores desconhecidas importam como padrão), sem mudar o `formatVersion`. Também vão
+  `sort_order` de cada pasta e `libraryFolderSort` (opcionais): pastas sem posição ficam depois das outras, por data
+  de adição, e um arquivo sem modo (ou com modo desconhecido) mantém o modo atual.
 
 ## Mídia
 
@@ -280,7 +287,7 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 - Raio: `rounded-badge` 4 · `rounded-control` 6 · `rounded-card` 10 · `rounded-dialog` 14. Sombras: `shadow-raised`,
   `shadow-overlay`, `shadow-dialog`. Espaçamento: escala do Tailwind (base 4px).
 - Movimento: `duration-(--duration-fast|base|slow)` (120/200/320ms), `ease-standard|out|in`, animações
-  `animate-appear|disappear|pop-in|pop-out|slide-in|pulse-soft|indeterminate|spin`. Com `prefers-reduced-motion` as
+  `animate-appear|disappear|pop-in|pop-out|slide-in|pulse-soft|indeterminate|spin|hold-fill` (`hold-fill` recebe a duração de quem usa). Com `prefers-reduced-motion` as
   durações vão a zero; animações em loop usam `motion-reduce:animate-none`.
 - Tema escuro por padrão; um tema claro só precisa redefinir as variáveis de cor.
 - O Tailwind só mantém no build as variáveis do `@theme` que aparecem por nome no código. Variáveis montadas em
@@ -395,6 +402,21 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   sidebar, no rail, na home e em Settings → Library; a pasta atual continua marcada pelo fundo, pela barra `accent`
   e pelo `aria-current`, e uma pasta desconectada mantém a cor (o estado vem do ícone de tomada e do nome
   esmaecido). A cor nunca identifica a pasta sozinha: o nome está sempre no link ou no tooltip.
+- Ordem das pastas da biblioteca (`services/folder_order`, regras puras em `domain/folder_order.rs`), aplicada na
+  sidebar, no rail, na home e em Settings → Library:
+  - o botão de ordenação no cabeçalho "Library" (no rail, abaixo do "Add folder") abre um menu com "Custom order",
+    "Name (A–Z)", "Name (Z–A)" (ordem natural), "Newest first", "Oldest first" (data de adição) e "Recently watched";
+    o ícone e o nome do botão mostram o modo atual, salvo em `library_folder_sort`;
+  - "Recently watched": o `last_watched_at` mais recente dos vídeos de cada pasta (uma faixa sobre o índice de
+    `file_path` por pasta, inclusive sumidos e marcações em massa); pastas nunca assistidas ficam no fim, por nome;
+  - empates: nome, depois caminho e id; data de adição, depois id;
+  - a ordem custom (`sort_order`) muda arrastando a pasta depois de segurá-la por 400 ms (uma barra `accent` enche enquanto ela é segurada; soltar antes é um clique, que abre a pasta, e mover o mouse mais de 5 px desiste; só o eixo vertical; a vaga
+    marca com uma linha `accent` onde ela vai cair), pelo teclado (`Space` pega, `↑`/`↓` movem, `Space`/`Enter`
+    soltam, `Esc` cancela, com anúncios para leitor de tela) ou por "Move up"/"Move down" no menu de contexto.
+    Mover em outro modo troca para custom a partir da ordem na tela (`reorder_library_folders` grava ordem e modo
+    numa transação). É otimista, com rollback e toast. Com uma pasta só, não há arraste nem "Move up/down";
+  - pastas novas vão para o fim da ordem custom; remover renumera sem lacunas; realocar mantém a posição; uma pasta
+    desconectada continua no lugar e pode ser movida.
 - Estatísticas por pasta: total, assistidos e percentual de progresso.
 - A biblioteca acompanha o disco sozinha (ver "Sincronização com o disco"):
   - vídeos novos são lidos;

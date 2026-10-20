@@ -4,7 +4,8 @@ import { useLibraryFolders } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { Button, IconButton, Skeleton } from "../../../shared/ui";
 import { useAddLibraryFolder } from "../queries";
-import { LibraryFolderItem } from "./LibraryFolderItem";
+import { LibrarySortMenu } from "./LibrarySortMenu";
+import { SortableFolderList } from "./SortableFolderList";
 
 type LibraryNavProps = {
     currentPath: string | undefined;
@@ -26,14 +27,18 @@ export function LibraryNav({ currentPath, compact = false }: LibraryNavProps) {
                 <h2 id="library-heading" className={compact ? "sr-only" : "text-small font-medium text-text-subtle"}>
                     Library
                 </h2>
-                <IconButton
-                    label="Add folder"
-                    icon={<FolderPlus />}
-                    size="sm"
-                    tooltipSide={compact ? "right" : undefined}
-                    onClick={() => addFolder.mutate()}
-                    disabled={addFolder.isPending}
-                />
+                <div className={compact ? "flex flex-col items-center" : "flex items-center"}>
+                    {!compact && <LibrarySortMenu />}
+                    <IconButton
+                        label="Add folder"
+                        icon={<FolderPlus />}
+                        size="sm"
+                        tooltipSide={compact ? "right" : undefined}
+                        onClick={() => addFolder.mutate()}
+                        disabled={addFolder.isPending}
+                    />
+                    {compact && <LibrarySortMenu compact />}
+                </div>
             </div>
             {folders.isPending &&
                 (compact ? (
@@ -72,16 +77,7 @@ export function LibraryNav({ currentPath, compact = false }: LibraryNavProps) {
                 <p className={compact ? "sr-only" : "px-2.5 py-1 text-small text-text-subtle"}>No folders yet.</p>
             )}
             {folders.data && folders.data.length > 0 && (
-                <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
-                    {folders.data.map((folder) => (
-                        <LibraryFolderItem
-                            key={folder.id}
-                            folder={folder}
-                            currentPath={currentPath}
-                            compact={compact}
-                        />
-                    ))}
-                </ul>
+                <SortableFolderList folders={folders.data} currentPath={currentPath} compact={compact} />
             )}
         </section>
     );

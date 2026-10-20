@@ -115,6 +115,15 @@ CREATE INDEX idx_videos_missing_since ON videos (missing_since) WHERE missing_si
 /// Version 2.4: a library folder's icon can have a color, stored by its token name (`NULL` is the default color).
 const FOLDER_ICON_COLOR: &str = "ALTER TABLE library_folders ADD COLUMN icon_color TEXT;";
 
+/// Version 2.4: library folders can be put in a custom order. It starts as the order they were listed in before
+/// (when they were added), so nothing moves on upgrade.
+const FOLDER_SORT_ORDER: &str = r#"
+ALTER TABLE library_folders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+UPDATE library_folders SET sort_order = ranked.position
+FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY created_at, id) - 1 AS position FROM library_folders) AS ranked
+WHERE ranked.id = library_folders.id;
+"#;
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
@@ -122,6 +131,7 @@ fn migrations() -> Migrations<'static> {
         M::up(WATCH_HISTORY_DATE_INDEX),
         M::up(FILE_PRESENCE),
         M::up(FOLDER_ICON_COLOR),
+        M::up(FOLDER_SORT_ORDER),
     ])
 }
 
@@ -265,7 +275,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 5);
+        assert_eq!(user_version(&connection), 6);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -289,7 +299,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 5);
+        assert_eq!(user_version(&connection), 6);
         for table in [
             "videos",
             "tags",
@@ -341,6 +351,30 @@ mod tests {
     }
 
     #[test]
+    fn legacy_library_folders_keep_the_order_they_were_listed_in() {
+        let mut connection = legacy_database(true);
+        connection
+            .execute_batch(
+                r#"
+                INSERT INTO library_folders (id, path, created_at) VALUES (2, 'E:\Anime', '2024-06-01 10:00:00');
+                INSERT INTO library_folders (id, path, created_at) VALUES (3, 'F:\Movies', '2025-01-01 10:00:00');
+                "#,
+            )
+            .unwrap();
+        run(&mut connection).unwrap();
+        let mut statement = connection
+            .prepare("SELECT id, sort_order FROM library_folders ORDER BY sort_order")
+            .unwrap();
+        let order: Vec<(i64, i64)> = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        // Folders 1 and 3 were added at the same time: the older id first, as they were listed before.
+        assert_eq!(order, [(2, 0), (1, 1), (3, 2)]);
+    }
+
+    #[test]
     fn indexes_the_watch_history_by_date() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
@@ -359,7 +393,7 @@ mod tests {
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 5);
+        assert_eq!(user_version(&connection), 6);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -429,7 +463,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 5);
+        assert_eq!(user_version(&connection), 6);
         assert_legacy_data_preserved(&connection);
     }
 

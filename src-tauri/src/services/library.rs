@@ -14,6 +14,7 @@ use crate::domain::models::{
 use crate::domain::natural_order::natural_cmp;
 use crate::domain::paths::{is_within, relative_to};
 use crate::error::{AppError, AppResult};
+use crate::services::folder_order;
 use crate::services::media::thumbnails;
 use crate::services::scanner;
 
@@ -198,7 +199,7 @@ pub async fn folder_summary(db: &Db, path: String) -> AppResult<FolderSummary> {
 pub async fn home(db: &Db, limit: i64) -> AppResult<HomeData> {
     db.call(move |connection| {
         let mut folder_previews = Vec::new();
-        for folder in folders::list(connection)? {
+        for folder in folder_order::sorted_folders(connection)? {
             let preview = videos::folder_preview(connection, &folder.path, limit)?;
             if !preview.is_empty() {
                 folder_previews.push(FolderPreview {

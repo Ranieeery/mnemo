@@ -3,17 +3,42 @@ use std::path::Path;
 use tauri::{AppHandle, State};
 
 use crate::domain::folder_color::FolderColor;
+use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::models::{FolderContents, FolderSummary, HomeData, LibraryFolder, LibraryFolderStatus, VideoEntry};
 use crate::domain::relocation::{RelocationCheck, RelocationResult};
 use crate::error::AppResult;
-use crate::services::{asset_scope, library, relocation};
+use crate::services::{asset_scope, folder_order, library, relocation};
 use crate::state::AppState;
 
 #[tauri::command]
 #[specta::specta]
 pub async fn list_library_folders(state: State<'_, AppState>) -> AppResult<Vec<LibraryFolder>> {
-    state.db.call(|connection| crate::db::folders::list(connection)).await
+    folder_order::list_folders(&state.db).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_library_folder_sort(state: State<'_, AppState>) -> AppResult<LibraryFolderSort> {
+    folder_order::folder_sort(&state.db).await
+}
+
+/// Changes how the library folders are sorted. Returns them in the new order.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_library_folder_sort(
+    state: State<'_, AppState>,
+    sort: LibraryFolderSort,
+) -> AppResult<Vec<LibraryFolder>> {
+    folder_order::set_folder_sort(&state.db, sort).await
+}
+
+/// Puts the library folders in the order of `ids` and switches to the custom order. Folders left out keep their
+/// relative order after them; unknown ids are ignored. Returns the folders in the new order.
+#[tauri::command]
+#[specta::specta]
+pub async fn reorder_library_folders(state: State<'_, AppState>, ids: Vec<i64>) -> AppResult<Vec<LibraryFolder>> {
+    folder_order::reorder_folders(&state.db, ids).await
 }
 
 /// Whether each library folder is reachable and how changes in it are followed. Empty until the first check, a few

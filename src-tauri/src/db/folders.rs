@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use crate::domain::folder_color::FolderColor;
+use crate::domain::folder_order::reordered;
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::media::display_name;
 use crate::domain::models::LibraryFolder;
@@ -22,9 +24,10 @@ fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
     })
 }
 
+/// The library folders in their custom order.
 pub fn list(connection: &Connection) -> AppResult<Vec<LibraryFolder>> {
     let mut statement = connection.prepare_cached(
-        "SELECT id, path, custom_icon, created_at, icon_color FROM library_folders ORDER BY created_at, id",
+        "SELECT id, path, custom_icon, created_at, icon_color FROM library_folders ORDER BY sort_order, created_at, id",
     )?;
     let folders = statement.query_map([], map_folder)?.collect::<Result<_, _>>()?;
     Ok(folders)
@@ -44,20 +47,61 @@ pub fn find(connection: &Connection, path: &str) -> AppResult<Option<LibraryFold
         .optional()?)
 }
 
-/// Adds a library folder; adding an existing one returns it unchanged.
+/// Adds a library folder at the end of the custom order; adding an existing one returns it unchanged.
 pub fn add(connection: &Connection, path: &str) -> AppResult<LibraryFolder> {
     connection.execute(
-        "INSERT INTO library_folders (path) VALUES (?1) ON CONFLICT (path) DO NOTHING",
+        "INSERT INTO library_folders (path, sort_order)
+         VALUES (?1, (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM library_folders))
+         ON CONFLICT (path) DO NOTHING",
         [path],
     )?;
     find(connection, path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))
 }
 
+/// Removes a library folder and closes the gap it leaves in the custom order.
 pub fn remove(connection: &Connection, path: &str) -> AppResult<()> {
     if connection.execute("DELETE FROM library_folders WHERE path = ?1", [path])? == 0 {
         return Err(AppError::NotFound(format!("library folder {path}")));
     }
+    compact_order(connection)
+}
+
+/// Numbers the custom order 0, 1, 2… keeping it. Positions shared after an import fall back to the date added.
+pub fn compact_order(connection: &Connection) -> AppResult<()> {
+    connection.execute(
+        "UPDATE library_folders SET sort_order = ranked.position
+         FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY sort_order, created_at, id) - 1 AS position
+               FROM library_folders) AS ranked
+         WHERE ranked.id = library_folders.id AND library_folders.sort_order <> ranked.position",
+        [],
+    )?;
     Ok(())
+}
+
+/// Stores a new custom order, given as folder ids (see `folder_order::reordered`). Call it inside a transaction.
+pub fn reorder(connection: &Connection, ids: &[i64]) -> AppResult<()> {
+    let current: Vec<i64> = list(connection)?.iter().map(|folder| folder.id).collect();
+    let mut statement = connection.prepare_cached("UPDATE library_folders SET sort_order = ?2 WHERE id = ?1")?;
+    for (position, id) in reordered(&current, ids).into_iter().enumerate() {
+        statement.execute(params![id, position as i64])?;
+    }
+    Ok(())
+}
+
+/// When a video inside each library folder was last watched (`last_watched_at`), for the folders with any. Each
+/// folder is a range over the `file_path` index.
+pub fn last_watched(connection: &Connection, folders: &[LibraryFolder]) -> AppResult<HashMap<i64, String>> {
+    let mut statement = connection
+        .prepare_cached("SELECT MAX(last_watched_at) FROM videos WHERE file_path >= ?1 AND file_path < ?2")?;
+    let mut latest = HashMap::new();
+    for folder in folders {
+        let bounds = FolderBounds::new(&folder.path);
+        let watched_at: Option<String> = statement.query_row(params![bounds.lower, bounds.upper], |row| row.get(0))?;
+        if let Some(watched_at) = watched_at {
+            latest.insert(folder.id, watched_at);
+        }
+    }
+    Ok(latest)
 }
 
 /// Sets the icon and its color (`None` restores each default).
@@ -198,6 +242,77 @@ mod tests {
         remove(&connection, &added.path).unwrap();
         assert!(list(&connection).unwrap().is_empty());
         assert!(matches!(remove(&connection, &added.path), Err(AppError::NotFound(_))));
+    }
+
+    fn ids(connection: &Connection) -> Vec<i64> {
+        list(connection).unwrap().iter().map(|folder| folder.id).collect()
+    }
+
+    #[test]
+    fn new_folders_go_last_and_removing_one_leaves_no_gap() {
+        let connection = test_support::connection();
+        let a = add(&connection, "A").unwrap().id;
+        let b = add(&connection, "B").unwrap().id;
+        let c = add(&connection, "C").unwrap().id;
+        reorder(&connection, &[c, a, b]).unwrap();
+        let d = add(&connection, "D").unwrap().id;
+        assert_eq!(ids(&connection), [c, a, b, d]);
+
+        remove(&connection, "A").unwrap();
+        let positions: Vec<i64> = connection
+            .prepare("SELECT sort_order FROM library_folders ORDER BY sort_order")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(positions, [0, 1, 2]);
+        assert_eq!(ids(&connection), [c, b, d]);
+        assert_eq!(add(&connection, "E").unwrap().id, *ids(&connection).last().unwrap());
+    }
+
+    #[test]
+    fn reordering_keeps_left_out_folders_after_the_requested_ones() {
+        let connection = test_support::connection();
+        let a = add(&connection, "A").unwrap().id;
+        let b = add(&connection, "B").unwrap().id;
+        let c = add(&connection, "C").unwrap().id;
+        reorder(&connection, &[c, 999, c]).unwrap();
+        assert_eq!(ids(&connection), [c, a, b]);
+    }
+
+    #[test]
+    fn relocating_keeps_the_custom_order() {
+        let connection = test_support::connection();
+        let videos = add(&connection, &path(&["D:", "Videos"])).unwrap().id;
+        let anime = add(&connection, &path(&["D:", "Videos", "Anime"])).unwrap().id;
+        let other = add(&connection, &path(&["F:", "Other"])).unwrap().id;
+        reorder(&connection, &[anime, other, videos]).unwrap();
+        relocate(&connection, &path(&["D:", "Videos"]), &path(&["E:", "Videos"])).unwrap();
+        assert_eq!(ids(&connection), [anime, other, videos]);
+    }
+
+    #[test]
+    fn last_watched_covers_every_video_inside_each_folder() {
+        let connection = test_support::connection();
+        let show = add(&connection, &path(&["Lib", "Show"])).unwrap();
+        let season = add(&connection, &path(&["Lib", "Show", "Season 1"])).unwrap();
+        let unwatched = add(&connection, &path(&["Lib", "Show 2"])).unwrap();
+        connection
+            .execute(
+                "INSERT INTO videos (file_path, title, last_watched_at) VALUES
+                 (?1, 'a', '2025-02-01 10:00:00'), (?2, 'b', '2025-03-01 10:00:00'), (?3, 'c', NULL)",
+                params![
+                    path(&["Lib", "Show", "a.mkv"]),
+                    path(&["Lib", "Show", "Season 1", "b.mkv"]),
+                    path(&["Lib", "Show 2", "c.mkv"])
+                ],
+            )
+            .unwrap();
+        let latest = last_watched(&connection, &[show.clone(), season.clone(), unwatched.clone()]).unwrap();
+        assert_eq!(latest.get(&show.id).map(String::as_str), Some("2025-03-01 10:00:00"));
+        assert_eq!(latest.get(&season.id).map(String::as_str), Some("2025-03-01 10:00:00"));
+        assert!(!latest.contains_key(&unwatched.id));
     }
 
     #[test]

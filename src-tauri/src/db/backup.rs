@@ -1,10 +1,12 @@
 //! Library export/import. Records keep the legacy snake_case column names so both formats share them.
 
 use rusqlite::{Connection, params};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::settings;
+use super::{folders, settings};
 use crate::domain::folder_color::FolderColor;
+use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::models::{AppSettings, ImportSummary};
 use crate::error::{AppError, AppResult};
 
@@ -28,6 +30,9 @@ pub struct LibraryFile {
     pub exported_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub settings: Option<AppSettings>,
+    /// Added in 2.4. Files without it (or with a mode this version does not know) keep the current mode.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "known_or_none")]
+    pub library_folder_sort: Option<LibraryFolderSort>,
     pub library_folders: Vec<LibraryFolderRecord>,
     #[serde(default)]
     pub folder_settings: Vec<FolderSettingRecord>,
@@ -49,6 +54,9 @@ pub struct LibraryFolderRecord {
     /// Added in 2.4; older exports have none (the default color).
     #[serde(default)]
     pub icon_color: Option<String>,
+    /// Position in the custom order, added in 2.4. Folders without one go after the others, by date added.
+    #[serde(default)]
+    pub sort_order: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -108,6 +116,11 @@ pub struct WatchHistoryRecord {
     pub watch_duration_seconds: Option<f64>,
 }
 
+/// A value this version cannot read is left out instead of failing the import.
+fn known_or_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(deserializer: D) -> Result<Option<T>, D::Error> {
+    Ok(Option::<serde_json::Value>::deserialize(deserializer)?.and_then(|value| serde_json::from_value(value).ok()))
+}
+
 /// Legacy exports wrote `is_watched` as whatever the SQL plugin returned: a boolean, 0/1 or the text "true".
 fn flexible_bool<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
     #[derive(Deserialize)]
@@ -164,9 +177,10 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
         app_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         exported_at: Some(exported_at),
         settings: Some(settings::load(connection)?),
+        library_folder_sort: Some(settings::get::<settings::FolderSort>(connection)?),
         library_folders: select_all(
             connection,
-            "SELECT id, path, created_at, custom_icon, icon_color FROM library_folders ORDER BY id",
+            "SELECT id, path, created_at, custom_icon, icon_color, sort_order FROM library_folders ORDER BY id",
             |row| {
                 Ok(LibraryFolderRecord {
                     id: row.get(0)?,
@@ -174,6 +188,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
                     created_at: row.get(2)?,
                     custom_icon: row.get(3)?,
                     icon_color: row.get(4)?,
+                    sort_order: row.get(5)?,
                 })
             },
         )?,
@@ -254,8 +269,8 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
 
     for folder in &file.library_folders {
         transaction.execute(
-            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color)
-             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5)",
+            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color, sort_order)
+             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5, ?6)",
             params![
                 folder.id,
                 folder.path,
@@ -266,10 +281,13 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
                     .icon_color
                     .as_deref()
                     .and_then(FolderColor::parse)
-                    .map(FolderColor::as_str)
+                    .map(FolderColor::as_str),
+                // Folders without a position go last; `compact_order` then orders them by date added.
+                folder.sort_order.unwrap_or(i64::MAX)
             ],
         )?;
     }
+    folders::compact_order(&transaction)?;
     for setting in &file.folder_settings {
         transaction.execute(
             "INSERT INTO folder_settings (path, view_mode) VALUES (?1, ?2)",
@@ -324,6 +342,9 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
     }
     if let Some(settings) = &file.settings {
         settings::save(&transaction, settings)?;
+    }
+    if let Some(sort) = file.library_folder_sort {
+        settings::set::<settings::FolderSort>(&transaction, sort)?;
     }
     transaction.commit()?;
 
@@ -406,6 +427,80 @@ mod tests {
         exported.library_folders[0].icon_color = Some("chartreuse".into());
         import(&mut target, &exported).unwrap();
         assert_eq!(folders::list(&target).unwrap()[0].icon_color, None);
+    }
+
+    fn folder_paths(connection: &Connection) -> Vec<String> {
+        folders::list(connection)
+            .unwrap()
+            .into_iter()
+            .map(|folder| folder.path)
+            .collect()
+    }
+
+    #[test]
+    fn the_custom_order_and_the_sort_mode_round_trip() {
+        let source = test_support::connection();
+        let first = folders::add(&source, "A").unwrap().id;
+        let second = folders::add(&source, "B").unwrap().id;
+        let third = folders::add(&source, "C").unwrap().id;
+        folders::reorder(&source, &[third, first, second]).unwrap();
+        settings::set::<settings::FolderSort>(&source, LibraryFolderSort::RecentlyWatched).unwrap();
+        let exported = export(&source).unwrap();
+        assert_eq!(exported.library_folder_sort, Some(LibraryFolderSort::RecentlyWatched));
+
+        let mut target = test_support::connection();
+        import(&mut target, &parse(&serde_json::to_string(&exported).unwrap())).unwrap();
+        assert_eq!(folder_paths(&target), ["C", "A", "B"]);
+        assert_eq!(
+            settings::get::<settings::FolderSort>(&target).unwrap(),
+            LibraryFolderSort::RecentlyWatched
+        );
+    }
+
+    #[test]
+    fn exports_without_an_order_or_a_mode_keep_the_previous_behavior() {
+        let mut connection = test_support::connection();
+        settings::set::<settings::FolderSort>(&connection, LibraryFolderSort::NameDescending).unwrap();
+        let mut file = parse(LEGACY_EXPORT);
+        file.library_folders = [
+            (2, "E:\\Anime", "2025-02-01 09:00:00"),
+            (1, "D:\\Videos", "2025-01-01 09:00:00"),
+        ]
+        .into_iter()
+        .map(|(id, path, created_at)| LibraryFolderRecord {
+            id,
+            path: path.into(),
+            created_at: Some(created_at.into()),
+            custom_icon: None,
+            icon_color: None,
+            sort_order: None,
+        })
+        .collect();
+        import(&mut connection, &file).unwrap();
+        // By date added, as they were listed before 2.4; the current mode is kept.
+        assert_eq!(folder_paths(&connection), ["D:\\Videos", "E:\\Anime"]);
+        assert_eq!(
+            settings::get::<settings::FolderSort>(&connection).unwrap(),
+            LibraryFolderSort::NameDescending
+        );
+
+        // Folders that have a position come first.
+        file.library_folders[0].sort_order = Some(0);
+        import(&mut connection, &file).unwrap();
+        assert_eq!(folder_paths(&connection), ["E:\\Anime", "D:\\Videos"]);
+    }
+
+    #[test]
+    fn an_unknown_sort_mode_is_ignored_on_import() {
+        let json = LEGACY_EXPORT.replacen('{', r#"{ "libraryFolderSort": "bySize","#, 1);
+        let file = parse(&json);
+        assert_eq!(file.library_folder_sort, None);
+        let mut connection = test_support::connection();
+        import(&mut connection, &file).unwrap();
+        assert_eq!(
+            settings::get::<settings::FolderSort>(&connection).unwrap(),
+            LibraryFolderSort::Custom
+        );
     }
 
     #[test]

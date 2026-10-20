@@ -39,6 +39,9 @@ thumbnails, tags and watch progress in a local SQLite database.
   inherit the choice until you change it.
 - **Adjustable sidebar:** drag its edge to resize it, or collapse it to a rail of icons that still reaches every
   screen and folder. It opens the way you left it.
+- **Library folder order:** sort the library folders by name, date added or the most recently watched, or arrange
+  them yourself by holding and dragging them (or with the keyboard, or "Move up"/"Move down"). The order is kept
+  everywhere they are listed, including backups.
 - **Home:** continue watching, suggestions, recently watched and a preview of each library folder.
 - **Built-in player:** resumes where you stopped, subtitles from a file next to the video (`.srt`, `.vtt`, `.sub`,
   `.ass`) or embedded in it (text tracks of MKV and MP4), switching between audio tracks where the system's webview
@@ -159,8 +162,8 @@ In development, `Ctrl+Shift+D` opens the design system catalog.
 
 - **Desktop shell:** [Tauri 2](https://tauri.app) with a Rust backend that owns the database, the file system and
   ffmpeg (SQLite through `rusqlite`, versioned migrations, typed commands generated with `tauri-specta`).
-- **Interface:** React 19, TypeScript, TanStack Router, Query and Virtual, Radix UI, Tailwind CSS 4 with design
-  tokens.
+- **Interface:** React 19, TypeScript, TanStack Router, Query and Virtual, Radix UI, dnd-kit, Tailwind CSS 4 with
+  design tokens.
 - **Tooling:** Vite, Bun, Biome, Vitest and Testing Library, clippy and rustfmt.
 
 See [CLAUDE.md](CLAUDE.md) for the architecture and conventions.
