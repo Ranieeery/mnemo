@@ -4,9 +4,10 @@
 
 use rusqlite::{Connection, params, params_from_iter};
 
+use super::hidden::VISIBLE;
 use super::videos::{COLUMNS, query_videos};
 use crate::domain::media::FileIdentity;
-use crate::domain::models::Video;
+use crate::domain::models::MissingVideos;
 use crate::domain::paths::FolderBounds;
 use crate::error::AppResult;
 
@@ -163,12 +164,22 @@ pub fn without_fingerprint(connection: &Connection, after_id: i64, limit: i64) -
     Ok(rows)
 }
 
-/// The videos whose file is missing, longest missing first.
-pub fn missing_videos(connection: &Connection) -> AppResult<Vec<Video>> {
+/// The videos whose file is missing, longest missing first, and how many more are in hidden folders.
+pub fn missing_videos(connection: &Connection) -> AppResult<MissingVideos> {
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v WHERE v.missing_since IS NOT NULL ORDER BY v.missing_since, v.file_path"
+        "SELECT {COLUMNS} FROM videos v WHERE v.missing_since IS NOT NULL AND {VISIBLE}
+         ORDER BY v.missing_since, v.file_path"
     );
-    query_videos(connection, &sql, [])
+    let videos = query_videos(connection, &sql, [])?;
+    let total: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM videos WHERE missing_since IS NOT NULL",
+        [],
+        |row| row.get(0),
+    )?;
+    Ok(MissingVideos {
+        hidden_count: total - videos.len() as i64,
+        videos,
+    })
 }
 
 /// Deletes missing videos (tags and history cascade) and returns how many, with their thumbnail paths. Only those
@@ -266,12 +277,27 @@ mod tests {
                 .total_videos,
             0
         );
-        assert_eq!(missing_videos(&connection).unwrap().len(), 1);
+        assert_eq!(missing_videos(&connection).unwrap().videos.len(), 1);
         assert_eq!(missing(&connection).unwrap()[0].id, video.id);
 
         restore(&connection, video.id).unwrap();
         assert_eq!(is_missing(&connection, &file).unwrap(), Some(false));
         assert_eq!(videos::search(&connection, "Ep", 10).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn missing_videos_in_hidden_folders_are_only_counted() {
+        let connection = test_support::connection();
+        for file in [path(&["D:", "Show", "Ep 1.mkv"]), path(&["D:", "Private", "Ep 1.mkv"])] {
+            let video = add_video(&connection, &file, 60.0);
+            mark_missing(&connection, video.id).unwrap();
+        }
+        crate::db::hidden::hide(&connection, &path(&["D:", "Private"])).unwrap();
+
+        let missing = missing_videos(&connection).unwrap();
+        assert_eq!(missing.videos.len(), 1);
+        assert_eq!(missing.videos[0].file_path, path(&["D:", "Show", "Ep 1.mkv"]));
+        assert_eq!(missing.hidden_count, 1);
     }
 
     #[test]

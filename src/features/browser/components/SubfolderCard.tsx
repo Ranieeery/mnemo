@@ -4,19 +4,21 @@ import type { ComponentProps } from "react";
 import type { SubfolderEntry } from "../../../shared/ipc/bindings";
 import { cx } from "../../../shared/lib/cx";
 import { Progress } from "../../../shared/ui";
+import { HiddenFolderMark, useFolderVisibility } from "../../../shared/video";
 
 type SubfolderCardProps = Omit<ComponentProps<"a">, "href" | "children"> & {
     folder: SubfolderEntry;
 };
 
 /**
- * A subfolder with its progress. Fully watched folders are marked so the remaining ones stand out. Extra props and the
- * ref reach the link, so it can be the trigger of a context menu.
+ * A subfolder with its progress. Fully watched folders are marked so the remaining ones stand out, and hidden ones show
+ * an eye-off icon. Extra props and the ref reach the link, so it can be the trigger of a context menu.
  */
 export function SubfolderCard({ folder, className, ...props }: SubfolderCardProps) {
     const { totalVideos, watchedVideos } = folder.stats;
     const complete = totalVideos > 0 && watchedVideos === totalVideos;
     const percent = totalVideos > 0 ? Math.round((watchedVideos / totalVideos) * 100) : 0;
+    const visibility = useFolderVisibility(folder.path);
 
     return (
         <Link
@@ -38,6 +40,8 @@ export function SubfolderCard({ folder, className, ...props }: SubfolderCardProp
                 <span className="min-w-0 truncate text-body font-medium text-text" title={folder.name}>
                     {folder.name}
                 </span>
+                {/* Only where the folder was hidden: every folder inside it would repeat the mark. */}
+                {visibility.kind === "hidden" && <HiddenFolderMark visibility={visibility} />}
             </div>
             {totalVideos > 0 ? (
                 <div className="flex flex-col gap-1.5">

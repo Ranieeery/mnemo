@@ -307,7 +307,8 @@ impl<T: MediaToolkit + 'static> Inner<T> {
     /// The videos below `folder` that are not in the library yet, in natural order, and how many already are.
     async fn new_files(&self, folder: PathBuf) -> AppResult<(Vec<PathBuf>, i64)> {
         let root = folder.clone();
-        let mut files = tokio::task::spawn_blocking(move || scanner::walk_videos(&root, |_, _| Ok(()))).await??;
+        let mut files =
+            tokio::task::spawn_blocking(move || scanner::walk_videos(&root, |_| false, |_, _| Ok(()))).await??;
         files.sort_by(|a, b| natural_cmp(&a.to_string_lossy(), &b.to_string_lossy()));
         let folder_text = folder.to_string_lossy().into_owned();
         let stored: HashSet<String> = self

@@ -1,4 +1,4 @@
-import { type UseQueryResult, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { getVersion } from "@tauri-apps/api/app";
 import { Eraser } from "lucide-react";
 import { useState } from "react";
@@ -53,32 +53,39 @@ type CleanupCardProps = {
     title: string;
     /** Why the listed videos can be cleaned up, given how many there are. */
     describe: (count: number) => string;
-    videos: UseQueryResult<Video[]>;
+    /** The videos listed before cleaning up; `undefined` until they load. */
+    videos: Video[] | undefined;
+    pending: boolean;
+    /** Cleaned up too, but only counted: videos in folders hidden from the home page and the history. */
+    hiddenCount?: number;
     clean: { mutateAsync: () => Promise<unknown> };
     noun: string;
 };
 
 /** Videos that can be removed from the library, listed before cleaning them up; the full count is always shown. */
-function CleanupCard({ title, describe, videos, clean, noun }: CleanupCardProps) {
+function CleanupCard({ title, describe, videos = [], pending, hiddenCount = 0, clean, noun }: CleanupCardProps) {
     const [confirmOpen, setConfirmOpen] = useState(false);
-    const count = videos.data?.length ?? 0;
+    const count = videos.length + hiddenCount;
 
     return (
         <Card>
-            <SettingRow title={title} description={videos.isPending ? "Checking..." : describe(count)}>
+            <SettingRow title={title} description={pending ? "Checking..." : describe(count)}>
                 <Button icon={<Eraser />} disabled={count === 0} onClick={() => setConfirmOpen(true)}>
                     Clean up
                 </Button>
             </SettingRow>
             {count > 0 && (
                 <ul className="flex flex-col gap-1 border-t border-border px-5 py-3 text-small text-text-muted">
-                    {videos.data?.slice(0, CLEANUP_PREVIEW).map((video) => (
+                    {videos.slice(0, CLEANUP_PREVIEW).map((video) => (
                         <li key={video.id} className="truncate" title={video.filePath}>
                             {video.filePath}
                         </li>
                     ))}
-                    {count > CLEANUP_PREVIEW && (
-                        <li className="text-text-subtle">and {count - CLEANUP_PREVIEW} more</li>
+                    {videos.length > CLEANUP_PREVIEW && (
+                        <li className="text-text-subtle">and {videos.length - CLEANUP_PREVIEW} more</li>
+                    )}
+                    {hiddenCount > 0 && (
+                        <li className="text-text-subtle">+ {plural(hiddenCount, "video")} in hidden folders</li>
                     )}
                 </ul>
             )}
@@ -98,13 +105,16 @@ function CleanupCard({ title, describe, videos, clean, noun }: CleanupCardProps)
 }
 
 function MissingCard() {
+    const missing = useMissingVideos();
     return (
         <CleanupCard
             title="Missing videos"
             describe={(count) =>
                 `${plural(count, "video")} can no longer be found on disk: deleted, or moved out of the library. They keep their progress and tags in case the files come back, and are removed after 30 days.`
             }
-            videos={useMissingVideos()}
+            videos={missing.data?.videos}
+            pending={missing.isPending}
+            hiddenCount={missing.data?.hiddenCount}
             clean={useCleanMissingVideos()}
             noun="missing video"
         />
@@ -112,13 +122,15 @@ function MissingCard() {
 }
 
 function OrphansCard() {
+    const orphans = useOrphanedVideos();
     return (
         <CleanupCard
             title="Orphaned videos"
             describe={(count) =>
                 `${count} ${count === 1 ? "video belongs" : "videos belong"} to no library folder, usually because an older version kept them after their folder was removed.`
             }
-            videos={useOrphanedVideos()}
+            videos={orphans.data}
+            pending={orphans.isPending}
             clean={useCleanOrphanedVideos()}
             noun="orphaned video"
         />

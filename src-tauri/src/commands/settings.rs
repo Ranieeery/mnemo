@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use tauri::{AppHandle, State};
 
 use crate::domain::layout::SidebarPreferences;
-use crate::domain::models::{AppSettings, DatabaseInfo, ImportSummary, LibraryStats, PlayerPreferences, Video};
+use crate::domain::models::{
+    AppSettings, DatabaseInfo, ImportSummary, LibraryStats, MissingVideos, PlayerPreferences, Video,
+};
 use crate::domain::shortcuts::KeyboardShortcuts;
 use crate::domain::subtitle_style::SubtitleStyle;
 use crate::error::AppResult;
@@ -135,7 +137,7 @@ pub async fn clean_orphaned_videos(state: State<'_, AppState>) -> AppResult<i64>
 /// Videos whose file disappeared from a library folder; they keep their data until cleaned or found again.
 #[tauri::command]
 #[specta::specta]
-pub async fn list_missing_videos(state: State<'_, AppState>) -> AppResult<Vec<Video>> {
+pub async fn list_missing_videos(state: State<'_, AppState>) -> AppResult<MissingVideos> {
     maintenance::missing_videos(&state.db).await
 }
 

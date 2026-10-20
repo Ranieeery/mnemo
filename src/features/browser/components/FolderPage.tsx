@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, File, FolderSearch, Unplug } from "lucide-react";
+import { ArrowDown, EyeOff, File, FolderSearch, Unplug } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { errorMessage, isErrorKind } from "../../../shared/ipc/client";
 import { useLibraryFolderStatus, useLibraryFolders, useMediaTools } from "../../../shared/ipc/queries";
@@ -8,7 +8,7 @@ import { plural } from "../../../shared/lib/plural";
 import { openFolderRelocation } from "../../../shared/stores/dialogs";
 import { processFolder } from "../../../shared/stores/processing";
 import { Button, buttonClasses, EmptyState, ErrorState, Skeleton, scrollBehavior } from "../../../shared/ui";
-import { VideoGridSkeleton } from "../../../shared/video";
+import { hiddenFolderLabel, useFolderVisibility, VideoGridSkeleton } from "../../../shared/video";
 import { breadcrumbs } from "../lib/breadcrumbs";
 import { DEFAULT_ORDER, type VideoOrder } from "../lib/videoOrder";
 import { useFolderContents, useFolderSummary } from "../queries";
@@ -35,6 +35,7 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
     const summary = useFolderSummary(path);
     const tools = useMediaTools();
     const actions = useFolderActionDialogs();
+    const hiddenLabel = hiddenFolderLabel(useFolderVisibility(path));
     const toolsReady = tools.data?.ffmpeg === true && tools.data.ffprobe;
     const name = baseName(path);
     // Other files are listed after every video, so the header says they exist (not over search results).
@@ -64,6 +65,12 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
                                 </p>
                             ) : (
                                 <Skeleton className="h-5 w-40" />
+                            )}
+                            {hiddenLabel && (
+                                <p className="flex items-center gap-1.5 text-small text-text-subtle">
+                                    <EyeOff aria-hidden className="size-3.5" />
+                                    {hiddenLabel}
+                                </p>
                             )}
                             {otherFiles > 0 && (
                                 <Button variant="secondary" size="sm" icon={<File />} onClick={jumpToOtherFiles}>

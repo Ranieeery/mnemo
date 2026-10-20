@@ -1,9 +1,10 @@
 import { RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
-import { useLibraryFolderStatuses, useLibraryFolders } from "../../../shared/ipc/queries";
+import { useHiddenFolders, useLibraryFolderStatuses, useLibraryFolders } from "../../../shared/ipc/queries";
 import { processFolder } from "../../../shared/stores/processing";
 import { Card, ConfirmDialog, FolderIcon, IconButton, Skeleton } from "../../../shared/ui";
+import { folderVisibility, HiddenFolderMark } from "../../../shared/video";
 import { useRemoveLibraryFolder } from "../queries";
 import { FolderWatchStatus } from "./FolderWatchStatus";
 import { AddFolderButton } from "./LibraryNav";
@@ -12,6 +13,7 @@ import { AddFolderButton } from "./LibraryNav";
 export function LibraryFoldersPanel() {
     const folders = useLibraryFolders();
     const statuses = useLibraryFolderStatuses();
+    const hiddenFolders = useHiddenFolders();
     const removeFolder = useRemoveLibraryFolder();
     const [removing, setRemoving] = useState<LibraryFolder | null>(null);
 
@@ -39,7 +41,12 @@ export function LibraryFoldersPanel() {
                                     className="size-5 text-text-muted"
                                 />
                                 <div className="flex min-w-0 flex-1 flex-col">
-                                    <span className="truncate text-body text-text">{folder.name}</span>
+                                    <span className="flex min-w-0 items-center gap-2">
+                                        <span className="truncate text-body text-text">{folder.name}</span>
+                                        <HiddenFolderMark
+                                            visibility={folderVisibility(folder.path, hiddenFolders.data ?? [])}
+                                        />
+                                    </span>
                                     <span className="truncate text-small text-text-subtle" title={folder.path}>
                                         {folder.path}
                                     </span>

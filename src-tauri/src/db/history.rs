@@ -2,6 +2,7 @@
 
 use rusqlite::{Connection, params};
 
+use super::hidden::VISIBLE;
 use super::videos::{COLUMNS, map_row};
 use crate::domain::models::{DailyWatchTotal, HistoryCursor, HistoryEntry, HistoryPage};
 use crate::error::AppResult;
@@ -23,12 +24,12 @@ const ENTRIES: &str = "SELECT video_id, date(watched_at, 'localtime') AS day, MI
                        WHERE watched_at IS NOT NULL AND (?1 IS NULL OR watched_at >= datetime('now', ?1))
                        GROUP BY video_id, day";
 
-/// A page of the history, newest first, starting after `cursor`.
+/// A page of the history, newest first, starting after `cursor`. Videos in hidden folders are left out.
 pub fn list_page(connection: &Connection, cursor: Option<&HistoryCursor>, limit: usize) -> AppResult<HistoryPage> {
     let sql = format!(
         "SELECT {COLUMNS}, e.day, strftime('%Y-%m-%dT%H:%M:%SZ', e.watched_at), e.watched_at
          FROM ({ENTRIES}) e JOIN videos v ON v.id = e.video_id
-         WHERE ?2 IS NULL OR (e.watched_at, e.video_id) < (?2, ?3)
+         WHERE {VISIBLE} AND (?2 IS NULL OR (e.watched_at, e.video_id) < (?2, ?3))
          ORDER BY e.watched_at DESC, e.video_id DESC
          LIMIT ?4"
     );
@@ -66,13 +67,13 @@ pub fn list_page(connection: &Connection, cursor: Option<&HistoryCursor>, limit:
     Ok(HistoryPage { entries, next_cursor })
 }
 
-/// Totals for the last `days` local days including today, oldest first. Days without history are left out. Each
-/// video counts once per day, with its full length.
+/// Totals for the last `days` local days including today, oldest first, without videos in hidden folders. Days
+/// without history are left out. Each video counts once per day, with its full length.
 pub fn daily_totals(connection: &Connection, days: u32) -> AppResult<Vec<DailyWatchTotal>> {
     let sql = format!(
         "SELECT e.day, COUNT(*), COALESCE(SUM(v.duration_seconds), 0)
          FROM ({ENTRIES}) e JOIN videos v ON v.id = e.video_id
-         WHERE e.day >= date('now', 'localtime', ?2)
+         WHERE e.day >= date('now', 'localtime', ?2) AND {VISIBLE}
          GROUP BY e.day
          ORDER BY e.day"
     );

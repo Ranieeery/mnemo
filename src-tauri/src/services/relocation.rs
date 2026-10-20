@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::db::presence::KnownFile;
-use crate::db::{Db, folders, presence};
+use crate::db::{Db, folders, hidden, presence};
 use crate::domain::media::display_name;
 use crate::domain::models::LibraryFolder;
 use crate::domain::paths::is_within;
@@ -113,8 +113,9 @@ pub async fn check(db: &Db, from: String, to: String) -> AppResult<RelocationChe
 }
 
 /// Points the library folder `from` (and the library folders inside it) at `to`, in one transaction: the folders,
-/// their videos and their view modes. Records already stored in `to` at a path a video takes are deleted; their
-/// thumbnails are returned for the caller to delete. Validated again, since things may have changed meanwhile.
+/// their videos, their view modes and their hidden folders. Records already stored in `to` at a path a video takes
+/// are deleted; their thumbnails are returned for the caller to delete. Validated again, since things may have
+/// changed meanwhile.
 pub async fn apply(db: &Db, from: String, to: String) -> AppResult<Vec<String>> {
     validate(db, &from, &to).await?;
     db.call(move |connection| {
@@ -122,6 +123,7 @@ pub async fn apply(db: &Db, from: String, to: String) -> AppResult<Vec<String>> 
         let removed = presence::clear_move_target(&transaction, &from, &to)?;
         presence::move_folder(&transaction, &from, &to)?;
         folders::move_view_modes(&transaction, &from, &to)?;
+        hidden::move_within(&transaction, &from, &to)?;
         folders::relocate(&transaction, &from, &to)?;
         transaction.commit()?;
         Ok(removed)
@@ -274,9 +276,13 @@ mod tests {
     async fn applying_keeps_every_video_record_and_the_library_folders_inside() {
         let fixture = Fixture::new().await;
         let nested = fixture.path("Gone/Anime");
+        let private = fixture.path("Gone/Anime/Private");
         fixture
             .db
-            .call(move |connection| folders::add(connection, &nested))
+            .call(move |connection| {
+                folders::add(connection, &nested)?;
+                hidden::hide(connection, &private)
+            })
             .await
             .unwrap();
         let video = fixture.store("Gone/Anime/Ep 1.mkv", None).await;
@@ -294,7 +300,7 @@ mod tests {
             .unwrap();
         assert_eq!(removed, ["thumb.jpg"]);
         let moved_path = fixture.path("Moved/Anime/Ep 1.mkv");
-        let (after, stale_after, tag_count, library) = fixture
+        let (after, stale_after, tag_count, library, hidden_folders) = fixture
             .db
             .call(move |connection| {
                 Ok((
@@ -302,10 +308,12 @@ mod tests {
                     videos::find_by_id(connection, stale)?,
                     tags::for_video(connection, video)?.len(),
                     folders::paths(connection)?,
+                    hidden::list(connection)?,
                 ))
             })
             .await
             .unwrap();
+        assert_eq!(hidden_folders, [fixture.path("Moved/Anime/Private")]);
         assert_eq!(after.file_path, moved_path);
         assert_eq!(
             (after.title, after.thumbnail_path, after.created_at),

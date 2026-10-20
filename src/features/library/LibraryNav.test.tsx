@@ -257,4 +257,31 @@ describe("LibraryNav", () => {
         await user.type(await openAllIcons(user, dialog), "qqqq");
         expect(within(dialog).getByText(/No icon is called “qqqq”/)).toBeInTheDocument();
     });
+
+    it("hides a folder from home and history, and shows it again", async () => {
+        let hidden = false;
+        const calls = mockCommands({
+            list_library_folders: [series, movies],
+            list_hidden_folders: () =>
+                hidden ? [{ path: series.path, name: "Series", libraryFolder: series, available: true }] : [],
+            set_folder_hidden: (args: { hidden: boolean }) => {
+                hidden = args.hidden;
+                return null;
+            },
+        });
+        renderScreen(<LibraryNav currentPath={undefined} />);
+
+        fireEvent.contextMenu(await screen.findByRole("link", { name: "Series" }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: "Hide from home and history" }));
+        expect(await screen.findByText("Series is hidden from home and history")).toBeInTheDocument();
+        const marked = await screen.findByRole("link", { name: "Series, hidden from home and history" });
+
+        fireEvent.contextMenu(marked);
+        fireEvent.click(await screen.findByRole("menuitem", { name: "Show on home and history" }));
+        expect(await screen.findByRole("link", { name: "Series" })).toBeInTheDocument();
+        expect(callsOf(calls, "set_folder_hidden")).toEqual([
+            { path: series.path, hidden: true },
+            { path: series.path, hidden: false },
+        ]);
+    });
 });

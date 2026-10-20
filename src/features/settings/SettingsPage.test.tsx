@@ -24,7 +24,7 @@ function mockSettings(extra: Record<string, unknown> = {}) {
             schemaVersion: 2,
         },
         list_orphaned_videos: [videoFixture({ filePath: "E:\\Old\\gone.mkv" })],
-        list_missing_videos: [videoFixture({ filePath: "D:\\Series\\deleted.mkv" })],
+        list_missing_videos: { videos: [videoFixture({ filePath: "D:\\Series\\deleted.mkv" })], hiddenCount: 0 },
         ...extra,
     });
 }
@@ -125,6 +125,20 @@ describe("SettingsPage", () => {
         await user.click(within(dialog).getByRole("button", { name: "Remove videos" }));
         expect(await screen.findByText("Removed 1 missing video")).toBeInTheDocument();
         expect(callsOf(calls, "clean_missing_videos")).toHaveLength(1);
+    });
+
+    it("only counts the missing videos of hidden folders, and cleans them up too", async () => {
+        mockSettings({
+            list_missing_videos: { videos: [videoFixture({ filePath: "D:\\Series\\deleted.mkv" })], hiddenCount: 2 },
+        });
+        const { user } = renderSettings();
+        await user.click(await screen.findByRole("tab", { name: "Maintenance" }));
+        expect(await screen.findByText("+ 2 videos in hidden folders")).toBeInTheDocument();
+        expect(screen.getByText(/3 videos can no longer be found on disk/)).toBeInTheDocument();
+
+        const [cleanMissing] = screen.getAllByRole("button", { name: "Clean up" });
+        await user.click(cleanMissing as HTMLElement);
+        expect(await screen.findByRole("alertdialog", { name: "Remove 3 missing videos?" })).toBeInTheDocument();
     });
 
     it("lists orphaned videos and the database details", async () => {

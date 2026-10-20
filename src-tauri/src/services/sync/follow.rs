@@ -6,7 +6,7 @@ use super::disk::{outermost, root_of};
 use super::reconcile::reconcile;
 use super::watch::Change;
 use super::{Inner, Request, SyncNotification};
-use crate::db::{folders, presence};
+use crate::db::{folders, hidden, presence};
 use crate::domain::media::is_video_path;
 use crate::domain::models::FolderWatch;
 use crate::services::media::MediaToolkit;
@@ -49,6 +49,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
                         if Path::new(to.as_ref()).is_dir() {
                             presence::move_folder(&transaction, &from, &to)?;
                             folders::move_view_modes(&transaction, &from, &to)?;
+                            hidden::move_within(&transaction, &from, &to)?;
                         } else if is_video_path(Path::new(to.as_ref())) {
                             presence::rename_file(&transaction, &from, &to)?;
                         }

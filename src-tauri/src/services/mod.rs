@@ -4,6 +4,7 @@
 pub mod asset_scope;
 pub mod backup;
 pub mod folder_order;
+pub mod hidden;
 pub mod library;
 pub mod maintenance;
 pub mod media;

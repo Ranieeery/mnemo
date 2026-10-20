@@ -1,3 +1,4 @@
+export { HiddenFoldersPanel } from "./components/HiddenFoldersPanel";
 export { LibraryFoldersPanel } from "./components/LibraryFoldersPanel";
 export { AddFolderButton, LibraryNav } from "./components/LibraryNav";
 export { MediaToolsNotice } from "./components/MediaToolsNotice";

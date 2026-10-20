@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
     IconButton,
 } from "../../../shared/ui";
+import { useFolderVisibilityItem } from "../../../shared/video";
 import { useFolderSummary } from "../queries";
 import type { FolderAction, FolderTarget } from "./FolderActionDialog";
 
@@ -62,6 +63,7 @@ type MenuProps = {
 export function FolderContextMenu({ target, onAction, children }: MenuProps & { children: ReactElement }) {
     const [open, setOpen] = useState(false);
     const summary = useFolderSummary(target.path, open);
+    const visibility = useFolderVisibilityItem(target);
 
     return (
         <ContextMenu onOpenChange={setOpen}>
@@ -81,6 +83,10 @@ export function FolderContextMenu({ target, onAction, children }: MenuProps & { 
                         </ContextMenuItem>
                     </Fragment>
                 ))}
+                <ContextMenuSeparator />
+                <ContextMenuItem icon={visibility.icon} disabled={visibility.disabled} onSelect={visibility.onSelect}>
+                    {visibility.label}
+                </ContextMenuItem>
             </ContextMenuContent>
         </ContextMenu>
     );
@@ -90,6 +96,7 @@ export function FolderContextMenu({ target, onAction, children }: MenuProps & { 
 export function FolderActionsDropdown({ target, onAction }: MenuProps) {
     const [open, setOpen] = useState(false);
     const summary = useFolderSummary(target.path, open);
+    const visibility = useFolderVisibilityItem(target);
 
     return (
         <DropdownMenu onOpenChange={setOpen}>
@@ -111,6 +118,10 @@ export function FolderActionsDropdown({ target, onAction }: MenuProps) {
                         </DropdownMenuItem>
                     </Fragment>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem icon={visibility.icon} disabled={visibility.disabled} onSelect={visibility.onSelect}>
+                    {visibility.label}
+                </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
     );

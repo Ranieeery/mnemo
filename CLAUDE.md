@@ -96,12 +96,12 @@ src-tauri/src/
 ├── error.rs            # AppError (thiserror), serializado como { kind, message }
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
 ├── services/           # regras: biblioteca e navegação, ordem das pastas, scanner, mídia (ffprobe/ffmpeg e pipeline), sync com o
-│                       # disco (watcher e reconciliação), busca, visualização, tags, backup, manutenção,
+│                       # disco (watcher e reconciliação), busca, visualização, pastas escondidas, tags, backup, manutenção,
 │                       # legendas, sistema, escopo de assets
 ├── db/                 # conexão, migrations.rs e repositórios (videos, presence, watch, orphans, tags, folders,
-│                       # settings, history, backup)
+│                       # settings, history, backup, hidden)
 └── domain/             # tipos e regras puras: extensões, limiar, ordem natural, faixas de pasta, modo de exibição,
-                        # ordem das pastas da biblioteca, layout da janela
+                        # ordem das pastas da biblioteca, pastas escondidas, layout da janela
 
 src/
 ├── app/                # entrada, router, RootLayout, layout (shell), rotas que compõem features, DialogHost
@@ -110,7 +110,8 @@ src/
 │   └── <feature>/      # components/, hooks/, lib/, queries.ts, index.ts e testes ao lado (*.test.ts[x])
 └── shared/
     ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns, useIsTruncated
-    ├── video/          # UI e ações de vídeo usadas por várias features (card, thumbnail, grade, menu de contexto)
+    ├── video/          # UI e ações de vídeo usadas por várias features (card, thumbnail, grade, menu de contexto,
+    │                   # visibilidade de pastas escondidas)
     ├── ipc/            # bindings gerados, client (`call()` → CommandError), queryKeys, queryClient, queries comuns
     ├── lib/            # funções puras (duração, bytes, caminhos, classes, parsers de legenda, debounce,
     │                   # capitalize)
@@ -127,7 +128,10 @@ src/
   editor de tags, settings + pastas + tags) são compostos em `app/`, nunca por import entre features. Cada feature
   expõe só o seu `index.ts`.
 - Navegação (`app/navigation/useHistoryNavigation`): voltar/avançar, `Alt+←/→` e botões laterais do mouse em todas
-  as telas; no player, voltar fecha e avançar reabre o último vídeo.
+  as telas; no player, voltar fecha e avançar reabre o último vídeo. As entradas do histórico são acompanhadas por
+  um rastreador único por `RouterHistory` (a barra superior desmonta no player); entradas `/watch` de um vídeo de
+  pasta escondida são puladas quando a tela atual não está dentro dela (`isConcealed`), e uma direção sem outra
+  entrada fica desabilitada.
 - Dados: tudo o que deriva da biblioteca fica sob a query key `["library"]`; mutações invalidam esse prefixo.
   "Marcar como assistido" é otimista com rollback (`shared/video/replaceVideo` atualiza o vídeo em qualquer cache).
 - Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências
@@ -161,7 +165,7 @@ src/
   pode mudar.
 - Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`, `icon_color` e
   `sort_order`),
-  `watch_history`, `app_settings`, `folder_settings`.
+  `watch_history`, `app_settings`, `folder_settings`, `hidden_folders`.
 - `app_settings` é chave/valor em JSON com acesso tipado (`db/settings.rs`): cada setting implementa `Setting` (chave,
   tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
   `settings::set::<S>`. Valores ilegíveis viram o padrão (com log), nunca erro. Settings: `watched_threshold`,
@@ -176,8 +180,9 @@ src/
   gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`; a `4` adiciona
   a `videos` `file_size`, `fingerprint` e `missing_since` (vazios em bancos antigos); a `5` adiciona
   `library_folders.icon_color` (nome do token da cor, `NULL` é a cor padrão; nome desconhecido é lido como padrão); a `6` adiciona
-  `library_folders.sort_order` (ordem custom, preenchida pela ordem de adição, a mesma de antes).
-  `watch_progress_seconds` guarda segundos fracionários.
+  `library_folders.sort_order` (ordem custom, preenchida pela ordem de adição, a mesma de antes); a `7` cria
+  `hidden_folders` (`path`, `lower_bound`, `upper_bound` de `FolderBounds`, índice em `lower_bound`; vazia em bancos
+  antigos). `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
 - Remover vídeos ou pastas também remove as thumbnails (só dentro do diretório de thumbnails). Remover uma pasta
@@ -187,12 +192,23 @@ src/
 - Vídeos cujo arquivo sumiu não são apagados: recebem `missing_since` (`db/presence.rs`) e somem da home, da busca, das
   estatísticas e das contagens por pasta (o histórico continua mostrando). Voltam com todos os dados se o arquivo
   reaparecer; os com mais de 30 dias são apagados ao iniciar, só abaixo de pastas acessíveis, e Settings → Maintenance
-  lista e limpa os sumidos.
+  lista e limpa os sumidos (os de pastas escondidas só são contados).
+- Pastas escondidas (`db/hidden.rs`): qualquer pasta dentro da biblioteca, com tudo abaixo dela. Cada linha guarda a
+  faixa de `FolderBounds` da pasta, e o fragmento `hidden::VISIBLE` (`NOT EXISTS` por faixa, casamento por
+  componente inteiro) filtra no SQL a home (as quatro seções), a busca da home, o histórico e suas estatísticas,
+  `folders::last_watched` (ordem "Recently watched") e a lista de sumidos. Progresso e histórico continuam sendo
+  gravados. Entradas aninhadas são mantidas (mostrar a de fora mantém a de dentro). Listagens do disco a partir de
+  uma pasta acima (modo contínuo, busca por arquivo, playlist) pulam as escondidas que não contêm o escopo
+  (`domain::hidden::HiddenFolders`, via `scanner::walk_videos`); de dentro delas tudo aparece. As entradas acompanham
+  realocação e renomeações do watcher (`hidden::move_within`) e somem com a pasta da biblioteca
+  (`hidden::delete_within`); uma pasta renomeada sem o watcher ver (app fechado) não é seguida: a entrada fica com
+  "Not found" em Settings.
 - Export/import JSON com `formatVersion` (atual: 2); o import aceita exports das versões 1.x e é atômico. Tamanho,
   impressão digital e `missing_since` não vão no export (são refeitos a partir do disco). `icon_color` vai no export
   (opcional: exports antigos e cores desconhecidas importam como padrão), sem mudar o `formatVersion`. Também vão
   `sort_order` de cada pasta e `libraryFolderSort` (opcionais): pastas sem posição ficam depois das outras, por data
-  de adição, e um arquivo sem modo (ou com modo desconhecido) mantém o modo atual.
+  de adição, e um arquivo sem modo (ou com modo desconhecido) mantém o modo atual. `hiddenFolders` (opcional) vai
+  também: exports antigos importam sem nada escondido, e entradas fora das pastas importadas são descartadas.
 
 ## Mídia
 
@@ -230,8 +246,8 @@ src/
   dentro da origem vão junto e não contam). Compara cada vídeo guardado pelo caminho relativo e, quando guardado,
   pelo tamanho (só metadados), e classifica (`RelocationMatch`: `empty`, `complete`, `partial` ≥ 50%, `poor`,
   `none`). A aplicação valida de novo e, numa transação, apaga registros fora da biblioteca que ocupariam o caminho
-  de um vídeo (com as thumbnails), move vídeos (`presence::move_folder`), modos de exibição e pastas da biblioteca
-  (`folders::relocate`, mantendo id e ícone). Depois o loop atualiza as raízes (watcher) e compara a pasta nova
+  de um vídeo (com as thumbnails), move vídeos (`presence::move_folder`), modos de exibição, pastas escondidas e
+  pastas da biblioteca (`folders::relocate`, mantendo id e ícone). Depois o loop atualiza as raízes (watcher) e compara a pasta nova
   (`read_new`), e o comando libera o asset scope do caminho novo. Thumbnails não dependem do caminho do vídeo.
 - `reconcile.rs` compara o disco com o banco sob os caminhos pedidos:
   - restaura sumidos que voltaram e marca sumidos os que desapareceram;
@@ -252,7 +268,7 @@ src/
   - `notify-debouncer-full`, recursivo por raiz, debounce de 2 s;
   - renomeações viram pares (o Linux já os entrega; o Windows manda o nome antigo logo antes do novo; no macOS o
     cache de ids de arquivo do debouncer faz o par, e só lá esse cache existe), e pastas renomeadas levam junto o
-    modo de exibição;
+    modo de exibição e o estado de escondida;
   - eventos perdidos (`Rescan`) comparam a área inteira.
 - Disponibilidade: as raízes são conferidas a cada 10 s. O status de cada pasta (`FolderWatch`: `watching`, `polling`,
   `off`, `unavailable`, com motivo) sai em `get_library_folder_statuses`. Uma pasta que não pode ser monitorada (limite
@@ -432,6 +448,17 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   "Choose another folder…". Ao aplicar, vídeos, progresso, tags, histórico, ícone, thumbnails e modos de exibição
   são mantidos; os não encontrados ficam sumidos. A pasta volta a ser monitorada sem reiniciar, um toast mostra o
   resultado e a tela de uma pasta dentro do caminho antigo vai para o equivalente no novo.
+- Esconder da home e do histórico (privacidade; ver "Pastas escondidas" em Banco de dados): qualquer pasta, pelo menu
+  de contexto da sidebar/rail e do card de subpasta, ou pelo "…" da pasta atual ("Hide from home and history" /
+  "Show on home and history"; dentro de uma pasta escondida, o item fica desabilitado como "Hidden with “X”"). Os
+  vídeos somem da home (as quatro seções), da busca da home, do histórico (lista e estatísticas), da ordem "Recently
+  watched", de listagens a partir de pastas acima (modo contínuo, busca por arquivo, playlist) e de voltar/avançar
+  vindo de fora; abrindo a pasta, tudo aparece e toca normalmente, e o progresso continua sendo salvo. Indicador
+  `EyeOff` discreto (`shared/video/HiddenFolderMark`, com texto para leitor de tela) na pasta escondida: card de
+  subpasta, sidebar expandida (no rail, no tooltip) e Settings → Library; o cabeçalho da pasta diz "Hidden from home
+  and history", ou "... with “X”" dentro de uma escondida. Settings → Library → "Hidden folders" lista todas
+  (caminho a partir da pasta da biblioteca, "Not found" quando inacessível) com "Open" e "Show". Esconder ou mostrar
+  dá toast e invalida `["library"]`.
 
 ### Processamento de mídia
 - Metadados e thumbnail em segundo plano, vários arquivos em paralelo. A barra mostra as pastas, os arquivos em
@@ -530,4 +557,6 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   por quê, ou desconectada), sincronizar tudo, exportar/importar em JSON (com confirmação).
 - "Watch folders for changes" (ligado por padrão).
 - Limiar de "assistido".
-- Informações do banco, vídeos sumidos e órfãos (lista e limpeza com confirmação), versão do app.
+- Pastas escondidas da home e do histórico (lista, abrir e mostrar de novo).
+- Informações do banco, vídeos sumidos e órfãos (lista e limpeza com confirmação; sumidos de pastas escondidas só
+  contados), versão do app.

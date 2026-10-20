@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::db::{Db, folders, orphans, presence, tags, videos};
-use crate::domain::models::{DatabaseInfo, LibraryStats, Video};
+use crate::domain::models::{DatabaseInfo, LibraryStats, MissingVideos, Video};
 use crate::error::AppResult;
 use crate::services::media::thumbnails;
 
@@ -46,8 +46,9 @@ pub async fn orphaned_videos(db: &Db) -> AppResult<Vec<Video>> {
         .await
 }
 
-/// Videos whose file disappeared from a library folder, longest missing first.
-pub async fn missing_videos(db: &Db) -> AppResult<Vec<Video>> {
+/// Videos whose file disappeared from a library folder, longest missing first; those in hidden folders are only
+/// counted.
+pub async fn missing_videos(db: &Db) -> AppResult<MissingVideos> {
     db.call(|connection| presence::missing_videos(connection)).await
 }
 
@@ -146,7 +147,7 @@ mod tests {
         let info = database_info(&db, thumbnails_dir.path().join("missing.db"))
             .await
             .unwrap();
-        assert_eq!(info.schema_version, 6);
+        assert_eq!(info.schema_version, 7);
     }
 
     #[tokio::test]
@@ -175,9 +176,9 @@ mod tests {
         .unwrap();
 
         assert_eq!(library_stats(&db).await.unwrap().total_videos, 1);
-        assert_eq!(missing_videos(&db).await.unwrap().len(), 1);
+        assert_eq!(missing_videos(&db).await.unwrap().videos.len(), 1);
         assert_eq!(clean_missing_videos(&db, thumbnails_dir.path()).await.unwrap(), 1);
-        assert!(missing_videos(&db).await.unwrap().is_empty());
+        assert!(missing_videos(&db).await.unwrap().videos.is_empty());
         assert!(!thumbnail.exists());
         assert_eq!(library_stats(&db).await.unwrap().total_videos, 1);
     }

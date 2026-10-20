@@ -1,6 +1,7 @@
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
+use super::hidden::VISIBLE;
 use super::like_pattern;
 use crate::domain::media::FileIdentity;
 use crate::domain::models::{FolderStats, Video};
@@ -170,7 +171,7 @@ pub fn folder_preview(connection: &Connection, folder: &str, limit: i64) -> AppR
     let bounds = FolderBounds::new(folder);
     let sql = format!(
         "SELECT {COLUMNS} FROM videos v
-         WHERE v.file_path >= ?1 AND v.file_path < ?2 AND v.missing_since IS NULL
+         WHERE v.file_path >= ?1 AND v.file_path < ?2 AND v.missing_since IS NULL AND {VISIBLE}
          ORDER BY CASE
                     WHEN v.is_watched = 1 THEN 2
                     WHEN v.watch_progress_seconds > 0 THEN 1
@@ -185,7 +186,8 @@ pub fn folder_preview(connection: &Connection, folder: &str, limit: i64) -> AppR
 
 pub fn continue_watching(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v WHERE v.watch_progress_seconds > 0 AND v.is_watched = 0 AND v.missing_since IS NULL
+        "SELECT {COLUMNS} FROM videos v
+         WHERE v.watch_progress_seconds > 0 AND v.is_watched = 0 AND v.missing_since IS NULL AND {VISIBLE}
          ORDER BY v.last_watched_at DESC LIMIT ?1"
     );
     query_videos(connection, &sql, [limit])
@@ -193,7 +195,7 @@ pub fn continue_watching(connection: &Connection, limit: i64) -> AppResult<Vec<V
 
 pub fn recently_watched(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v WHERE v.last_watched_at IS NOT NULL AND v.missing_since IS NULL
+        "SELECT {COLUMNS} FROM videos v WHERE v.last_watched_at IS NOT NULL AND v.missing_since IS NULL AND {VISIBLE}
          ORDER BY v.last_watched_at DESC LIMIT ?1"
     );
     query_videos(connection, &sql, [limit])
@@ -201,7 +203,8 @@ pub fn recently_watched(connection: &Connection, limit: i64) -> AppResult<Vec<Vi
 
 pub fn suggestions(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v WHERE v.is_watched = 0 AND v.watch_progress_seconds = 0 AND v.missing_since IS NULL
+        "SELECT {COLUMNS} FROM videos v
+         WHERE v.is_watched = 0 AND v.watch_progress_seconds = 0 AND v.missing_since IS NULL AND {VISIBLE}
          ORDER BY v.created_at DESC LIMIT ?1"
     );
     query_videos(connection, &sql, [limit])
@@ -213,7 +216,7 @@ pub fn search(connection: &Connection, query: &str, limit: i64) -> AppResult<Vec
         "SELECT DISTINCT {COLUMNS} FROM videos v
          LEFT JOIN video_tags vt ON vt.video_id = v.id
          LEFT JOIN tags t ON t.id = vt.tag_id
-         WHERE v.missing_since IS NULL
+         WHERE v.missing_since IS NULL AND {VISIBLE}
            AND (v.title LIKE ?1 ESCAPE '\\' OR v.description LIKE ?1 ESCAPE '\\' OR t.name LIKE ?1 ESCAPE '\\')
          ORDER BY v.title
          LIMIT ?2"

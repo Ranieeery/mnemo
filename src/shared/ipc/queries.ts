@@ -11,7 +11,7 @@ import {
 import { call } from "./client";
 import { queryKeys } from "./queryKeys";
 
-/** Queries several features read: the library folders and whether ffmpeg/ffprobe are available. */
+/** Queries several features read: the library folders, the hidden ones and whether ffmpeg/ffprobe are available. */
 
 export function useLibraryFolders() {
     return useQuery({
@@ -31,6 +31,14 @@ export function useLibraryFolderStatuses() {
 /** The status of the library folder that contains `path`, once known. */
 export function useLibraryFolderStatus(path: string): LibraryFolderStatus | undefined {
     return useLibraryFolderStatuses().data?.find((status) => isWithin(path, status.path));
+}
+
+/** The folders hidden from the home page and the history. */
+export function useHiddenFolders() {
+    return useQuery({
+        queryKey: queryKeys.hiddenFolders(),
+        queryFn: () => call(commands.listHiddenFolders()),
+    });
 }
 
 export function useMediaTools() {

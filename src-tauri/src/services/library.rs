@@ -3,9 +3,10 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::db::{Db, folders, settings, videos};
+use crate::db::{Db, folders, hidden, settings, videos};
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_view::{FolderViewMode, ResolvedViewMode, resolve_view_mode};
+use crate::domain::hidden::HiddenFolders;
 use crate::domain::media::display_name;
 use crate::domain::models::{
     FileEntry, FolderContents, FolderPreview, FolderSummary, HomeData, LibraryFolder, SubfolderEntry, Video,
@@ -62,6 +63,7 @@ pub async fn remove_folder(db: &Db, thumbnails_dir: &Path, path: String) -> AppR
             let thumbnails = videos::delete_in_folder(&transaction, &path)?;
             folders::remove(&transaction, &path)?;
             folders::clear_view_modes_within(&transaction, &path)?;
+            hidden::delete_within(&transaction, &path)?;
             transaction.commit()?;
             Ok(thumbnails)
         })
@@ -114,7 +116,7 @@ pub async fn browse_folder(db: &Db, path: String) -> AppResult<FolderContents> {
     let listing = tokio::task::spawn_blocking(move || scanner::list_directory(&listing_path)).await??;
     let continuous = view_mode.mode == FolderViewMode::Continuous;
     let video_files = if continuous {
-        walk(&folder).await?
+        walk(db, &folder, &folder).await?
     } else {
         listing.videos
     };
@@ -161,7 +163,7 @@ pub async fn browse_folder(db: &Db, path: String) -> AppResult<FolderContents> {
 }
 
 /// The videos played in sequence after `video_path`: its folder, or the whole tree of the folder where the
-/// continuous view mode was set.
+/// continuous view mode was set, without the hidden folders that do not contain the video.
 pub async fn playlist(db: &Db, video_path: String) -> AppResult<Vec<VideoEntry>> {
     let parent = Path::new(&video_path)
         .parent()
@@ -170,10 +172,10 @@ pub async fn playlist(db: &Db, video_path: String) -> AppResult<Vec<VideoEntry>>
     let view_mode = resolve_in_library(db, &parent).await?;
     let (root, recursive) = match (view_mode.mode, view_mode.defined_at) {
         (FolderViewMode::Continuous, Some(defined_at)) => (PathBuf::from(defined_at), true),
-        _ => (parent, false),
+        _ => (parent.clone(), false),
     };
     let files = if recursive {
-        walk(&root).await?
+        walk(db, &root, &parent).await?
     } else {
         let listing_root = root.clone();
         tokio::task::spawn_blocking(move || scanner::list_directory(&listing_root))
@@ -227,9 +229,14 @@ async fn resolve_in_library(db: &Db, folder: &Path) -> AppResult<ResolvedViewMod
     .await
 }
 
-async fn walk(root: &Path) -> AppResult<Vec<PathBuf>> {
-    let root = root.to_path_buf();
-    tokio::task::spawn_blocking(move || scanner::walk_videos(&root, |_, _| Ok(()))).await?
+/// Every video below `root`, leaving out the hidden folders not in view from `scope` (see [`HiddenFolders`]).
+async fn walk(db: &Db, root: &Path, scope: &Path) -> AppResult<Vec<PathBuf>> {
+    let hidden = HiddenFolders::new(db.call(|connection| hidden::list(connection)).await?);
+    let (root, scope) = (root.to_path_buf(), scope.to_path_buf());
+    tokio::task::spawn_blocking(move || {
+        scanner::walk_videos(&root, |folder| hidden.conceals(folder, &scope), |_, _| Ok(()))
+    })
+    .await?
 }
 
 /// Groups video files by folder (natural order of the relative path, then of the file name) and attaches the
@@ -422,6 +429,42 @@ mod tests {
             entry_names(&continuous_playlist),
             vec!["extra.mkv", "e2.mkv", "e10.mkv", "e1.mkv"]
         );
+    }
+
+    #[tokio::test]
+    async fn hidden_folders_are_left_out_of_listings_from_above_but_not_from_inside() {
+        let fixture = Fixture::new().await;
+        let season = fixture.path(&["Season 2"]);
+        let hidden_season = season.clone();
+        fixture
+            .db
+            .call(move |connection| hidden::hide(connection, &hidden_season))
+            .await
+            .unwrap();
+        set_view_mode(&fixture.db, fixture.path(&[]), Some(FolderViewMode::Continuous))
+            .await
+            .unwrap();
+
+        let contents = browse_folder(&fixture.db, fixture.path(&[])).await.unwrap();
+        let groups: Vec<_> = contents
+            .groups
+            .iter()
+            .map(|group| group.relative_path.as_str())
+            .collect();
+        assert_eq!(groups, vec!["", "Season 10"]);
+        let inside = browse_folder(&fixture.db, season).await.unwrap();
+        assert_eq!(entry_names(&inside.groups[0].entries), vec!["e2.mkv", "e10.mkv"]);
+
+        // From inside the hidden folder the whole tree plays; from outside it is skipped.
+        let from_inside = playlist(&fixture.db, fixture.path(&["Season 2", "e2.mkv"]))
+            .await
+            .unwrap();
+        assert_eq!(
+            entry_names(&from_inside),
+            vec!["extra.mkv", "e2.mkv", "e10.mkv", "e1.mkv"]
+        );
+        let from_outside = playlist(&fixture.db, fixture.path(&["extra.mkv"])).await.unwrap();
+        assert_eq!(entry_names(&from_outside), vec!["extra.mkv", "e1.mkv"]);
     }
 
     #[tokio::test]

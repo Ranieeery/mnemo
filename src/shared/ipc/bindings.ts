@@ -45,6 +45,13 @@ export const commands = {
 "folders" | 
 /**  Every video in the tree, grouped by subfolder. The playlist spans the folder where the mode was set. */
 "continuous" | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_folder_view_mode", { path, mode })),
+	/**  The folders hidden from the home page and the history. */
+	listHiddenFolders: () => typedError<HiddenFolder[], IpcError>(__TAURI_INVOKE("list_hidden_folders")),
+	/**
+	 *  Hides a folder inside the library (and everything in it) from the home page and the history, or shows it again.
+	 *  Its videos stay in the library and are shown normally when browsing it.
+	 */
+	setFolderHidden: (path: string, hidden: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_folder_hidden", { path, hidden })),
 	browseFolder: (path: string) => typedError<FolderContents, IpcError>(__TAURI_INVOKE("browse_folder", { path })),
 	getFolderSummary: (path: string) => typedError<FolderSummary, IpcError>(__TAURI_INVOKE("get_folder_summary", { path })),
 	/**  The ordered list of videos that plays around `video_path` (its folder, or the continuous tree). */
@@ -159,7 +166,7 @@ export const commands = {
 	listOrphanedVideos: () => typedError<Video[], IpcError>(__TAURI_INVOKE("list_orphaned_videos")),
 	cleanOrphanedVideos: () => typedError<number, IpcError>(__TAURI_INVOKE("clean_orphaned_videos")),
 	/**  Videos whose file disappeared from a library folder; they keep their data until cleaned or found again. */
-	listMissingVideos: () => typedError<Video[], IpcError>(__TAURI_INVOKE("list_missing_videos")),
+	listMissingVideos: () => typedError<MissingVideos, IpcError>(__TAURI_INVOKE("list_missing_videos")),
 	cleanMissingVideos: () => typedError<number, IpcError>(__TAURI_INVOKE("clean_missing_videos")),
 	/**  Opens a library file with the system's default application. */
 	openExternally: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("open_externally", { path })),
@@ -317,6 +324,16 @@ export type FolderWatch =
 /**  The folder cannot be reached (an unplugged drive, an offline share). Its videos are kept as they are. */
 "unavailable";
 
+/**  A folder hidden from the home page and the history. */
+export type HiddenFolder = {
+	path: string,
+	name: string,
+	/**  The library folder it belongs to. */
+	libraryFolder: LibraryFolder,
+	/**  Whether the folder can be reached on disk right now. */
+	available: boolean,
+};
+
 /**
  *  Where a page of the watch history ends; pass it back to get the next (older) page. `watched_at` is the stored
  *  timestamp, so treat the cursor as opaque.
@@ -429,6 +446,12 @@ export type MediaToolsStatus = {
 export type MediaTracks = {
 	audio: AudioTrack[],
 	subtitles: SubtitleTrack[],
+};
+
+/**  Videos whose file disappeared. Those in hidden folders are only counted. */
+export type MissingVideos = {
+	videos: Video[],
+	hiddenCount: number,
 };
 
 /**

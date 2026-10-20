@@ -44,10 +44,14 @@ pub fn sort_by_name(paths: &mut [PathBuf]) {
     paths.sort_by(|a, b| natural_cmp(&display_name(a), &display_name(b)));
 }
 
-/// Every video below `root`, recursively. `on_folder` is called before each folder is read with the number of files
-/// seen so far; returning an error (e.g. [`AppError::Cancelled`]) stops the walk. Unreadable subfolders are skipped
-/// and symlinked folders are not followed, which rules out cycles.
-pub fn walk_videos(root: &Path, mut on_folder: impl FnMut(&Path, usize) -> AppResult<()>) -> AppResult<Vec<PathBuf>> {
+/// Every video below `root`, recursively, except inside the subfolders `skip` returns true for. `on_folder` is called
+/// before each folder is read with the number of files seen so far; returning an error (e.g. [`AppError::Cancelled`])
+/// stops the walk. Unreadable subfolders are skipped and symlinked folders are not followed, which rules out cycles.
+pub fn walk_videos(
+    root: &Path,
+    skip: impl Fn(&Path) -> bool,
+    mut on_folder: impl FnMut(&Path, usize) -> AppResult<()>,
+) -> AppResult<Vec<PathBuf>> {
     let mut videos = Vec::new();
     let mut files_seen = 0;
     let mut pending = vec![root.to_path_buf()];
@@ -65,7 +69,9 @@ pub fn walk_videos(root: &Path, mut on_folder: impl FnMut(&Path, usize) -> AppRe
             let Ok(file_type) = entry.file_type() else { continue };
             let path = entry.path();
             if file_type.is_dir() {
-                pending.push(path);
+                if !skip(&path) {
+                    pending.push(path);
+                }
             } else {
                 files_seen += 1;
                 if is_video_path(&path) {
@@ -127,19 +133,32 @@ pub(crate) mod tests {
     #[test]
     fn walks_every_video_recursively() {
         let dir = tree(&["a.mkv", "x/b.mp4", "x/y/c.ts", "x/y/readme.md"]);
-        let mut videos = names(&walk_videos(dir.path(), |_, _| Ok(())).unwrap());
+        let mut videos = names(&walk_videos(dir.path(), |_| false, |_, _| Ok(())).unwrap());
         videos.sort();
         assert_eq!(videos, vec!["a.mkv", "b.mp4", "c.ts"]);
+    }
+
+    #[test]
+    fn walk_leaves_out_skipped_folders_and_everything_inside_them() {
+        let dir = tree(&["a.mkv", "x/b.mp4", "x/y/c.ts", "z/d.mkv"]);
+        let skipped = dir.path().join("x");
+        let mut videos = names(&walk_videos(dir.path(), |folder| folder == skipped, |_, _| Ok(())).unwrap());
+        videos.sort();
+        assert_eq!(videos, vec!["a.mkv", "d.mkv"]);
     }
 
     #[test]
     fn walk_stops_when_the_callback_fails() {
         let dir = tree(&["a.mkv", "x/b.mp4"]);
         let mut calls = 0;
-        let result = walk_videos(dir.path(), |_, _| {
-            calls += 1;
-            if calls > 1 { Err(AppError::Cancelled) } else { Ok(()) }
-        });
+        let result = walk_videos(
+            dir.path(),
+            |_| false,
+            |_, _| {
+                calls += 1;
+                if calls > 1 { Err(AppError::Cancelled) } else { Ok(()) }
+            },
+        );
         assert!(matches!(result, Err(AppError::Cancelled)));
     }
 }

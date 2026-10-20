@@ -5,10 +5,12 @@ use tauri::{AppHandle, State};
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::folder_view::FolderViewMode;
-use crate::domain::models::{FolderContents, FolderSummary, HomeData, LibraryFolder, LibraryFolderStatus, VideoEntry};
+use crate::domain::models::{
+    FolderContents, FolderSummary, HiddenFolder, HomeData, LibraryFolder, LibraryFolderStatus, VideoEntry,
+};
 use crate::domain::relocation::{RelocationCheck, RelocationResult};
 use crate::error::AppResult;
-use crate::services::{asset_scope, folder_order, library, relocation};
+use crate::services::{asset_scope, folder_order, hidden, library, relocation};
 use crate::state::AppState;
 
 #[tauri::command]
@@ -153,4 +155,19 @@ pub async fn list_playlist(state: State<'_, AppState>, video_path: String) -> Ap
 #[specta::specta]
 pub async fn get_home(state: State<'_, AppState>, limit: i64) -> AppResult<HomeData> {
     library::home(&state.db, limit.clamp(1, 50)).await
+}
+
+/// The folders hidden from the home page and the history.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_hidden_folders(state: State<'_, AppState>) -> AppResult<Vec<HiddenFolder>> {
+    hidden::list(&state.db).await
+}
+
+/// Hides a folder inside the library (and everything in it) from the home page and the history, or shows it again.
+/// Its videos stay in the library and are shown normally when browsing it.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_folder_hidden(state: State<'_, AppState>, path: String, hidden: bool) -> AppResult<()> {
+    hidden::set_hidden(&state.db, path, hidden).await
 }

@@ -43,6 +43,9 @@ thumbnails, tags and watch progress in a local SQLite database.
   them yourself by holding and dragging them (or with the keyboard, or "Move up"/"Move down"). The order is kept
   everywhere they are listed, including backups.
 - **Home:** continue watching, suggestions, recently watched and a preview of each library folder.
+- **Hidden folders:** hide any folder from the home page, search and history (right-click it and choose "Hide from
+  home and history"). Its videos still play normally when you open the folder, progress is still saved, and
+  Settings lists every hidden folder to show it again.
 - **Built-in player:** resumes where you stopped, subtitles from a file next to the video (`.srt`, `.vtt`, `.sub`,
   `.ass`) or embedded in it (text tracks of MKV and MP4), switching between audio tracks where the system's webview
   can play them, speeds from 0.25× to 2×, an "Up next" list and a countdown to the next video, plus keyboard and

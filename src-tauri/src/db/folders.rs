@@ -3,6 +3,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
+use super::hidden::VISIBLE;
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_order::reordered;
 use crate::domain::folder_view::FolderViewMode;
@@ -89,10 +90,11 @@ pub fn reorder(connection: &Connection, ids: &[i64]) -> AppResult<()> {
 }
 
 /// When a video inside each library folder was last watched (`last_watched_at`), for the folders with any. Each
-/// folder is a range over the `file_path` index.
+/// folder is a range over the `file_path` index. Videos in hidden folders do not count.
 pub fn last_watched(connection: &Connection, folders: &[LibraryFolder]) -> AppResult<HashMap<i64, String>> {
-    let mut statement = connection
-        .prepare_cached("SELECT MAX(last_watched_at) FROM videos WHERE file_path >= ?1 AND file_path < ?2")?;
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT MAX(v.last_watched_at) FROM videos v WHERE v.file_path >= ?1 AND v.file_path < ?2 AND {VISIBLE}"
+    ))?;
     let mut latest = HashMap::new();
     for folder in folders {
         let bounds = FolderBounds::new(&folder.path);

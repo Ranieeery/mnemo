@@ -1,42 +1,122 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
-import { useKeyboardShortcuts } from "../../shared/ipc/queries";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import type { HiddenFolder } from "../../shared/ipc/bindings";
+import { useHiddenFolders, useKeyboardShortcuts } from "../../shared/ipc/queries";
 import { comboFromEvent, hasCommandModifier, isTextEntry } from "../../shared/lib/keyboard";
+import { isWithin } from "../../shared/lib/paths";
+import { nearestHiddenFolder } from "../../shared/video";
 
 /** Mouse buttons 3 and 4 are the side "back" and "forward" buttons. */
 const MOUSE_BACK = 3;
 const MOUSE_FORWARD = 4;
 
+type Entry = { pathname: string; search: string };
+/** The entries seen so far (the history API cannot list them) and the current one. */
+type Position = { index: number; entries: readonly (Entry | undefined)[] };
+
 function currentIndex(history: RouterHistory): number {
     return history.location.state.__TSR_index ?? 0;
 }
 
+function entryOf(history: RouterHistory): Entry {
+    return { pathname: history.location.pathname, search: history.location.search };
+}
+
+type Tracker = { subscribe: (listener: () => void) => () => void; position: () => Position };
+const trackers = new WeakMap<RouterHistory, Tracker>();
+
 /**
- * Browser-style back/forward for the app. The furthest index reached is tracked because the history API cannot tell
- * whether a forward entry exists.
+ * Follows the entries of a history for as long as the app runs, shared by every screen (the top bar unmounts in the
+ * player, but its buttons must still know what lies behind and ahead).
+ */
+function trackerOf(history: RouterHistory): Tracker {
+    const existing = trackers.get(history);
+    if (existing) {
+        return existing;
+    }
+    const index = currentIndex(history);
+    const entries: (Entry | undefined)[] = [];
+    entries[index] = entryOf(history);
+    let position: Position = { index, entries };
+    const listeners = new Set<() => void>();
+    history.subscribe(({ action }) => {
+        const index = currentIndex(history);
+        // A new entry drops everything that was ahead of it.
+        const entries = action.type === "PUSH" ? position.entries.slice(0, index) : [...position.entries];
+        entries[index] = entryOf(history);
+        position = { index, entries };
+        for (const listener of listeners) {
+            listener();
+        }
+    });
+    const tracker: Tracker = {
+        subscribe: (listener) => {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+        },
+        position: () => position,
+    };
+    trackers.set(history, tracker);
+    return tracker;
+}
+
+/** A screen showing a path: the folder being browsed or the video being played. */
+export type Place = { route: "folder" | "watch"; path: string };
+
+/**
+ * Whether going to `target` from `current` would open a video of a hidden folder from outside it. A hidden video
+ * only plays when reached from its folder, so history never reopens it from the home page or elsewhere.
+ */
+export function isConcealed(target: Place | null, current: Place | null, hidden: readonly HiddenFolder[]): boolean {
+    if (target?.route !== "watch") {
+        return false;
+    }
+    const folder = nearestHiddenFolder(target.path, hidden);
+    return folder !== undefined && !(current && isWithin(current.path, folder.path));
+}
+
+/**
+ * Browser-style back/forward for the app. Entries that would open a video of a hidden folder from outside it are
+ * skipped, and a direction with nothing else left is disabled.
  */
 export function useHistoryNavigation() {
-    const { history } = useRouter();
-    const [position, setPosition] = useState(() => ({ index: currentIndex(history), furthest: currentIndex(history) }));
+    const router = useRouter();
+    const { history } = router;
+    const tracker = trackerOf(history);
+    const { index, entries } = useSyncExternalStore(tracker.subscribe, tracker.position);
+    const hidden = useHiddenFolders().data ?? [];
 
-    useEffect(
-        () =>
-            history.subscribe(({ action }) => {
-                setPosition((previous) => {
-                    const index = currentIndex(history);
-                    // A new entry drops everything that was ahead of it.
-                    const furthest = action.type === "PUSH" ? index : Math.max(previous.furthest, index);
-                    return { index, furthest };
-                });
-            }),
-        [history]
+    const placeOf = (entry: Entry | undefined): Place | null => {
+        const route = entry?.pathname.slice(1);
+        if (!entry || (route !== "folder" && route !== "watch")) {
+            return null;
+        }
+        const { path }: { path?: unknown } = router.options.parseSearch(entry.search);
+        return typeof path === "string" ? { route, path } : null;
+    };
+    const current = placeOf(entries[index]);
+    const nearestAllowed = (step: -1 | 1) => {
+        for (let target = index + step; target >= 0 && target < entries.length; target += step) {
+            if (!isConcealed(placeOf(entries[target]), current, hidden)) {
+                return target;
+            }
+        }
+        return undefined;
+    };
+    const backTarget = nearestAllowed(-1);
+    const forwardTarget = nearestAllowed(1);
+
+    const canGoBack = backTarget !== undefined;
+    const canGoForward = forwardTarget !== undefined;
+    const back = useCallback(
+        () => backTarget !== undefined && history.go(backTarget - index),
+        [backTarget, history, index]
     );
-
-    const canGoBack = position.index > 0;
-    const canGoForward = position.index < position.furthest;
-    const back = useCallback(() => canGoBack && history.back(), [canGoBack, history]);
-    const forward = useCallback(() => canGoForward && history.forward(), [canGoForward, history]);
+    const forward = useCallback(
+        () => forwardTarget !== undefined && history.go(forwardTarget - index),
+        [forwardTarget, history, index]
+    );
 
     return { canGoBack, canGoForward, back, forward };
 }

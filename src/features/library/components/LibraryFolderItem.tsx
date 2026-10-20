@@ -22,6 +22,12 @@ import {
     Tooltip,
     useIsTruncated,
 } from "../../../shared/ui";
+import {
+    HiddenFolderMark,
+    hiddenFolderLabel,
+    useFolderVisibility,
+    useFolderVisibilityItem,
+} from "../../../shared/video";
 import { useRemoveLibraryFolder } from "../queries";
 import { ChangeIconDialog } from "./ChangeIconDialog";
 
@@ -62,6 +68,8 @@ export function LibraryFolderItem({
         state.status.jobs.some((job) => isWithin(job.folder, folder.path))
     );
     const unavailable = useLibraryFolderStatus(folder.path)?.watch === "unavailable";
+    const visibility = useFolderVisibility(folder.path);
+    const visibilityItem = useFolderVisibilityItem(folder);
     const [iconOpen, setIconOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
     const active = currentPath !== undefined && isWithin(currentPath, folder.path);
@@ -71,7 +79,10 @@ export function LibraryFolderItem({
 
     const statusIcon = (className?: string) =>
         cx("size-3.5 shrink-0", compact && "absolute top-0.5 right-0.5", className);
-    const fullName = unavailable ? `${folder.name} (not connected)` : folder.name;
+    const hiddenLabel = visibility.kind === "hidden" ? hiddenFolderLabel(visibility) : null;
+    const fullName = [folder.name, unavailable && "(not connected)", hiddenLabel && `(${hiddenLabel.toLowerCase()})`]
+        .filter(Boolean)
+        .join(" ");
 
     return (
         <li
@@ -138,6 +149,10 @@ export function LibraryFolderItem({
                                 {folder.name}
                                 {unavailable && <span className="sr-only">, not connected</span>}
                             </span>
+                            {/* The rail shows it in the tooltip: its corner badge belongs to the status. */}
+                            {visibility.kind === "hidden" && (
+                                <HiddenFolderMark visibility={visibility} className={compact ? "sr-only" : undefined} />
+                            )}
                             {unavailable && <Unplug aria-hidden className={statusIcon("text-warning")} />}
                             {processing && (
                                 <Spinner label={`Reading videos in ${folder.name}`} className={statusIcon()} />
@@ -167,6 +182,13 @@ export function LibraryFolderItem({
                     )}
                     <ContextMenuItem icon={<Palette />} onSelect={() => setIconOpen(true)}>
                         Icon and color…
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                        icon={visibilityItem.icon}
+                        disabled={visibilityItem.disabled}
+                        onSelect={visibilityItem.onSelect}
+                    >
+                        {visibilityItem.label}
                     </ContextMenuItem>
                     {sortable && (
                         <>

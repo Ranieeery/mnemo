@@ -1,13 +1,16 @@
 //! Library export/import. Records keep the legacy snake_case column names so both formats share them.
 
+use std::path::Path;
+
 use rusqlite::{Connection, params};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::{folders, settings};
+use super::{folders, hidden, settings};
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::models::{AppSettings, ImportSummary};
+use crate::domain::paths::is_within;
 use crate::error::{AppError, AppResult};
 
 pub const FORMAT_NAME: &str = "mnemo-library";
@@ -36,6 +39,10 @@ pub struct LibraryFile {
     pub library_folders: Vec<LibraryFolderRecord>,
     #[serde(default)]
     pub folder_settings: Vec<FolderSettingRecord>,
+    /// Folders hidden from the home page and the history, added in 2.4. Files without it import with nothing
+    /// hidden.
+    #[serde(default)]
+    pub hidden_folders: Vec<String>,
     pub videos: Vec<VideoRecord>,
     pub tags: Vec<TagRecord>,
     pub video_tags: Vec<VideoTagRecord>,
@@ -202,6 +209,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
                 })
             },
         )?,
+        hidden_folders: hidden::list(connection)?,
         videos: select_all(
             connection,
             "SELECT id, file_path, title, description, duration_seconds, thumbnail_path, is_watched,
@@ -264,7 +272,7 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
     let transaction = connection.transaction()?;
     transaction.execute_batch(
         "DELETE FROM video_tags; DELETE FROM watch_history; DELETE FROM videos; DELETE FROM tags;
-         DELETE FROM library_folders; DELETE FROM folder_settings;",
+         DELETE FROM library_folders; DELETE FROM folder_settings; DELETE FROM hidden_folders;",
     )?;
 
     for folder in &file.library_folders {
@@ -293,6 +301,16 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
             "INSERT INTO folder_settings (path, view_mode) VALUES (?1, ?2)",
             params![setting.path, setting.view_mode],
         )?;
+    }
+    // A hidden folder outside the imported library could never be shown again: left out.
+    for path in &file.hidden_folders {
+        if file
+            .library_folders
+            .iter()
+            .any(|folder| is_within(Path::new(path), Path::new(&folder.path)))
+        {
+            hidden::hide(&transaction, path)?;
+        }
     }
     for tag in &file.tags {
         transaction.execute(
@@ -359,6 +377,7 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
 mod tests {
     use super::*;
     use crate::db::test_support;
+    use crate::db::videos::tests::path;
     use crate::db::{folders, tags, videos, watch};
 
     /// Shape of a real export produced by the legacy frontend (`exportLibraryData` with `SELECT *`).
@@ -533,6 +552,24 @@ mod tests {
         assert_eq!(export(&target).unwrap().watch_history, exported.watch_history);
         assert_eq!(folders::view_modes(&target).unwrap().len(), 1);
         assert_eq!(settings::load(&target).unwrap().watched_threshold, 0.8);
+    }
+
+    #[test]
+    fn hidden_folders_round_trip_and_older_exports_hide_nothing() {
+        let source = test_support::connection();
+        folders::add(&source, &path(&["Lib"])).unwrap();
+        hidden::hide(&source, &path(&["Lib", "Private"])).unwrap();
+        let mut exported = export(&source).unwrap();
+        assert_eq!(exported.hidden_folders, [path(&["Lib", "Private"])]);
+        // Outside every imported library folder: left out.
+        exported.hidden_folders.push(path(&["Elsewhere", "Private"]));
+
+        let mut target = test_support::connection();
+        import(&mut target, &parse(&serde_json::to_string(&exported).unwrap())).unwrap();
+        assert_eq!(hidden::list(&target).unwrap(), [path(&["Lib", "Private"])]);
+
+        import(&mut target, &parse(LEGACY_EXPORT)).unwrap();
+        assert!(hidden::list(&target).unwrap().is_empty());
     }
 
     #[test]

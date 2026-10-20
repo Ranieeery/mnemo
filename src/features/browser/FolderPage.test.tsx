@@ -294,4 +294,45 @@ describe("FolderPage", () => {
         // Nothing to sort or filter.
         expect(screen.queryByRole("button", { name: /^Sort by/ })).not.toBeInTheDocument();
     });
+
+    it("hides a subfolder from home and history and marks the hidden ones", async () => {
+        const calls = mockFolder(contents(), {
+            list_hidden_folders: [
+                {
+                    path: `${SHOW}\\Season 1`,
+                    name: "Season 1",
+                    libraryFolder: libraryFolderFixture(),
+                    available: true,
+                },
+            ],
+            set_folder_hidden: null,
+        });
+        renderScreen(<FolderPage path={SHOW} />);
+
+        expect(await screen.findByRole("link", { name: /Season 1, hidden from home and history/ })).toBeInTheDocument();
+        fireEvent.contextMenu(screen.getByRole("link", { name: /Season 1/ }));
+        expect(await screen.findByRole("menuitem", { name: "Show on home and history" })).toBeInTheDocument();
+        fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+        fireEvent.contextMenu(screen.getByRole("link", { name: /Season 2/ }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: "Hide from home and history" }));
+        expect(await screen.findByText("Season 2 is hidden from home and history")).toBeInTheDocument();
+        expect(callsOf(calls, "set_folder_hidden")).toEqual([{ path: `${SHOW}\\Season 2`, hidden: true }]);
+    });
+
+    it("says when the folder is inside a hidden one, whose menu item it cannot change", async () => {
+        mockFolder(contents(), {
+            list_hidden_folders: [
+                { path: "D:\\Videos", name: "Videos", libraryFolder: libraryFolderFixture(), available: true },
+            ],
+        });
+        const { user } = renderScreen(<FolderPage path={SHOW} />);
+
+        expect(await screen.findByText("Hidden from home and history with “Videos”")).toBeInTheDocument();
+        await user.click(await screen.findByRole("button", { name: "Folder actions" }));
+        expect(await screen.findByRole("menuitem", { name: "Hidden with “Videos”" })).toHaveAttribute(
+            "aria-disabled",
+            "true"
+        );
+    });
 });

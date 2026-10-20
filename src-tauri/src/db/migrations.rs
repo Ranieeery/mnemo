@@ -124,6 +124,18 @@ FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY created_at, id) - 1 AS position FRO
 WHERE ranked.id = library_folders.id;
 "#;
 
+/// Version 2.4: folders hidden from the home page and the history. Each one keeps the range of paths inside it
+/// (`FolderBounds`), so filtering videos is a plain range comparison.
+const HIDDEN_FOLDERS: &str = r#"
+CREATE TABLE hidden_folders (
+    path TEXT PRIMARY KEY,
+    lower_bound TEXT NOT NULL,
+    upper_bound TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_hidden_folders_lower_bound ON hidden_folders (lower_bound);
+"#;
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
@@ -132,6 +144,7 @@ fn migrations() -> Migrations<'static> {
         M::up(FILE_PRESENCE),
         M::up(FOLDER_ICON_COLOR),
         M::up(FOLDER_SORT_ORDER),
+        M::up(HIDDEN_FOLDERS),
     ])
 }
 
@@ -275,7 +288,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 6);
+        assert_eq!(user_version(&connection), 7);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -299,7 +312,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 6);
+        assert_eq!(user_version(&connection), 7);
         for table in [
             "videos",
             "tags",
@@ -307,6 +320,7 @@ mod tests {
             "library_folders",
             "watch_history",
             "app_settings",
+            "hidden_folders",
         ] {
             assert!(!columns(&connection, table).is_empty(), "{table}");
         }
@@ -393,7 +407,7 @@ mod tests {
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 6);
+        assert_eq!(user_version(&connection), 7);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -463,7 +477,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 6);
+        assert_eq!(user_version(&connection), 7);
         assert_legacy_data_preserved(&connection);
     }
 

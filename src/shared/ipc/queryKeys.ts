@@ -9,6 +9,7 @@ export const queryKeys = {
     libraryFolderStatuses: () => ["library", "folder-statuses"] as const,
     libraryFolderSort: () => ["library", "folder-sort"] as const,
     recentFolderIcons: () => ["library", "recent-folder-icons"] as const,
+    hiddenFolders: () => ["library", "hidden-folders"] as const,
     /** Every home query, whatever its limit. */
     homeSections: () => ["library", "home"] as const,
     home: (limit: number) => ["library", "home", limit] as const,

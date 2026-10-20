@@ -3,6 +3,7 @@
 pub mod folder_color;
 pub mod folder_order;
 pub mod folder_view;
+pub mod hidden;
 pub mod layout;
 pub mod media;
 pub mod models;

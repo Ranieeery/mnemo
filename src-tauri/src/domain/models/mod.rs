@@ -153,6 +153,26 @@ pub struct LibraryStats {
     pub orphaned_videos: i64,
 }
 
+/// Videos whose file disappeared. Those in hidden folders are only counted.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MissingVideos {
+    pub videos: Vec<Video>,
+    pub hidden_count: i64,
+}
+
+/// A folder hidden from the home page and the history.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct HiddenFolder {
+    pub path: String,
+    pub name: String,
+    /// The library folder it belongs to.
+    pub library_folder: LibraryFolder,
+    /// Whether the folder can be reached on disk right now.
+    pub available: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseInfo {

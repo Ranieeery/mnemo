@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
 use crate::db::videos::{self, NewVideo};
-use crate::db::{folders, presence, tags};
+use crate::db::{folders, hidden, presence, tags};
 use crate::domain::folder_view::FolderViewMode;
 use crate::services::media::processing::tests::{FakeToolkit, Harness};
 
@@ -204,14 +204,17 @@ async fn follows_renames_deletions_and_new_files_as_they_happen() {
 }
 
 #[tokio::test]
-async fn a_renamed_folder_keeps_its_videos_and_view_mode() {
+async fn a_renamed_folder_keeps_its_videos_view_mode_and_hidden_state() {
     let fixture = Fixture::new(&["Library/Show/Ep 1.mkv"], true).await;
     let video = fixture.store_legacy("Library/Show/Ep 1.mkv").await;
     let show = fixture.text("Library/Show");
     fixture
         .harness
         .db
-        .call(move |connection| folders::set_view_mode(connection, &show, Some(FolderViewMode::Continuous)))
+        .call(move |connection| {
+            folders::set_view_mode(connection, &show, Some(FolderViewMode::Continuous))?;
+            hidden::hide(connection, &show)
+        })
         .await
         .unwrap();
     fixture.sync.start();
@@ -236,6 +239,13 @@ async fn a_renamed_folder_keeps_its_videos_and_view_mode() {
         modes,
         vec![(fixture.text("Library/Renamed show"), FolderViewMode::Continuous)]
     );
+    let hidden_folders = fixture
+        .harness
+        .db
+        .call(|connection| hidden::list(connection))
+        .await
+        .unwrap();
+    assert_eq!(hidden_folders, [fixture.text("Library/Renamed show")]);
 }
 
 #[tokio::test]

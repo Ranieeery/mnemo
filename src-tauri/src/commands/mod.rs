@@ -46,6 +46,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             library::set_library_folder_appearance,
             library::recent_folder_icons,
             library::set_folder_view_mode,
+            library::list_hidden_folders,
+            library::set_folder_hidden,
             library::browse_folder,
             library::get_folder_summary,
             library::list_playlist,
