@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::db::{Db, folders, hidden, settings, videos};
 use crate::domain::folder_color::FolderColor;
+use crate::domain::folder_name::normalize_custom_name;
 use crate::domain::folder_view::{FolderViewMode, ResolvedViewMode, resolve_view_mode};
 use crate::domain::hidden::HiddenFolders;
 use crate::domain::media::display_name;
@@ -94,6 +95,18 @@ pub async fn set_folder_appearance(
     .await
 }
 
+/// Renames a library folder in the app only; an empty `name` (or `None`) shows the folder's own name again.
+pub async fn rename_folder(db: &Db, path: String, name: Option<String>) -> AppResult<LibraryFolder> {
+    db.call(move |connection| {
+        let folder =
+            folders::find(connection, &path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))?;
+        let custom_name = normalize_custom_name(name.as_deref().unwrap_or_default(), &folder.folder_name)?;
+        folders::set_custom_name(connection, &path, custom_name.as_deref())?;
+        folders::find(connection, &path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))
+    })
+    .await
+}
+
 /// Folder icons chosen most recently, newest first.
 pub async fn recent_folder_icons(db: &Db) -> AppResult<Vec<String>> {
     db.call(|connection| settings::get::<settings::RecentFolderIcons>(connection))
@@ -127,22 +140,27 @@ pub async fn browse_folder(db: &Db, path: String) -> AppResult<FolderContents> {
         .iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect();
-    let stats = db
+    let (stats, library) = db
         .call(move |connection| {
-            subfolder_paths
+            let stats = subfolder_paths
                 .iter()
                 .map(|path| videos::stats_in_folder(connection, path))
-                .collect::<AppResult<Vec<_>>>()
+                .collect::<AppResult<Vec<_>>>()?;
+            Ok((stats, folders::list(connection)?))
         })
         .await?;
     let subfolders = listing
         .folders
         .iter()
         .zip(stats)
-        .map(|(path, stats)| SubfolderEntry {
-            name: display_name(path),
-            path: path.to_string_lossy().into_owned(),
-            stats,
+        .map(|(path, stats)| {
+            let path = path.to_string_lossy().into_owned();
+            // A library folder inside the browsed one shows the name it has in the app.
+            let name = library
+                .iter()
+                .find(|folder| folder.path == path)
+                .map_or_else(|| display_name(Path::new(&path)), |folder| folder.name.clone());
+            SubfolderEntry { name, path, stats }
         })
         .collect();
 
@@ -374,6 +392,54 @@ mod tests {
                 .is_err()
         );
         assert!(recent_folder_icons(&fixture.db).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn renaming_a_folder_validates_the_name_and_an_empty_one_resets_it() {
+        let fixture = Fixture::new().await;
+        let renamed = rename_folder(&fixture.db, fixture.path(&[]), Some("  My show \n".into()))
+            .await
+            .unwrap();
+        assert_eq!(
+            (
+                renamed.name.as_str(),
+                renamed.folder_name.as_str(),
+                renamed.custom_name.as_deref()
+            ),
+            ("My show", "Show", Some("My show"))
+        );
+
+        let too_long = "a".repeat(crate::domain::folder_name::MAX_FOLDER_NAME_CHARS + 1);
+        assert!(matches!(
+            rename_folder(&fixture.db, fixture.path(&[]), Some(too_long)).await,
+            Err(AppError::InvalidInput(_))
+        ));
+        let folders = fixture.db.call(|connection| folders::list(connection)).await.unwrap();
+        assert_eq!(folders[0].name, "My show");
+
+        for reset in [None, Some("   ".to_owned()), Some("Show".to_owned())] {
+            rename_folder(&fixture.db, fixture.path(&[]), Some("Other".into()))
+                .await
+                .unwrap();
+            let reset = rename_folder(&fixture.db, fixture.path(&[]), reset).await.unwrap();
+            assert_eq!((reset.name.as_str(), reset.custom_name), ("Show", None));
+        }
+        assert!(matches!(
+            rename_folder(&fixture.db, fixture.path(&["Missing"]), Some("Name".into())).await,
+            Err(AppError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_library_folder_inside_the_browsed_one_shows_its_custom_name() {
+        let fixture = Fixture::new().await;
+        add_folder(&fixture.db, fixture.path(&["Season 2"])).await.unwrap();
+        rename_folder(&fixture.db, fixture.path(&["Season 2"]), Some("Best season".into()))
+            .await
+            .unwrap();
+        let contents = browse_folder(&fixture.db, fixture.path(&[])).await.unwrap();
+        let subfolders: Vec<_> = contents.subfolders.iter().map(|folder| folder.name.as_str()).collect();
+        assert_eq!(subfolders, vec!["Best season", "Season 10"]);
     }
 
     #[tokio::test]

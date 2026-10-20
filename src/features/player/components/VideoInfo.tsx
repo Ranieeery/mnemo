@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { Circle, CircleCheckBig, ExternalLink, FolderOpen, PencilLine } from "lucide-react";
 import type { Video } from "../../../shared/ipc/bindings";
+import { useFolderName } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
-import { baseName, parentPath } from "../../../shared/lib/paths";
+import { parentPath } from "../../../shared/lib/paths";
 import { openVideoDetails } from "../../../shared/stores/dialogs";
 import { Badge, Button, IconButton } from "../../../shared/ui";
 import { openInDefaultPlayer, showInFileManager, useSetWatched } from "../../../shared/video";
@@ -17,6 +18,7 @@ type VideoInfoProps = {
 export function VideoInfo({ path, title, video }: VideoInfoProps) {
     const setWatched = useSetWatched();
     const folder = parentPath(path);
+    const folderLabel = useFolderName(folder);
 
     return (
         <section className="flex flex-col gap-4 px-6 py-5">
@@ -29,7 +31,7 @@ export function VideoInfo({ path, title, video }: VideoInfoProps) {
                             search={{ path: folder }}
                             className="hover:text-text hover:underline underline-offset-4"
                         >
-                            {baseName(folder)}
+                            {folderLabel}
                         </Link>
                         {video && video.durationSeconds > 0 && (
                             <span className="tabular-nums">{formatDuration(video.durationSeconds)}</span>

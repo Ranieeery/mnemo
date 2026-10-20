@@ -1,6 +1,7 @@
 //! Domain types, constants and pure rules. Nothing here touches the database, the file system or Tauri.
 
 pub mod folder_color;
+pub mod folder_name;
 pub mod folder_order;
 pub mod folder_view;
 pub mod hidden;

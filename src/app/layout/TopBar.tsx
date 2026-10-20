@@ -1,9 +1,8 @@
 import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Keyboard } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useKeyboardShortcuts } from "../../shared/ipc/queries";
+import { useFolderName, useKeyboardShortcuts } from "../../shared/ipc/queries";
 import { shortcutHint } from "../../shared/lib/keyboard";
-import { baseName } from "../../shared/lib/paths";
 import { openShortcutsHelp } from "../../shared/stores/dialogs";
 import { IconButton, SearchInput } from "../../shared/ui";
 import { useHistoryNavigation } from "../navigation/useHistoryNavigation";
@@ -47,6 +46,7 @@ function SearchField() {
     const pathname = useRouterState({ select: (state) => state.location.pathname });
     const search = useSearch({ strict: false });
     const folderPath = pathname === "/folder" ? search.path : undefined;
+    const folderLabel = useFolderName(folderPath ?? "");
     const urlQuery = search.q ?? "";
     const [value, setValue] = useState(urlQuery);
 
@@ -70,8 +70,8 @@ function SearchField() {
 
     return (
         <SearchInput
-            label={folderPath ? `Search in ${baseName(folderPath)}` : "Search the library"}
-            placeholder={folderPath ? `Search in ${baseName(folderPath)}` : "Search titles, descriptions and tags"}
+            label={folderPath ? `Search in ${folderLabel}` : "Search the library"}
+            placeholder={folderPath ? `Search in ${folderLabel}` : "Search titles, descriptions and tags"}
             value={value}
             onValueChange={setValue}
             className="ml-auto w-full max-w-md"

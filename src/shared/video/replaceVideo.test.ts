@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HomeData, Video } from "../ipc/bindings";
-import { videoFixture } from "../test/fixtures";
+import { libraryFolderFixture, videoFixture } from "../test/fixtures";
 import { replaceVideo } from "./replaceVideo";
 
 describe("replaceVideo", () => {
@@ -15,7 +15,7 @@ describe("replaceVideo", () => {
             suggestions: [],
             folderPreviews: [
                 {
-                    folder: { id: 1, path: "D:\\V", name: "V", customIcon: null, iconColor: null, createdAt: null },
+                    folder: libraryFolderFixture({ path: "D:\\V", name: "V" }),
                     videos: [first],
                 },
             ],

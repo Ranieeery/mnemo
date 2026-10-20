@@ -29,6 +29,7 @@ export { FolderIcon, folderColorValue, loadAllIcons, SUGGESTED_FOLDER_ICONS } fr
 export { IconButton } from "./IconButton";
 export { Input } from "./Input";
 export { Kbd } from "./Kbd";
+export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./Popover";
 export { Progress } from "./Progress";
 export { ResizablePanel } from "./ResizablePanel";
 export { ScrollContainer, scrollBehavior } from "./ScrollContainer";

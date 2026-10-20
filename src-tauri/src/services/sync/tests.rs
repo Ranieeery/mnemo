@@ -378,6 +378,13 @@ async fn a_located_folder_is_watched_and_compared_at_its_new_path() {
     let fixture = Fixture::new(&["Library/Ep 1.mkv", "Library/Ep 2.mkv"], true).await;
     let kept = fixture.store_legacy("Library/Ep 1.mkv").await;
     fixture.store_legacy("Library/Ep 2.mkv").await;
+    let library = fixture.text("Library");
+    fixture
+        .harness
+        .db
+        .call(move |connection| folders::set_custom_name(connection, &library, Some("My shows")))
+        .await
+        .unwrap();
     fixture.sync.start();
     eventually("the folder is watched", || async {
         fixture.watch_of("Library") == Some(FolderWatch::Watching)
@@ -392,6 +399,16 @@ async fn a_located_folder_is_watched_and_compared_at_its_new_path() {
         fixture.watch_of("Library") == Some(FolderWatch::Unavailable)
     })
     .await;
+    // The watcher does not follow a library folder renamed on disk: it keeps its row, and its name, until located.
+    let library = fixture.text("Library");
+    let unplugged = fixture
+        .harness
+        .db
+        .call(move |connection| folders::find(connection, &library))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(unplugged.name, "My shows");
 
     let result = fixture
         .sync
@@ -399,6 +416,10 @@ async fn a_located_folder_is_watched_and_compared_at_its_new_path() {
         .await
         .unwrap();
     assert_eq!(result.folder.path, fixture.text("Moved"));
+    assert_eq!(
+        (result.folder.name.as_str(), result.folder.folder_name.as_str()),
+        ("My shows", "Moved")
+    );
     assert_eq!((result.total_videos, result.found_videos), (2, 1));
     assert_eq!(fixture.watch_of("Moved"), Some(FolderWatch::Watching));
     assert_eq!(fixture.watch_of("Library"), None);

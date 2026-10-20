@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLibraryFolders } from "../../../shared/ipc/queries";
+import { folderName } from "../../../shared/lib/folderName";
 import { baseName } from "../../../shared/lib/paths";
 import { plural } from "../../../shared/lib/plural";
 import { cancelProcessing, useProcessingStore } from "../../../shared/stores/processing";
@@ -9,6 +11,7 @@ import { ProcessingDetailsDialog } from "./ProcessingDetailsDialog";
 export function ProcessingBar() {
     const status = useProcessingStore((state) => state.status);
     const [detailsOpen, setDetailsOpen] = useState(false);
+    const libraryFolders = useLibraryFolders().data;
     const [first, ...others] = status.jobs;
     if (!first) {
         return null;
@@ -20,8 +23,8 @@ export function ProcessingBar() {
     const listing = status.jobs.some((job) => job.scanning);
     const where =
         others.length > 0
-            ? `${baseName(first.folder)} and ${plural(others.length, "more folder")}`
-            : baseName(first.folder);
+            ? `${folderName(first.folder, libraryFolders)} and ${plural(others.length, "more folder")}`
+            : folderName(first.folder, libraryFolders);
 
     return (
         <div className="flex animate-appear flex-col gap-1.5 border-b border-border px-6 py-2" role="status">

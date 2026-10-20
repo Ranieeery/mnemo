@@ -1,4 +1,6 @@
 import { FolderOpen, X } from "lucide-react";
+import { useLibraryFolders } from "../../../shared/ipc/queries";
+import { folderName } from "../../../shared/lib/folderName";
 import { baseName } from "../../../shared/lib/paths";
 import { cancelProcessing, useProcessingStore } from "../../../shared/stores/processing";
 import { Button, Dialog, IconButton, Progress } from "../../../shared/ui";
@@ -11,6 +13,7 @@ type ProcessingDetailsDialogProps = {
 /** Each folder being read, with its own progress and cancel button, and the files that could not be read. */
 export function ProcessingDetailsDialog({ onClose }: ProcessingDetailsDialogProps) {
     const { jobs, errors } = useProcessingStore((state) => state.status);
+    const libraryFolders = useLibraryFolders().data;
 
     return (
         <Dialog
@@ -35,21 +38,21 @@ export function ProcessingDetailsDialog({ onClose }: ProcessingDetailsDialogProp
                                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                                         <div className="flex items-baseline justify-between gap-3 text-small">
                                             <span className="truncate text-text" title={job.folder}>
-                                                {baseName(job.folder)}
+                                                {folderName(job.folder, libraryFolders)}
                                             </span>
                                             <span className="shrink-0 text-text-subtle tabular-nums">
                                                 {job.scanning ? "Looking for videos…" : `${job.done} of ${job.total}`}
                                             </span>
                                         </div>
                                         <Progress
-                                            label={`Reading ${baseName(job.folder)}`}
+                                            label={`Reading ${folderName(job.folder, libraryFolders)}`}
                                             value={job.done}
                                             max={Math.max(job.total, 1)}
                                             size="thin"
                                         />
                                     </div>
                                     <IconButton
-                                        label={`Cancel reading ${baseName(job.folder)}`}
+                                        label={`Cancel reading ${folderName(job.folder, libraryFolders)}`}
                                         icon={<X />}
                                         size="sm"
                                         onClick={() => cancelProcessing(job.folder)}

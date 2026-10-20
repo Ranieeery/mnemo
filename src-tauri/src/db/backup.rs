@@ -8,7 +8,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{folders, hidden, settings};
 use crate::domain::folder_color::FolderColor;
+use crate::domain::folder_name::normalize_custom_name;
 use crate::domain::folder_order::LibraryFolderSort;
+use crate::domain::media::display_name;
 use crate::domain::models::{AppSettings, ImportSummary};
 use crate::domain::paths::is_within;
 use crate::error::{AppError, AppResult};
@@ -64,6 +66,9 @@ pub struct LibraryFolderRecord {
     /// Position in the custom order, added in 2.4. Folders without one go after the others, by date added.
     #[serde(default)]
     pub sort_order: Option<i64>,
+    /// The name given in the app, added in 2.5. Older exports have none (the folder's own name).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -187,7 +192,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
         library_folder_sort: Some(settings::get::<settings::FolderSort>(connection)?),
         library_folders: select_all(
             connection,
-            "SELECT id, path, created_at, custom_icon, icon_color, sort_order FROM library_folders ORDER BY id",
+            "SELECT id, path, created_at, custom_icon, icon_color, sort_order, custom_name FROM library_folders ORDER BY id",
             |row| {
                 Ok(LibraryFolderRecord {
                     id: row.get(0)?,
@@ -196,6 +201,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
                     custom_icon: row.get(3)?,
                     icon_color: row.get(4)?,
                     sort_order: row.get(5)?,
+                    custom_name: row.get(6)?,
                 })
             },
         )?,
@@ -277,8 +283,8 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
 
     for folder in &file.library_folders {
         transaction.execute(
-            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color, sort_order)
-             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5, ?6)",
+            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color, sort_order, custom_name)
+             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5, ?6, ?7)",
             params![
                 folder.id,
                 folder.path,
@@ -291,7 +297,13 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
                     .and_then(FolderColor::parse)
                     .map(FolderColor::as_str),
                 // Folders without a position go last; `compact_order` then orders them by date added.
-                folder.sort_order.unwrap_or(i64::MAX)
+                folder.sort_order.unwrap_or(i64::MAX),
+                // A name the app would refuse (too long, written by hand) is imported as none.
+                folder.custom_name.as_deref().and_then(|name| {
+                    normalize_custom_name(name, &display_name(Path::new(&folder.path)))
+                        .ok()
+                        .flatten()
+                })
             ],
         )?;
     }
@@ -448,6 +460,36 @@ mod tests {
         assert_eq!(folders::list(&target).unwrap()[0].icon_color, None);
     }
 
+    #[test]
+    fn custom_names_round_trip_and_older_or_invalid_ones_import_as_none() {
+        let mut source = test_support::connection();
+        import(&mut source, &parse(LEGACY_EXPORT)).unwrap();
+        // Exports from before 2.5 have no custom name: the folder's own name.
+        let legacy = folders::list(&source).unwrap().remove(0);
+        assert_eq!((legacy.name, legacy.custom_name), (legacy.folder_name, None));
+        let exported = export(&source).unwrap();
+        assert!(!serde_json::to_string(&exported).unwrap().contains("custom_name"));
+
+        folders::set_custom_name(&source, "D:\\Videos", Some("Movies")).unwrap();
+        let mut exported = export(&source).unwrap();
+        assert_eq!(exported.library_folders[0].custom_name.as_deref(), Some("Movies"));
+        let mut target = test_support::connection();
+        import(&mut target, &parse(&serde_json::to_string(&exported).unwrap())).unwrap();
+        assert_eq!(folders::list(&target).unwrap()[0].name, "Movies");
+
+        for invalid in [
+            "   ",
+            &"a".repeat(crate::domain::folder_name::MAX_FOLDER_NAME_CHARS + 1),
+        ] {
+            exported.library_folders[0].custom_name = Some(invalid.to_owned());
+            import(&mut target, &exported).unwrap();
+            assert_eq!(folders::list(&target).unwrap()[0].custom_name, None);
+        }
+        exported.library_folders[0].custom_name = Some("  Films\n".into());
+        import(&mut target, &exported).unwrap();
+        assert_eq!(folders::list(&target).unwrap()[0].custom_name.as_deref(), Some("Films"));
+    }
+
     fn folder_paths(connection: &Connection) -> Vec<String> {
         folders::list(connection)
             .unwrap()
@@ -493,6 +535,7 @@ mod tests {
             custom_icon: None,
             icon_color: None,
             sort_order: None,
+            custom_name: None,
         })
         .collect();
         import(&mut connection, &file).unwrap();

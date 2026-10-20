@@ -82,6 +82,8 @@ mod tests {
             id,
             path: format!("D:/{name}"),
             name: name.to_owned(),
+            folder_name: name.to_owned(),
+            custom_name: None,
             custom_icon: None,
             icon_color: None,
             created_at: Some(created_at.to_owned()),
@@ -118,6 +120,23 @@ mod tests {
     fn sorts_by_date_added_with_the_id_breaking_ties() {
         assert_eq!(sorted(LibraryFolderSort::OldestFirst, &HashMap::new()), [2, 1, 4, 3]);
         assert_eq!(sorted(LibraryFolderSort::NewestFirst, &HashMap::new()), [3, 4, 1, 2]);
+    }
+
+    #[test]
+    fn name_modes_use_the_custom_name_instead_of_the_folder_name() {
+        let mut folders = vec![
+            folder(1, "Anime", "x"),
+            folder(2, "Zeta", "x"),
+            folder(3, "Movies", "x"),
+        ];
+        folders[0].name = "Watch later".into();
+        folders[0].custom_name = Some("Watch later".into());
+        folders[1].name = "Courses".into();
+        folders[1].custom_name = Some("Courses".into());
+        sort_folders(&mut folders, LibraryFolderSort::NameAscending, &HashMap::new());
+        assert_eq!(ids(&folders), [2, 3, 1]);
+        sort_folders(&mut folders, LibraryFolderSort::NameDescending, &HashMap::new());
+        assert_eq!(ids(&folders), [1, 3, 2]);
     }
 
     #[test]

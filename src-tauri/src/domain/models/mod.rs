@@ -51,7 +51,12 @@ pub struct VideoEntry {
 pub struct LibraryFolder {
     pub id: i64,
     pub path: String,
+    /// The name shown everywhere: the custom one, or else the folder's own name.
     pub name: String,
+    /// The name of the folder on disk.
+    pub folder_name: String,
+    /// Given in the app; the folder on disk is never renamed.
+    pub custom_name: Option<String>,
     pub custom_icon: Option<String>,
     /// `None` draws the icon in the surrounding text color.
     pub icon_color: Option<FolderColor>,

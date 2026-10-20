@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, EyeOff, File, FolderSearch, Unplug } from "lucide-react";
+import { ArrowDown, EyeOff, File, Folder, FolderSearch, Unplug } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { errorMessage, isErrorKind } from "../../../shared/ipc/client";
 import { useLibraryFolderStatus, useLibraryFolders, useMediaTools } from "../../../shared/ipc/queries";
-import { baseName } from "../../../shared/lib/paths";
+import { folderName } from "../../../shared/lib/folderName";
 import { plural } from "../../../shared/lib/plural";
 import { openFolderRelocation } from "../../../shared/stores/dialogs";
 import { processFolder } from "../../../shared/stores/processing";
@@ -37,7 +37,9 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
     const actions = useFolderActionDialogs();
     const hiddenLabel = hiddenFolderLabel(useFolderVisibility(path));
     const toolsReady = tools.data?.ffmpeg === true && tools.data.ffprobe;
-    const name = baseName(path);
+    const name = folderName(path, folders.data);
+    // A library folder renamed in the app still tells which folder it is on disk.
+    const renamedFolder = folders.data?.find((folder) => folder.path === path && folder.customName !== null);
     // Other files are listed after every video, so the header says they exist (not over search results).
     const otherFiles = content ? 0 : (contents.data?.otherFiles.length ?? 0);
     const hasVideos = contents.data?.groups.some((group) => group.entries.length > 0) ?? false;
@@ -65,6 +67,12 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
                                 </p>
                             ) : (
                                 <Skeleton className="h-5 w-40" />
+                            )}
+                            {renamedFolder && (
+                                <p className="flex items-center gap-1.5 text-small text-text-subtle">
+                                    <Folder aria-hidden className="size-3.5" />
+                                    Folder on disk: {renamedFolder.folderName}
+                                </p>
                             )}
                             {hiddenLabel && (
                                 <p className="flex items-center gap-1.5 text-small text-text-subtle">
@@ -96,7 +104,11 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
             {content ?? (
                 <FolderBody
                     contents={contents}
-                    unavailableRoot={rootStatus?.watch === "unavailable" ? rootStatus.path : null}
+                    unavailableRoot={
+                        rootStatus?.watch === "unavailable"
+                            ? { path: rootStatus.path, name: folderName(rootStatus.path, folders.data) }
+                            : null
+                    }
                     onFolderAction={actions.request}
                     order={order}
                     onShowAll={() => onOrderChange?.({ ...order, status: "all" })}
@@ -116,7 +128,7 @@ function jumpToOtherFiles() {
 type FolderBodyProps = {
     contents: ReturnType<typeof useFolderContents>;
     /** The library folder holding this one, when it cannot be reached. */
-    unavailableRoot: string | null;
+    unavailableRoot: { path: string; name: string } | null;
     onFolderAction: ReturnType<typeof useFolderActionDialogs>["request"];
     order: VideoOrder;
     onShowAll: () => void;
@@ -132,13 +144,13 @@ function FolderBody({ contents, unavailableRoot, onFolderAction, order, onShowAl
                 <EmptyState
                     icon={Unplug}
                     title="This folder is not connected"
-                    description={`The drive or network location of ${baseName(unavailableRoot)} cannot be reached. Its videos, progress and tags are kept; connect it and try again, or locate it if it was moved or renamed.`}
+                    description={`The drive or network location of ${unavailableRoot.name} cannot be reached. Its videos, progress and tags are kept; connect it and try again, or locate it if it was moved or renamed.`}
                     action={
                         <div className="flex flex-wrap justify-center gap-2">
                             <Button
                                 variant="primary"
                                 icon={<FolderSearch />}
-                                onClick={() => openFolderRelocation(unavailableRoot)}
+                                onClick={() => openFolderRelocation(unavailableRoot.path)}
                             >
                                 Locate folder…
                             </Button>

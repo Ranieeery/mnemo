@@ -1,6 +1,7 @@
 import { FolderTree, ListVideo, RotateCcw } from "lucide-react";
 import type { FolderViewMode, ResolvedViewMode } from "../../../shared/ipc/bindings";
-import { baseName } from "../../../shared/lib/paths";
+import { useLibraryFolders } from "../../../shared/ipc/queries";
+import { folderName } from "../../../shared/lib/folderName";
 import {
     Button,
     DropdownMenu,
@@ -31,8 +32,9 @@ type ViewModeMenuProps = {
 
 export function ViewModeMenu({ path, viewMode }: ViewModeMenuProps) {
     const setViewMode = useSetViewMode();
+    const libraryFolders = useLibraryFolders().data;
     const isExplicit = viewMode.definedAt === path;
-    const inheritedFrom = viewMode.definedAt && !isExplicit ? baseName(viewMode.definedAt) : null;
+    const inheritedFrom = viewMode.definedAt && !isExplicit ? folderName(viewMode.definedAt, libraryFolders) : null;
 
     return (
         <DropdownMenu>

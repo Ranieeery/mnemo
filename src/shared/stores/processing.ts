@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
     commands,
     events,
+    type LibraryFolder,
     type ProcessingOutcome,
     type ProcessingStatus,
     type ProcessingSummary,
@@ -9,7 +10,8 @@ import {
 import { call, errorMessage } from "../ipc/client";
 import { queryClient } from "../ipc/queryClient";
 import { queryKeys } from "../ipc/queryKeys";
-import { baseName, isWithin } from "../lib/paths";
+import { folderName } from "../lib/folderName";
+import { isWithin } from "../lib/paths";
 import { plural } from "../lib/plural";
 import { toast } from "../ui";
 
@@ -61,8 +63,13 @@ export function followProcessing(): () => void {
     };
 }
 
+/** Toasts outside React read the library folders from the cache, to name one by its name in the app. */
+function libraryAwareName(path: string): string {
+    return folderName(path, queryClient.getQueryData<LibraryFolder[]>(queryKeys.libraryFolders()));
+}
+
 async function finished(outcome: ProcessingOutcome) {
-    const name = baseName(outcome.folder);
+    const name = libraryAwareName(outcome.folder);
     const { processed, failed } = outcome.summary;
     if (outcome.cancelled || outcome.error !== null || outcome.missingTool) {
         // Not read to the end: opening the folder again resumes it.
@@ -123,7 +130,11 @@ export async function processFolder(folder: string, { force = false, report = fa
         await call(commands.processFolders([folder], report));
     } catch (error) {
         processedThisSession.delete(folder);
-        toast({ title: `Could not read ${baseName(folder)}`, description: errorMessage(error), tone: "danger" });
+        toast({
+            title: `Could not read ${libraryAwareName(folder)}`,
+            description: errorMessage(error),
+            tone: "danger",
+        });
     }
 }
 

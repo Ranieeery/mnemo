@@ -37,6 +37,11 @@ export const commands = {
 	relocateLibraryFolder: (from: string, to: string) => typedError<RelocationResult, IpcError>(__TAURI_INVOKE("relocate_library_folder", { from, to })),
 	/**  Sets a library folder's icon and its color; `null` restores each default. */
 	setLibraryFolderAppearance: (path: string, icon: string | null, color: "red" | "orange" | "amber" | "lime" | "green" | "teal" | "cyan" | "blue" | "violet" | "pink" | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_library_folder_appearance", { path, icon, color })),
+	/**
+	 *  Renames a library folder in the app only (the folder on disk keeps its name). An empty or missing `name`, or the
+	 *  folder's own name, shows the folder's own name again. Returns the folder as it is now.
+	 */
+	renameLibraryFolder: (path: string, name: string | null) => typedError<LibraryFolder, IpcError>(__TAURI_INVOKE("rename_library_folder", { path, name })),
 	/**  Folder icons chosen most recently, newest first, offered first by the icon picker. */
 	recentFolderIcons: () => typedError<string[], IpcError>(__TAURI_INVOKE("recent_folder_icons")),
 	/**  Sets how a folder lists its videos; `None` makes it inherit from its parent again. */
@@ -196,6 +201,8 @@ export const DEFAULT_SUBTITLE_STYLE = {"background":true,"backgroundOpacity":78,
 export const DEFAULT_WATCHED_THRESHOLD = 0.9 as const;
 
 export const FOLDER_COLORS = ["red","orange","amber","lime","green","teal","cyan","blue","violet","pink"] as const;
+
+export const MAX_FOLDER_NAME_CHARS = 100 as const;
 
 export const MAX_KEYS_PER_SHORTCUT = 2 as const;
 
@@ -403,7 +410,12 @@ export type LibraryChanged = null;
 export type LibraryFolder = {
 	id: number,
 	path: string,
+	/**  The name shown everywhere: the custom one, or else the folder's own name. */
 	name: string,
+	/**  The name of the folder on disk. */
+	folderName: string,
+	/**  Given in the app; the folder on disk is never renamed. */
+	customName: string | null,
 	customIcon: string | null,
 	/**  `None` draws the icon in the surrounding text color. */
 	iconColor: FolderColor | null,

@@ -19,11 +19,16 @@ export function videoFixture(overrides: Partial<Video> = {}): Video {
     };
 }
 
+/** A library folder; without a custom name, `name` and `folderName` agree like the backend's. */
 export function libraryFolderFixture(overrides: Partial<LibraryFolder> = {}): LibraryFolder {
+    const folderName = overrides.folderName ?? overrides.name ?? "Videos";
+    const customName = overrides.customName ?? null;
     return {
         id: 1,
         path: "D:\\Videos",
-        name: "Videos",
+        name: customName ?? folderName,
+        folderName,
+        customName,
         customIcon: null,
         iconColor: null,
         createdAt: null,

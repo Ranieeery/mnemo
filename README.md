@@ -32,6 +32,9 @@ thumbnails, tags and watch progress in a local SQLite database.
 
 - **Folder-based library:** add folders and browse their real hierarchy, with breadcrumbs, per-folder progress and
   custom icons and icon colors for library folders.
+- **Rename library folders in the app:** give a library folder a name of your own (right-click it and choose
+  "Rename", or press `F2` on it). The folder on disk keeps its name, which still shows in the folder's tooltip and on
+  its screen; clear the name, or choose "Reset to folder name", to use it again.
 - **Sort and filter:** sort a folder's videos by name, duration or date added, and show only unwatched, in-progress
   or watched ones.
 - **Two ways to view a folder:** *Folders* shows only what is directly inside it; *Continuous* lists every video below
@@ -80,6 +83,7 @@ back/forward keys can be changed in Settings → Shortcuts; the tables below sho
 | `Alt+←` / mouse back button | Go back (closes the player) |
 | `Alt+→` / mouse forward button | Go forward (reopens the last video) |
 | `?` | Show the keyboard shortcuts |
+| `F2` on a library folder in the sidebar | Rename it in the app |
 | `Esc` in the search field | Clear the search |
 
 ### Player

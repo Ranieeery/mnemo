@@ -25,7 +25,12 @@ pub async fn list(db: &Db) -> AppResult<Vec<HiddenFolder>> {
                     .max_by_key(|root| root.path.len())?
                     .clone();
                 Some(HiddenFolder {
-                    name: display_name(folder),
+                    // A hidden library folder goes by the name it has in the app.
+                    name: if library_folder.path == path {
+                        library_folder.name.clone()
+                    } else {
+                        display_name(folder)
+                    },
                     available: folder.is_dir(),
                     library_folder,
                     path,
@@ -196,6 +201,22 @@ mod tests {
         assert_eq!(listed[0].library_folder.name, "Lib");
         assert!(!listed[0].available);
         assert_eq!(home_paths(&db).await.0.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn hidden_folders_show_the_custom_name_of_their_library_folder() {
+        let db = library_with_history().await;
+        library::rename_folder(&db, path(&["Lib"]), Some("Mine".into()))
+            .await
+            .unwrap();
+        set_hidden(&db, path(&["Lib"]), true).await.unwrap();
+        set_hidden(&db, path(&["Lib", "Private"]), true).await.unwrap();
+        let listed = list(&db).await.unwrap();
+        let names: Vec<(&str, &str)> = listed
+            .iter()
+            .map(|folder| (folder.name.as_str(), folder.library_folder.name.as_str()))
+            .collect();
+        assert_eq!(names, [("Mine", "Mine"), ("Private", "Mine")]);
     }
 
     #[tokio::test]

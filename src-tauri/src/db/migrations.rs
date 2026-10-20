@@ -136,6 +136,10 @@ CREATE TABLE hidden_folders (
 CREATE INDEX idx_hidden_folders_lower_bound ON hidden_folders (lower_bound);
 "#;
 
+/// Version 2.5: a library folder can be renamed in the app (its folder on disk never is). `NULL` shows the folder's
+/// own name, so every existing folder keeps the name it had.
+const FOLDER_CUSTOM_NAME: &str = "ALTER TABLE library_folders ADD COLUMN custom_name TEXT;";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
@@ -145,6 +149,7 @@ fn migrations() -> Migrations<'static> {
         M::up(FOLDER_ICON_COLOR),
         M::up(FOLDER_SORT_ORDER),
         M::up(HIDDEN_FOLDERS),
+        M::up(FOLDER_CUSTOM_NAME),
     ])
 }
 
@@ -288,7 +293,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 7);
+        assert_eq!(user_version(&connection), 8);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -312,7 +317,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 7);
+        assert_eq!(user_version(&connection), 8);
         for table in [
             "videos",
             "tags",
@@ -365,6 +370,21 @@ mod tests {
     }
 
     #[test]
+    fn legacy_library_folders_start_without_a_custom_name() {
+        let mut connection = legacy_database(true);
+        run(&mut connection).unwrap();
+        let named: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM library_folders WHERE custom_name IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(named, 0);
+        assert_legacy_data_preserved(&connection);
+    }
+
+    #[test]
     fn legacy_library_folders_keep_the_order_they_were_listed_in() {
         let mut connection = legacy_database(true);
         connection
@@ -407,7 +427,7 @@ mod tests {
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 7);
+        assert_eq!(user_version(&connection), 8);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -477,7 +497,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 7);
+        assert_eq!(user_version(&connection), 8);
         assert_legacy_data_preserved(&connection);
     }
 

@@ -3,7 +3,7 @@ import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RelocationCheck } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
-import { baseName } from "../../../shared/lib/paths";
+import { useFolderName } from "../../../shared/ipc/queries";
 import { plural } from "../../../shared/lib/plural";
 import { Button, Dialog, Spinner, toast } from "../../../shared/ui";
 import { useFolderRelocationCheck, useRelocateFolder } from "../queries";
@@ -20,7 +20,7 @@ type RelocateFolderDialogProps = {
  * before anything changes. Files are never moved.
  */
 export function RelocateFolderDialog({ from, onClose }: RelocateFolderDialogProps) {
-    const name = baseName(from);
+    const name = useFolderName(from);
     const [to, setTo] = useState<string | null>(null);
     const check = useFolderRelocationCheck(from, to);
     const relocate = useRelocateFolder();

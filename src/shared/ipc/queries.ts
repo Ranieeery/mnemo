@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { folderName } from "../lib/folderName";
 import type { ShortcutKeys } from "../lib/keyboard";
 import { isWithin } from "../lib/paths";
 import {
@@ -18,6 +19,11 @@ export function useLibraryFolders() {
         queryKey: queryKeys.libraryFolders(),
         queryFn: () => call(commands.listLibraryFolders()),
     });
+}
+
+/** The name the app shows for the folder at `path` (see `folderName`). */
+export function useFolderName(path: string): string {
+    return folderName(path, useLibraryFolders().data);
 }
 
 /** Whether each library folder is reachable and how its changes are followed; refreshed by the backend's events. */

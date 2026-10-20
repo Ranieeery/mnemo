@@ -14,9 +14,14 @@ use crate::error::{AppError, AppResult};
 
 fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
     let path: String = row.get(1)?;
+    let folder_name = display_name(Path::new(&path));
+    // A blank name (written by hand) shows the folder's own name.
+    let custom_name = row.get::<_, Option<String>>(5)?.filter(|name| !name.trim().is_empty());
     Ok(LibraryFolder {
         id: row.get(0)?,
-        name: display_name(Path::new(&path)),
+        name: custom_name.clone().unwrap_or_else(|| folder_name.clone()),
+        folder_name,
+        custom_name,
         path,
         custom_icon: row.get::<_, Option<String>>(2)?.filter(|icon| !icon.is_empty()),
         // A name this version does not know (written by a newer one, or by hand) shows the default color.
@@ -28,7 +33,8 @@ fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
 /// The library folders in their custom order.
 pub fn list(connection: &Connection) -> AppResult<Vec<LibraryFolder>> {
     let mut statement = connection.prepare_cached(
-        "SELECT id, path, custom_icon, created_at, icon_color FROM library_folders ORDER BY sort_order, created_at, id",
+        "SELECT id, path, custom_icon, created_at, icon_color, custom_name FROM library_folders
+         ORDER BY sort_order, created_at, id",
     )?;
     let folders = statement.query_map([], map_folder)?.collect::<Result<_, _>>()?;
     Ok(folders)
@@ -41,7 +47,7 @@ pub fn paths(connection: &Connection) -> AppResult<Vec<String>> {
 pub fn find(connection: &Connection, path: &str) -> AppResult<Option<LibraryFolder>> {
     Ok(connection
         .query_row(
-            "SELECT id, path, custom_icon, created_at, icon_color FROM library_folders WHERE path = ?1",
+            "SELECT id, path, custom_icon, created_at, icon_color, custom_name FROM library_folders WHERE path = ?1",
             [path],
             map_folder,
         )
@@ -118,6 +124,18 @@ pub fn set_appearance(
         params![path, icon, color.map(FolderColor::as_str)],
     )?;
     if changed == 0 {
+        return Err(AppError::NotFound(format!("library folder {path}")));
+    }
+    Ok(())
+}
+
+/// Sets the name shown in the app (`None` shows the folder's own name). See `folder_name::normalize_custom_name`.
+pub fn set_custom_name(connection: &Connection, path: &str, name: Option<&str>) -> AppResult<()> {
+    if connection.execute(
+        "UPDATE library_folders SET custom_name = ?2 WHERE path = ?1",
+        params![path, name],
+    )? == 0
+    {
         return Err(AppError::NotFound(format!("library folder {path}")));
     }
     Ok(())
@@ -215,16 +233,27 @@ mod tests {
         let anime = add(&connection, &path(&["D:", "Videos", "Anime"])).unwrap();
         let sibling = add(&connection, &path(&["D:", "Videos 2"])).unwrap();
         set_appearance(&connection, &videos.path, Some("film"), Some(FolderColor::Teal)).unwrap();
+        set_custom_name(&connection, &videos.path, Some("Movies")).unwrap();
+        set_custom_name(&connection, &anime.path, Some("Shows")).unwrap();
 
-        relocate(&connection, &videos.path, &path(&["E:", "Videos"])).unwrap();
+        relocate(&connection, &videos.path, &path(&["E:", "Films"])).unwrap();
         let folders = list(&connection).unwrap();
         let moved = folders.iter().find(|folder| folder.id == videos.id).unwrap();
-        assert_eq!(moved.path, path(&["E:", "Videos"]));
+        assert_eq!(moved.path, path(&["E:", "Films"]));
         assert_eq!(moved.custom_icon.as_deref(), Some("film"));
         assert_eq!(moved.icon_color, Some(FolderColor::Teal));
         assert_eq!(moved.created_at, videos.created_at);
+        assert_eq!(
+            (
+                moved.name.as_str(),
+                moved.folder_name.as_str(),
+                moved.custom_name.as_deref()
+            ),
+            ("Movies", "Films", Some("Movies"))
+        );
         let nested = folders.iter().find(|folder| folder.id == anime.id).unwrap();
-        assert_eq!(nested.path, path(&["E:", "Videos", "Anime"]));
+        assert_eq!(nested.path, path(&["E:", "Films", "Anime"]));
+        assert_eq!(nested.name, "Shows");
         assert!(folders.contains(&sibling));
 
         assert!(matches!(
@@ -334,6 +363,54 @@ mod tests {
             set_appearance(&connection, "Missing", None, None),
             Err(AppError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn a_custom_name_replaces_the_folder_name_until_it_is_cleared() {
+        let connection = test_support::connection();
+        let folder = add(&connection, &path(&["D:", "Anime 2019"])).unwrap();
+        assert_eq!(
+            (
+                folder.name.as_str(),
+                folder.folder_name.as_str(),
+                folder.custom_name.as_deref()
+            ),
+            ("Anime 2019", "Anime 2019", None)
+        );
+        let other = add(&connection, &path(&["D:", "Other"])).unwrap();
+
+        set_custom_name(&connection, &folder.path, Some("Anime")).unwrap();
+        // Two folders may share a name.
+        set_custom_name(&connection, &other.path, Some("Anime")).unwrap();
+        let renamed = find(&connection, &folder.path).unwrap().unwrap();
+        assert_eq!(
+            (
+                renamed.name.as_str(),
+                renamed.folder_name.as_str(),
+                renamed.custom_name.as_deref()
+            ),
+            ("Anime", "Anime 2019", Some("Anime"))
+        );
+        assert_eq!(find(&connection, &other.path).unwrap().unwrap().name, "Anime");
+
+        set_custom_name(&connection, &folder.path, None).unwrap();
+        let reset = find(&connection, &folder.path).unwrap().unwrap();
+        assert_eq!((reset.name.as_str(), reset.custom_name), ("Anime 2019", None));
+        assert!(matches!(
+            set_custom_name(&connection, "Missing", Some("Name")),
+            Err(AppError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn a_blank_stored_name_shows_the_folder_name() {
+        let connection = test_support::connection();
+        add(&connection, "Videos").unwrap();
+        connection
+            .execute("UPDATE library_folders SET custom_name = '   '", [])
+            .unwrap();
+        let folder = find(&connection, "Videos").unwrap().unwrap();
+        assert_eq!((folder.name.as_str(), folder.custom_name), ("Videos", None));
     }
 
     #[test]

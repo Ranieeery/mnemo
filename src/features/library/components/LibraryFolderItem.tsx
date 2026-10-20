@@ -1,20 +1,16 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowDown, ArrowUp, FolderSearch, Palette, RefreshCw, Trash2, Unplug } from "lucide-react";
-import { useRef, useState } from "react";
+import { Unplug } from "lucide-react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { useLibraryFolderStatus } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { isWithin } from "../../../shared/lib/paths";
-import { openFolderRelocation } from "../../../shared/stores/dialogs";
-import { processFolder, useProcessingStore } from "../../../shared/stores/processing";
+import { useProcessingStore } from "../../../shared/stores/processing";
 import {
     ConfirmDialog,
     ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
     ContextMenuTrigger,
     FolderIcon,
     Spinner,
@@ -22,14 +18,12 @@ import {
     Tooltip,
     useIsTruncated,
 } from "../../../shared/ui";
-import {
-    HiddenFolderMark,
-    hiddenFolderLabel,
-    useFolderVisibility,
-    useFolderVisibilityItem,
-} from "../../../shared/video";
-import { useRemoveLibraryFolder } from "../queries";
+import { HiddenFolderMark, hiddenFolderLabel, useFolderVisibility } from "../../../shared/video";
+import { renamed } from "../lib/rename";
+import { useRemoveLibraryFolder, useRenameLibraryFolder } from "../queries";
 import { ChangeIconDialog } from "./ChangeIconDialog";
+import { type FolderNameDone, InlineFolderNameEditor, RenameFolderPopover } from "./FolderNameEditor";
+import { LibraryFolderMenu } from "./LibraryFolderMenu";
 
 /** How long a folder must be pressed before it can be dragged, so a click, or a slip of the mouse, never moves it. */
 export const HOLD_TO_DRAG_MS = 400;
@@ -58,24 +52,57 @@ export function LibraryFolderItem({
     onMoveUp,
     onMoveDown,
 }: LibraryFolderItemProps) {
+    const [renaming, setRenaming] = useState(false);
     const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
         id: folder.id,
-        disabled: !sortable,
+        disabled: !sortable || renaming,
     });
     const navigate = useNavigate();
     const removeFolder = useRemoveLibraryFolder();
+    const rename = useRenameLibraryFolder();
     const processing = useProcessingStore((state) =>
         state.status.jobs.some((job) => isWithin(job.folder, folder.path))
     );
     const unavailable = useLibraryFolderStatus(folder.path)?.watch === "unavailable";
     const visibility = useFolderVisibility(folder.path);
-    const visibilityItem = useFolderVisibilityItem(folder);
     const [iconOpen, setIconOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
     const active = currentPath !== undefined && isWithin(currentPath, folder.path);
 
     const nameRef = useRef<HTMLSpanElement>(null);
     const nameTruncated = useIsTruncated(nameRef, folder.name);
+    const linkRef = useRef<HTMLAnchorElement | null>(null);
+    const focusAfterRename = useRef(false);
+
+    useEffect(() => {
+        if (!renaming && focusAfterRename.current) {
+            focusAfterRename.current = false;
+            linkRef.current?.focus();
+        }
+    }, [renaming]);
+
+    const finishRename: FolderNameDone = (name, restoreFocus) => {
+        if (!renaming) {
+            return;
+        }
+        setRenaming(false);
+        focusAfterRename.current = restoreFocus;
+        // An unchanged name is not saved.
+        if (name !== null && renamed(folder, name).customName !== folder.customName) {
+            rename.mutate({ folder, name });
+        }
+    };
+    const handleKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
+        const modified = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+        if (event.key === "F2" && !modified && !isDragging) {
+            // Ahead of any app shortcut set to the same key.
+            event.preventDefault();
+            event.stopPropagation();
+            setRenaming(true);
+            return;
+        }
+        listeners?.onKeyDown?.(event);
+    };
 
     const statusIcon = (className?: string) =>
         cx("size-3.5 shrink-0", compact && "absolute top-0.5 right-0.5", className);
@@ -83,6 +110,103 @@ export function LibraryFolderItem({
     const fullName = [folder.name, unavailable && "(not connected)", hiddenLabel && `(${hiddenLabel.toLowerCase()})`]
         .filter(Boolean)
         .join(" ");
+    // A custom name hides which folder it is on disk, so the tooltip always tells it.
+    const folderOnDisk = folder.customName && (
+        <span className="text-caption text-text-muted">Folder: {folder.folderName}</span>
+    );
+
+    const item = (
+        <ContextMenu>
+            {/* The rail shows only icons, so it always has the tooltip; the full sidebar for a cut or custom name. */}
+            <Tooltip
+                content={
+                    compact ? (
+                        <span className="flex flex-col">
+                            <span>{fullName}</span>
+                            {folderOnDisk}
+                        </span>
+                    ) : (
+                        <span className="flex max-w-80 flex-col whitespace-normal">
+                            <span className="break-words">{fullName}</span>
+                            {folderOnDisk}
+                            <span className="text-caption break-all text-text-subtle">{folder.path}</span>
+                        </span>
+                    )
+                }
+                side="right"
+                disabled={renaming || (!compact && !nameTruncated && !folder.customName)}
+            >
+                <ContextMenuTrigger asChild>
+                    <Link
+                        ref={(node) => {
+                            setActivatorNodeRef(node);
+                            linkRef.current = node;
+                        }}
+                        to="/folder"
+                        search={{ path: folder.path }}
+                        aria-current={active ? "page" : undefined}
+                        // Only the instructions: dnd-kit's role and tab index would hide that this is a link.
+                        aria-describedby={sortable ? attributes["aria-describedby"] : undefined}
+                        // The browser's own link dragging would compete with moving the folder.
+                        draggable={false}
+                        {...listeners}
+                        onKeyDown={handleKeyDown}
+                        className={cx(
+                            "relative flex items-center gap-2.5",
+                            compact ? "h-9 w-10 justify-center" : "min-h-9 px-2.5 py-1.5",
+                            sidebarItemClasses(active, { subtle: unavailable })
+                        )}
+                    >
+                        {/* A folder not connected keeps its color: the plug and the dimmed name tell its state. */}
+                        <FolderIcon name={folder.customIcon} color={folder.iconColor} />
+                        {/* Long names wrap to two lines, then end with an ellipsis. */}
+                        <span
+                            ref={nameRef}
+                            className={
+                                compact ? "sr-only" : "line-clamp-2 min-w-0 flex-1 whitespace-normal break-words"
+                            }
+                            // The tooltip shows the path when it shows; a native one would show on top of it.
+                            title={
+                                compact || nameTruncated || folder.customName
+                                    ? undefined
+                                    : unavailable
+                                      ? `${folder.path} (not connected)`
+                                      : folder.path
+                            }
+                        >
+                            {folder.name}
+                            {unavailable && <span className="sr-only">, not connected</span>}
+                        </span>
+                        {/* The rail shows it in the tooltip: its corner badge belongs to the status. */}
+                        {visibility.kind === "hidden" && (
+                            <HiddenFolderMark visibility={visibility} className={compact ? "sr-only" : undefined} />
+                        )}
+                        {unavailable && <Unplug aria-hidden className={statusIcon("text-warning")} />}
+                        {processing && <Spinner label={`Reading videos in ${folder.name}`} className={statusIcon()} />}
+                        {held && (
+                            // With reduced motion the bar shows full at once: holding still picks the folder up.
+                            <span
+                                aria-hidden
+                                className="absolute inset-x-1.5 bottom-0.5 h-0.5 origin-left animate-hold-fill rounded-full bg-accent motion-reduce:animate-none"
+                                style={{ animationDuration: `${HOLD_TO_DRAG_MS}ms` }}
+                            />
+                        )}
+                    </Link>
+                </ContextMenuTrigger>
+            </Tooltip>
+            <LibraryFolderMenu
+                folder={folder}
+                unavailable={unavailable}
+                sortable={sortable}
+                onMoveUp={onMoveUp}
+                onMoveDown={onMoveDown}
+                onRename={() => setRenaming(true)}
+                onResetName={() => rename.mutate({ folder, name: "" })}
+                onChangeIcon={() => setIconOpen(true)}
+                onRemove={() => setRemoveOpen(true)}
+            />
+        </ContextMenu>
+    );
 
     return (
         <li
@@ -96,117 +220,16 @@ export function LibraryFolderItem({
                     "relative before:absolute before:inset-x-1 before:top-1/2 before:h-0.5 before:-translate-y-1/2 before:rounded-full before:bg-accent [&>*]:opacity-0"
             )}
         >
-            <ContextMenu>
-                {/* The rail shows only icons, so it always has the tooltip; the full sidebar only for a cut name. */}
-                <Tooltip
-                    content={
-                        compact ? (
-                            fullName
-                        ) : (
-                            <span className="flex max-w-80 flex-col whitespace-normal">
-                                <span className="break-words">{fullName}</span>
-                                <span className="text-caption break-all text-text-subtle">{folder.path}</span>
-                            </span>
-                        )
-                    }
-                    side="right"
-                    disabled={!compact && !nameTruncated}
-                >
-                    <ContextMenuTrigger asChild>
-                        <Link
-                            ref={setActivatorNodeRef}
-                            to="/folder"
-                            search={{ path: folder.path }}
-                            aria-current={active ? "page" : undefined}
-                            // Only the instructions: dnd-kit's role and tab index would hide that this is a link.
-                            aria-describedby={sortable ? attributes["aria-describedby"] : undefined}
-                            // The browser's own link dragging would compete with moving the folder.
-                            draggable={false}
-                            {...listeners}
-                            className={cx(
-                                "relative flex items-center gap-2.5",
-                                compact ? "h-9 w-10 justify-center" : "min-h-9 px-2.5 py-1.5",
-                                sidebarItemClasses(active, { subtle: unavailable })
-                            )}
-                        >
-                            {/* A folder not connected keeps its color: the plug and the dimmed name tell its state. */}
-                            <FolderIcon name={folder.customIcon} color={folder.iconColor} />
-                            {/* Long names wrap to two lines, then end with an ellipsis. */}
-                            <span
-                                ref={nameRef}
-                                className={
-                                    compact ? "sr-only" : "line-clamp-2 min-w-0 flex-1 whitespace-normal break-words"
-                                }
-                                // The tooltip shows the path of a cut name; a native one would show on top of it.
-                                title={
-                                    compact || nameTruncated
-                                        ? undefined
-                                        : unavailable
-                                          ? `${folder.path} (not connected)`
-                                          : folder.path
-                                }
-                            >
-                                {folder.name}
-                                {unavailable && <span className="sr-only">, not connected</span>}
-                            </span>
-                            {/* The rail shows it in the tooltip: its corner badge belongs to the status. */}
-                            {visibility.kind === "hidden" && (
-                                <HiddenFolderMark visibility={visibility} className={compact ? "sr-only" : undefined} />
-                            )}
-                            {unavailable && <Unplug aria-hidden className={statusIcon("text-warning")} />}
-                            {processing && (
-                                <Spinner label={`Reading videos in ${folder.name}`} className={statusIcon()} />
-                            )}
-                            {held && (
-                                // With reduced motion the bar shows full at once: holding still picks the folder up.
-                                <span
-                                    aria-hidden
-                                    className="absolute inset-x-1.5 bottom-0.5 h-0.5 origin-left animate-hold-fill rounded-full bg-accent motion-reduce:animate-none"
-                                    style={{ animationDuration: `${HOLD_TO_DRAG_MS}ms` }}
-                                />
-                            )}
-                        </Link>
-                    </ContextMenuTrigger>
-                </Tooltip>
-                <ContextMenuContent>
-                    <ContextMenuItem
-                        icon={<RefreshCw />}
-                        onSelect={() => processFolder(folder.path, { force: true, report: true })}
-                    >
-                        Sync folder
-                    </ContextMenuItem>
-                    {unavailable && (
-                        <ContextMenuItem icon={<FolderSearch />} onSelect={() => openFolderRelocation(folder.path)}>
-                            Locate folder…
-                        </ContextMenuItem>
-                    )}
-                    <ContextMenuItem icon={<Palette />} onSelect={() => setIconOpen(true)}>
-                        Icon and color…
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                        icon={visibilityItem.icon}
-                        disabled={visibilityItem.disabled}
-                        onSelect={visibilityItem.onSelect}
-                    >
-                        {visibilityItem.label}
-                    </ContextMenuItem>
-                    {sortable && (
-                        <>
-                            <ContextMenuSeparator />
-                            <ContextMenuItem icon={<ArrowUp />} disabled={!onMoveUp} onSelect={onMoveUp}>
-                                Move up
-                            </ContextMenuItem>
-                            <ContextMenuItem icon={<ArrowDown />} disabled={!onMoveDown} onSelect={onMoveDown}>
-                                Move down
-                            </ContextMenuItem>
-                        </>
-                    )}
-                    <ContextMenuSeparator />
-                    <ContextMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setRemoveOpen(true)}>
-                        Remove from library
-                    </ContextMenuItem>
-                </ContextMenuContent>
-            </ContextMenu>
+            {/* The rail has no room for the name: it is edited in a popover next to the icon. */}
+            {compact ? (
+                <RenameFolderPopover folder={folder} open={renaming} onDone={finishRename}>
+                    <div>{item}</div>
+                </RenameFolderPopover>
+            ) : renaming ? (
+                <InlineFolderNameEditor folder={folder} onDone={finishRename} />
+            ) : (
+                item
+            )}
             {iconOpen && <ChangeIconDialog folder={folder} open={iconOpen} onOpenChange={setIconOpen} />}
             <ConfirmDialog
                 open={removeOpen}

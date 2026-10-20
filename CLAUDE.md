@@ -163,8 +163,8 @@ src/
 - `rusqlite` com `journal_mode=WAL`, `foreign_keys=ON` e `busy_timeout`. Arquivo `mnemo.db` no `app_config_dir` (no
   Windows e macOS coincide com o app data dir), o mesmo local usado pelas versões 1.x. O `identifier` `com.mnemo` não
   pode mudar.
-- Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`, `icon_color` e
-  `sort_order`),
+- Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`, `icon_color`,
+  `sort_order` e `custom_name`),
   `watch_history`, `app_settings`, `folder_settings`, `hidden_folders`.
 - `app_settings` é chave/valor em JSON com acesso tipado (`db/settings.rs`): cada setting implementa `Setting` (chave,
   tipo, padrão, validação na escrita e reparo na leitura) e é lido com `settings::get::<S>` e gravado com
@@ -182,7 +182,8 @@ src/
   `library_folders.icon_color` (nome do token da cor, `NULL` é a cor padrão; nome desconhecido é lido como padrão); a `6` adiciona
   `library_folders.sort_order` (ordem custom, preenchida pela ordem de adição, a mesma de antes); a `7` cria
   `hidden_folders` (`path`, `lower_bound`, `upper_bound` de `FolderBounds`, índice em `lower_bound`; vazia em bancos
-  antigos). `watch_progress_seconds` guarda segundos fracionários.
+  antigos); a `8` adiciona `library_folders.custom_name` (nome dado no app, `NULL` usa o nome da pasta).
+  `watch_progress_seconds` guarda segundos fracionários.
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
 - Remover vídeos ou pastas também remove as thumbnails (só dentro do diretório de thumbnails). Remover uma pasta
@@ -209,6 +210,8 @@ src/
   `sort_order` de cada pasta e `libraryFolderSort` (opcionais): pastas sem posição ficam depois das outras, por data
   de adição, e um arquivo sem modo (ou com modo desconhecido) mantém o modo atual. `hiddenFolders` (opcional) vai
   também: exports antigos importam sem nada escondido, e entradas fora das pastas importadas são descartadas.
+  `custom_name` (opcional) vai em cada pasta: exports antigos importam sem nome personalizado, e um nome que o app
+  recusaria (em branco, longo demais) importa como nenhum.
 
 ## Mídia
 
@@ -320,7 +323,8 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interação: `Button`, `IconButton`, `Input`,
 `Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu`, `ContextMenu`, `Tooltip`, `Toast`, `Progress`,
 `Skeleton`, `Card`, `Tabs`, `Slider` (`compact` para volume), `Switch`, `Badge`/`Tag`, `EmptyState`, `ErrorState`, `Kbd`,
-`Spinner`, `FolderIcon`, `ScrollToTopButton`, `ChoiceGroup` (poucas opções exclusivas em botões, ex.: Days/Weeks),
+`Spinner`, `FolderIcon`, `ScrollToTopButton`, `Popover` (painel flutuante não modal para uma edição rápida; `Esc` e o clique fora são
+tratados por quem usa), `ChoiceGroup` (poucas opções exclusivas em botões, ex.: Days/Weeks),
 `ResizablePanel` (painel lateral com a borda livre arrastável ou movida pelas setas, largura controlada pelo chamador,
 duplo clique para o padrão; com `collapsed`, anima a largura entre os estados e esconde a alça quando recolhido),
 `ColorSwatches` (amostras de cor como radiogroup: uma parada de `Tab`, setas e `Home`/`End`, nome acessível e
@@ -409,6 +413,21 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 - Nomes longos de pastas na sidebar expandida quebram em até duas linhas e terminam com reticências. Só quando o nome
   está cortado (medido de novo ao redimensionar) um tooltip mostra o nome completo e o caminho, ao passar o mouse ou
   focar pelo teclado; sem corte, o caminho continua no `title`.
+- Nome da pasta da biblioteca só no app (`domain/folder_name.rs`, `rename_library_folder`); a pasta no disco nunca é
+  renomeada. `LibraryFolder.name` é o nome exibido (o personalizado ou o da pasta), com `folderName` (do disco) e
+  `customName`; o backend já devolve o nome exibido também em `HiddenFolder.name` e `SubfolderEntry.name` quando o
+  caminho é uma pasta da biblioteca, e o frontend usa `shared/lib/folderName` (`useFolderName`) onde só tem o caminho
+  (título e "not connected" da tela da pasta, busca, "Up next"/player, histórico, processamento, "Locate folder…"):
+  - "Rename" no menu de contexto ou `F2` com a pasta focada: na sidebar expandida, edição no lugar (texto todo
+    selecionado, nome da pasta como placeholder); no rail, um `Popover` ao lado do ícone com "Folder on disk: …".
+    `Enter` salva, `Esc` cancela (sem propagar), clicar fora salva; `Enter`/`Esc` devolvem o foco à pasta;
+  - trim, caracteres de controle viram espaço, até 100 caracteres (`MAX_FOLDER_NAME_CHARS`); vazio ou igual ao nome
+    da pasta volta ao nome da pasta; nomes repetidos são permitidos. Valor igual ao atual não chama o backend;
+  - otimista, com rollback e toast; invalida `["library"]` (home, escondidas, ordem por nome);
+  - "Reset to folder name" no menu só com nome personalizado. Com ele, o tooltip da pasta (sempre visível nesse
+    caso, também no rail) mostra "Folder: …" e a tela da pasta mostra "Folder on disk: …";
+  - "Name (A–Z/Z–A)" ordena pelo nome exibido; o nome fica na linha (por `id`): sobrevive à realocação e à pasta
+    renomeada no disco (o watcher não move pastas da biblioteca: ela fica desconectada até "Locate folder…").
 - Ícones personalizados para pastas da biblioteca: qualquer ícone do lucide, salvo pelo nome em `custom_icon`. O
   seletor tem a aba "Suggested" (até 40: os 8 últimos usados, guardados em `app_settings`, e uma lista curada) e
   "All icons" (todos, com busca). Emojis salvos pela 1.x aparecem como o ícone padrão de pasta.
@@ -543,7 +562,8 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
 - Configuráveis em Settings → Shortcuts (`/settings?tab=shortcuts`): as ações do player e voltar/avançar do
   histórico, até 2 teclas cada, sem repetir tecla entre ações. Gravação pela própria tecla (`Esc` cancela); conflito
   oferece "Use here instead"; reset por ação e "Restore all defaults" (com confirmação). Salvo na hora, com rollback.
-- Fixos: `Esc`, `?` (ajuda) e os botões laterais do mouse. Reservadas (não atribuíveis): `Esc`, `?`, `Tab`,
+- Fixos: `Esc`, `?` (ajuda), `F2` (renomear a pasta da biblioteca focada, à frente de um atalho na mesma tecla) e os
+  botões laterais do mouse. Reservadas (não atribuíveis): `Esc`, `?`, `Tab`,
   `Shift+Tab`, `Enter`.
 - `?` em qualquer tela (fora de campos de texto) ou o botão de teclado na barra superior e no player abre a ajuda com
   as teclas atuais; dela, "Customize in Settings" leva à aba.

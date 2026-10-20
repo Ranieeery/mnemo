@@ -62,6 +62,9 @@ export function ShortcutsHelpDialog({ onClose, onCustomize }: ShortcutsHelpDialo
                         <Row label="Show keyboard shortcuts">
                             <Kbd>?</Kbd>
                         </Row>
+                        <Row label="Rename the focused library folder">
+                            <Kbd>F2</Kbd>
+                        </Row>
                         <Row label="Mouse back button">
                             <span className="text-small text-text">Go back</span>
                         </Row>

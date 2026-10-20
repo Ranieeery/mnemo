@@ -2,8 +2,9 @@ import { act, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ProcessingStatus } from "../../shared/ipc/bindings";
 import { useProcessingStore } from "../../shared/stores/processing";
+import { libraryFolderFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
-import { renderWithUi } from "../../shared/test/render";
+import { renderScreen } from "../../shared/test/render";
 import { ProcessingBar } from "./components/ProcessingBar";
 
 const running: ProcessingStatus = {
@@ -20,16 +21,26 @@ function showStatus(status: ProcessingStatus) {
     act(() => useProcessingStore.setState({ status }));
 }
 
+/** `D:\Movies` is a library folder renamed in the app. */
+const libraryFolders = [libraryFolderFixture({ path: "D:\\Movies", folderName: "Movies", customName: "Films" })];
+
+async function renderBar() {
+    const rendered = renderScreen(<ProcessingBar />);
+    showStatus(running);
+    await screen.findByRole("status");
+    return rendered;
+}
+
 describe("ProcessingBar", () => {
     it("is hidden while nothing is being read", () => {
-        renderWithUi(<ProcessingBar />);
+        mockCommands({ list_library_folders: libraryFolders });
+        renderScreen(<ProcessingBar />);
         expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
-    it("shows the folders, the files being read, the progress and the failures", () => {
-        mockCommands({});
-        renderWithUi(<ProcessingBar />);
-        showStatus(running);
+    it("shows the folders, the files being read, the progress and the failures", async () => {
+        mockCommands({ list_library_folders: libraryFolders });
+        await renderBar();
 
         const bar = screen.getByRole("status");
         expect(bar).toHaveTextContent("Reading new videos in Show and 1 more folder");
@@ -39,9 +50,8 @@ describe("ProcessingBar", () => {
     });
 
     it("cancels everything and says so until the files stop", async () => {
-        const calls = mockCommands({ cancel_processing: null });
-        const { user } = renderWithUi(<ProcessingBar />);
-        showStatus(running);
+        const calls = mockCommands({ cancel_processing: null, list_library_folders: libraryFolders });
+        const { user } = await renderBar();
 
         await user.click(screen.getByRole("button", { name: "Cancel" }));
         expect(callsOf(calls, "cancel_processing")).toEqual([{ folder: null }]);
@@ -50,16 +60,19 @@ describe("ProcessingBar", () => {
     });
 
     it("details each folder, cancels one of them and lists what could not be read", async () => {
-        const calls = mockCommands({ cancel_processing: null, reveal_in_file_manager: null });
-        const { user } = renderWithUi(<ProcessingBar />);
-        showStatus(running);
+        const calls = mockCommands({
+            cancel_processing: null,
+            reveal_in_file_manager: null,
+            list_library_folders: libraryFolders,
+        });
+        const { user } = await renderBar();
 
         await user.click(screen.getByRole("button", { name: "Details" }));
         const dialog = await screen.findByRole("dialog", { name: "Reading new videos" });
         expect(within(dialog).getByText("Looking for videos…")).toBeInTheDocument();
         expect(within(dialog).getByText("ffprobe failed: invalid data")).toBeInTheDocument();
 
-        await user.click(within(dialog).getByRole("button", { name: "Cancel reading Movies" }));
+        await user.click(within(dialog).getByRole("button", { name: "Cancel reading Films" }));
         expect(callsOf(calls, "cancel_processing")).toEqual([{ folder: "D:\\Movies" }]);
         await user.click(within(dialog).getByRole("button", { name: "Show Ep 03.mkv in file manager" }));
         expect(callsOf(calls, "reveal_in_file_manager")).toEqual([{ path: "D:\\Series\\Show\\Ep 03.mkv" }]);

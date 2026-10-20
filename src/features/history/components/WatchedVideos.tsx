@@ -3,8 +3,10 @@ import { History } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { HistoryEntry } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
+import { useLibraryFolders } from "../../../shared/ipc/queries";
+import { folderName } from "../../../shared/lib/folderName";
 import { formatDuration } from "../../../shared/lib/formatDuration";
-import { baseName, parentPath } from "../../../shared/lib/paths";
+import { parentPath } from "../../../shared/lib/paths";
 import { Button, buttonClasses, EmptyState, ErrorState, Skeleton, toast, VirtualList } from "../../../shared/ui";
 import { toEntry, usePlayVideo, VideoContextMenu, VideoThumbnail } from "../../../shared/video";
 import { dayLabel, groupByDay, timeOfDay } from "../lib/history";
@@ -85,6 +87,7 @@ export function WatchedVideos() {
 function HistoryRow({ entry }: { entry: HistoryEntry }) {
     const playVideo = usePlayVideo();
     const { video } = entry;
+    const libraryFolders = useLibraryFolders().data;
     const videoEntry = toEntry(video);
 
     return (
@@ -104,7 +107,9 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
                     <span className="truncate text-body font-medium text-text" title={video.title}>
                         {video.title}
                     </span>
-                    <span className="truncate text-small text-text-subtle">{baseName(parentPath(video.filePath))}</span>
+                    <span className="truncate text-small text-text-subtle">
+                        {folderName(parentPath(video.filePath), libraryFolders)}
+                    </span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-0.5 text-small tabular-nums">
                     <time dateTime={entry.watchedAt} className="text-text-muted">

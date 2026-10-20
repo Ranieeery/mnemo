@@ -88,6 +88,32 @@ describe("FolderPage", () => {
         expect(screen.getByRole("button", { name: "cover.jpg" })).toBeInTheDocument();
     });
 
+    it("names a library folder renamed in the app and tells its folder on disk", async () => {
+        const library = libraryFolderFixture({ path: "D:\\Videos", folderName: "Videos", customName: "My shows" });
+        mockFolder(contents({ path: "D:\\Videos" }), {
+            list_library_folders: [library],
+            get_library_folder_statuses: [{ path: "D:\\Videos", watch: "unavailable", reason: null }],
+            browse_folder: () => {
+                throw commandError("io", "D:\\Videos: The device is not ready.");
+            },
+        });
+        renderScreen(<FolderPage path={"D:\\Videos"} />);
+
+        expect(await screen.findByRole("heading", { name: "My shows", level: 1 })).toBeInTheDocument();
+        expect(screen.getByText("Folder on disk: Videos")).toBeInTheDocument();
+        expect(
+            await screen.findByText(/The drive or network location of My shows cannot be reached/)
+        ).toBeInTheDocument();
+    });
+
+    it("shows only the folder name for a folder that was not renamed", async () => {
+        mockFolder(contents({ path: "D:\\Videos" }));
+        renderScreen(<FolderPage path={"D:\\Videos"} />);
+
+        expect(await screen.findByRole("heading", { name: "Videos", level: 1 })).toBeInTheDocument();
+        expect(screen.queryByText(/Folder on disk/)).not.toBeInTheDocument();
+    });
+
     it("points to the other files from the header and jumps to them", async () => {
         mockFolder(contents());
         const { user } = renderScreen(<FolderPage path={SHOW} />);

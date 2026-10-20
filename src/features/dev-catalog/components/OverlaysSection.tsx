@@ -18,6 +18,9 @@ import {
     DropdownMenuRadioItem,
     DropdownMenuTrigger,
     Input,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
     Tabs,
     TabsContent,
     TabsList,
@@ -117,6 +120,17 @@ export function OverlaysSection() {
                         </DropdownMenuRadioGroup>
                     </DropdownMenuContent>
                 </DropdownMenu>
+            </Specimen>
+
+            <Specimen label="Popover (a quick edit; Esc or a click outside closes it)">
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button>Rename folder</Button>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" className="flex w-64 flex-col gap-2">
+                        <Input label="Folder name" defaultValue="Series" hint="Folder on disk: Series 2019" />
+                    </PopoverContent>
+                </Popover>
             </Specimen>
 
             <Specimen label="Context menu (right-click the area)">

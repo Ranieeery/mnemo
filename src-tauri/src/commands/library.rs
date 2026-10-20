@@ -113,6 +113,18 @@ pub async fn set_library_folder_appearance(
     library::set_folder_appearance(&state.db, path, icon, color).await
 }
 
+/// Renames a library folder in the app only (the folder on disk keeps its name). An empty or missing `name`, or the
+/// folder's own name, shows the folder's own name again. Returns the folder as it is now.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_library_folder(
+    state: State<'_, AppState>,
+    path: String,
+    name: Option<String>,
+) -> AppResult<LibraryFolder> {
+    library::rename_folder(&state.db, path, name).await
+}
+
 /// Folder icons chosen most recently, newest first, offered first by the icon picker.
 #[tauri::command]
 #[specta::specta]

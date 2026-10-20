@@ -14,6 +14,7 @@ import { joinPath, relativeSegments } from "../../shared/lib/paths";
 import { plural } from "../../shared/lib/plural";
 import { processFolder } from "../../shared/stores/processing";
 import { toast } from "../../shared/ui";
+import { renamed } from "./lib/rename";
 
 /** Asks for a folder with the native dialog, adds it and starts reading its videos in the background. */
 export function useAddLibraryFolder() {
@@ -190,5 +191,31 @@ export function useReorderLibraryFolders() {
             queryClient.setQueryData(queryKeys.libraryFolderSort(), previous?.sort);
             toast({ title: "Could not move the folder", description: errorMessage(error), tone: "danger" });
         },
+    });
+}
+
+/**
+ * Renames a library folder in the app only; an empty name shows the folder's own name again. The new name shows at
+ * once wherever the folder is listed and goes back if it cannot be saved.
+ */
+export function useRenameLibraryFolder() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ folder, name }: { folder: LibraryFolder; name: string }) =>
+            call(commands.renameLibraryFolder(folder.path, name)),
+        onMutate: async ({ folder, name }) => {
+            await queryClient.cancelQueries({ queryKey: queryKeys.libraryFolders() });
+            const previous = queryClient.getQueryData<LibraryFolder[]>(queryKeys.libraryFolders());
+            queryClient.setQueryData<LibraryFolder[]>(queryKeys.libraryFolders(), (folders) =>
+                folders?.map((candidate) => (candidate.id === folder.id ? renamed(candidate, name) : candidate))
+            );
+            return previous;
+        },
+        onError: (error, _variables, previous) => {
+            queryClient.setQueryData(queryKeys.libraryFolders(), previous);
+            toast({ title: "Could not rename the folder", description: errorMessage(error), tone: "danger" });
+        },
+        // Everything that shows the name (the home, hidden folders, an order by name) is read again.
+        onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.library }),
     });
 }
