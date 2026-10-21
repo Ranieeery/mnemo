@@ -242,7 +242,9 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
 /** One saver per video; failures are reported once, not every few seconds. */
 function useProgressSaver(video: Video | null) {
     const queryClient = useQueryClient();
+    // Saves follow the record: it appears once an unread video is read, and changes after each save or toggle.
     const latest = useRef(video);
+    latest.current = video;
     return useMemo(() => {
         let reported = false;
         return new ProgressSaver((positionSeconds, finished) => {
@@ -250,20 +252,16 @@ function useProgressSaver(video: Video | null) {
             if (!current) {
                 return;
             }
-            saveProgress(queryClient, current, positionSeconds, finished)
-                .then((updated) => {
-                    latest.current = updated;
-                })
-                .catch((error: unknown) => {
-                    if (!reported) {
-                        reported = true;
-                        toast({
-                            title: "Could not save your progress",
-                            description: errorMessage(error),
-                            tone: "danger",
-                        });
-                    }
-                });
+            saveProgress(queryClient, current, positionSeconds, finished).catch((error: unknown) => {
+                if (!reported) {
+                    reported = true;
+                    toast({
+                        title: "Could not save your progress",
+                        description: errorMessage(error),
+                        tone: "danger",
+                    });
+                }
+            });
         });
     }, [queryClient]);
 }

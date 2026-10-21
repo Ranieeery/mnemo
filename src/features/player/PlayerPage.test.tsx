@@ -97,7 +97,11 @@ function renderPlayer({
         }),
     });
     const rendered = renderScreen(<PlayerPage path={path} />, ["/", `/watch?path=${encodeURIComponent(path)}`]);
-    return { ...rendered, calls };
+    /** Changes the record the backend keeps, as reading the video does. */
+    const storeVideo = (record: Video) => {
+        stored = record;
+    };
+    return { ...rendered, calls, storeVideo };
 }
 
 function audioTrack(index: number, codec: string, language: string): AudioTrack {
@@ -437,6 +441,25 @@ describe("PlayerPage", () => {
         ]);
     });
 
+    it("saves the last position when the player closes", async () => {
+        const { calls } = renderPlayer();
+        const element = await videoElement();
+        act(() => loadMetadata(element, 1500));
+        await act(() => element.play());
+        for (const position of [301, 302]) {
+            act(() => {
+                element.currentTime = position;
+            });
+        }
+        await waitFor(() => expect(callsOf(calls, "save_progress")).toHaveLength(1));
+
+        cleanup();
+
+        await waitFor(() =>
+            expect(callsOf(calls, "save_progress")).toContainEqual({ id: 1, positionSeconds: 302, finished: false })
+        );
+    });
+
     it("offers the next video when one ends and plays it on request", async () => {
         const { user, router, calls } = renderPlayer();
         const upNext = await screen.findByRole("button", { name: /The Second One/ });
@@ -628,6 +651,26 @@ describe("PlayerPage", () => {
         await videoElement();
         await user.keyboard("{Escape}");
         await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    });
+
+    it("saves progress once a video opened before it was read gets its record", async () => {
+        // Regression: the saver kept the record from when the player opened, so such a video never saved progress.
+        const { calls, queryClient, storeVideo } = renderPlayer({ video: null });
+        const element = await videoElement();
+        act(() => loadMetadata(element, 600));
+        storeVideo(videoFixture({ id: 5, filePath: `${SHOW}\\Raw.mkv` }));
+        await act(() => queryClient.invalidateQueries({ queryKey: ["library"] }));
+        await waitFor(() => expect(screen.queryByText(/has not been read yet/)).not.toBeInTheDocument());
+
+        await act(() => element.play());
+        act(() => {
+            element.currentTime = 30;
+        });
+        act(() => element.pause());
+
+        await waitFor(() =>
+            expect(callsOf(calls, "save_progress")).toContainEqual({ id: 5, positionSeconds: 30, finished: false })
+        );
     });
 
     it("plays videos that were not processed yet without saving progress", async () => {

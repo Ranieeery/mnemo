@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VideoEntry } from "../../../shared/ipc/bindings";
 import { Button, Dialog } from "../../../shared/ui";
 import { entryTitle } from "../../../shared/video";
@@ -15,23 +15,24 @@ type NextVideoDialogProps = {
 /** Shown when a video ends: plays the next one after a countdown unless cancelled. */
 export function NextVideoDialog({ next, onPlay, onCancel }: NextVideoDialogProps) {
     const [remaining, setRemaining] = useState(NEXT_VIDEO_COUNTDOWN);
+    const latestOnPlay = useRef(onPlay);
+    latestOnPlay.current = onPlay;
 
-    useEffect(() => {
-        const timer = window.setInterval(() => setRemaining((seconds) => seconds - 1), 1000);
-        return () => window.clearInterval(timer);
-    }, []);
-
+    // One tick at a time, so the countdown stops at zero and plays the next video once, however long navigating takes.
     useEffect(() => {
         if (remaining <= 0) {
-            onPlay();
+            latestOnPlay.current();
+            return;
         }
-    }, [remaining, onPlay]);
+        const timer = window.setTimeout(() => setRemaining((seconds) => seconds - 1), 1000);
+        return () => window.clearTimeout(timer);
+    }, [remaining]);
 
     return (
         <Dialog
             open
             onOpenChange={(open) => !open && onCancel()}
-            title={`Up next in ${Math.max(remaining, 0)}s`}
+            title={`Up next in ${remaining}s`}
             description={entryTitle(next)}
             size="sm"
             footer={
