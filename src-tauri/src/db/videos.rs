@@ -1,5 +1,5 @@
 use rusqlite::types::Value;
-use rusqlite::{Connection, OptionalExtension, Row, params};
+use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter};
 
 use super::hidden::VISIBLE;
 use super::like_pattern;
@@ -41,22 +41,41 @@ fn read_flag(value: Value) -> bool {
 /// SQL condition (over `v.file_path`) that is true for videos inside any of the given folders, with its parameters
 /// (`?1` onwards).
 pub(super) fn inside_any(folders: &[String]) -> (String, Vec<String>) {
+    let mut values = Vec::new();
+    let condition = range_condition("v.file_path", folders, false, &mut values);
+    (condition, values)
+}
+
+/// SQL condition (over the path `column`) that is true for `folder` and everything inside it, except the `kept`
+/// folders and everything inside them, with its parameters (`?1` onwards).
+pub(super) fn within_except(column: &str, folder: &str, kept: &[String]) -> (String, Vec<String>) {
+    let mut values = Vec::new();
+    let within = range_condition(column, &[folder.to_owned()], true, &mut values);
+    let in_kept = range_condition(column, kept, true, &mut values);
+    (format!("({within} AND NOT {in_kept})"), values)
+}
+
+/// Appends the parameters of the condition to `values`, numbering them after those already there.
+fn range_condition(column: &str, folders: &[String], with_folder_itself: bool, values: &mut Vec<String>) -> String {
     if folders.is_empty() {
-        return ("0".to_owned(), Vec::new());
+        return "0".to_owned();
     }
     let mut conditions = Vec::with_capacity(folders.len());
-    let mut values = Vec::with_capacity(folders.len() * 2);
     for folder in folders {
         let bounds = FolderBounds::new(folder);
-        conditions.push(format!(
-            "(v.file_path >= ?{} AND v.file_path < ?{})",
+        let mut condition = format!(
+            "({column} >= ?{} AND {column} < ?{})",
             values.len() + 1,
             values.len() + 2
-        ));
-        values.push(bounds.lower);
-        values.push(bounds.upper);
+        );
+        values.extend([bounds.lower, bounds.upper]);
+        if with_folder_itself {
+            values.push(folder.clone());
+            condition = format!("({column} = ?{} OR {condition})", values.len());
+        }
+        conditions.push(condition);
     }
-    (format!("({})", conditions.join(" OR ")), values)
+    format!("({})", conditions.join(" OR "))
 }
 
 pub(super) fn query_videos(connection: &Connection, sql: &str, params: impl rusqlite::Params) -> AppResult<Vec<Video>> {
@@ -259,17 +278,17 @@ pub fn set_thumbnail(connection: &Connection, id: i64, thumbnail_path: &str) -> 
     get(connection, id)
 }
 
-/// Deletes every video inside `folder` (tags and history cascade) and returns their thumbnail paths.
-pub fn delete_in_folder(connection: &Connection, folder: &str) -> AppResult<Vec<String>> {
-    let bounds = FolderBounds::new(folder);
-    let mut statement =
-        connection.prepare("DELETE FROM videos WHERE file_path >= ?1 AND file_path < ?2 RETURNING thumbnail_path")?;
+/// Deletes every video inside `folder` except those inside the `kept` folders (tags and history cascade). Returns how
+/// many were deleted, with their thumbnail paths.
+pub fn delete_in_folder(connection: &Connection, folder: &str, kept: &[String]) -> AppResult<(usize, Vec<String>)> {
+    let (condition, values) = within_except("file_path", folder, kept);
+    let mut statement = connection.prepare(&format!(
+        "DELETE FROM videos WHERE {condition} RETURNING thumbnail_path"
+    ))?;
     let thumbnails = statement
-        .query_map(params![bounds.lower, bounds.upper], |row| {
-            row.get::<_, Option<String>>(0)
-        })?
+        .query_map(params_from_iter(values), |row| row.get::<_, Option<String>>(0))?
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(thumbnails.into_iter().flatten().collect())
+    Ok((thumbnails.len(), thumbnails.into_iter().flatten().collect()))
 }
 
 #[cfg(test)]
@@ -442,8 +461,8 @@ pub(crate) mod tests {
             .unwrap();
 
         assert_eq!(
-            delete_in_folder(&connection, "F").unwrap(),
-            vec!["thumb.jpg".to_owned()]
+            delete_in_folder(&connection, "F", &[]).unwrap(),
+            (1, vec!["thumb.jpg".to_owned()])
         );
         let remaining: (i64, i64, i64) = connection
             .query_row(

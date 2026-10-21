@@ -1,8 +1,9 @@
 //! Folders hidden from the home page and the history. Their videos stay in the library (progress and history are
 //! still recorded) and are shown normally when browsing the folder.
 
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, params, params_from_iter};
 
+use super::videos::within_except;
 use crate::domain::paths::FolderBounds;
 use crate::error::AppResult;
 
@@ -47,12 +48,13 @@ fn within(connection: &Connection, path: &str) -> AppResult<Vec<String>> {
     Ok(paths)
 }
 
-/// Forgets the hidden folders at or inside `path` (a library folder being removed).
-pub fn delete_within(connection: &Connection, path: &str) -> AppResult<()> {
-    let bounds = FolderBounds::new(path);
+/// Forgets the hidden folders at or inside `path` (a library folder being removed), except those at or inside the
+/// `kept` folders (library folders nested in it).
+pub fn delete_within(connection: &Connection, path: &str, kept: &[String]) -> AppResult<()> {
+    let (condition, values) = within_except("path", path, kept);
     connection.execute(
-        "DELETE FROM hidden_folders WHERE path = ?1 OR (path >= ?2 AND path < ?3)",
-        params![path, bounds.lower, bounds.upper],
+        &format!("DELETE FROM hidden_folders WHERE {condition}"),
+        params_from_iter(values),
     )?;
     Ok(())
 }
@@ -122,7 +124,7 @@ mod tests {
         for folder in [root.clone(), path(&["D:", "Lib", "a"]), path(&["D:", "Lib2"])] {
             hide(&connection, &folder).unwrap();
         }
-        delete_within(&connection, &root).unwrap();
+        delete_within(&connection, &root, &[]).unwrap();
         assert_eq!(list(&connection).unwrap(), [path(&["D:", "Lib2"])]);
     }
 }

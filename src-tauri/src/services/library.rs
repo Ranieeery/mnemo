@@ -55,24 +55,33 @@ pub async fn add_folder(db: &Db, path: String) -> AppResult<LibraryFolder> {
     db.call(move |connection| folders::add(connection, &path)).await
 }
 
-/// Removes a library folder with its videos, tags, history, view settings and thumbnails. Returns how many videos
-/// were removed.
+/// Removes a library folder with its videos, tags, history, view settings and thumbnails. What another library folder
+/// still covers stays: everything, when the folder is inside another one, and the contents of library folders nested
+/// in it. Returns how many videos were removed.
 pub async fn remove_folder(db: &Db, thumbnails_dir: &Path, path: String) -> AppResult<i64> {
-    let removed_thumbnails = db
+    let (count, removed_thumbnails) = db
         .call(move |connection| {
             let transaction = connection.transaction()?;
-            let thumbnails = videos::delete_in_folder(&transaction, &path)?;
             folders::remove(&transaction, &path)?;
-            folders::clear_view_modes_within(&transaction, &path)?;
-            hidden::delete_within(&transaction, &path)?;
+            let library = folders::paths(&transaction)?;
+            let removed = if library.iter().any(|root| is_within(Path::new(&path), Path::new(root))) {
+                (0, Vec::new())
+            } else {
+                let nested: Vec<String> = library
+                    .into_iter()
+                    .filter(|root| is_within(Path::new(root), Path::new(&path)))
+                    .collect();
+                folders::clear_view_modes_within(&transaction, &path, &nested)?;
+                hidden::delete_within(&transaction, &path, &nested)?;
+                videos::delete_in_folder(&transaction, &path, &nested)?
+            };
             transaction.commit()?;
-            Ok(thumbnails)
+            Ok(removed)
         })
         .await?;
     let thumbnails_dir = thumbnails_dir.to_path_buf();
-    let count = removed_thumbnails.len() as i64;
     tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &removed_thumbnails)).await?;
-    Ok(count)
+    Ok(count as i64)
 }
 
 /// Sets the icon of a library folder and its color (`None` restores each default), and remembers the icon for the
@@ -550,9 +559,66 @@ mod tests {
         ));
     }
 
+    impl Fixture {
+        /// Stores a video at `parts` with a thumbnail file in `thumbnails_dir`; returns the thumbnail.
+        async fn store_with_thumbnail(&self, parts: &[&str], thumbnails_dir: &Path) -> PathBuf {
+            let path = self.path(parts);
+            let thumbnail = thumbnails_dir.join(format!("{}.jpg", parts.join("_")));
+            std::fs::write(&thumbnail, b"jpg").unwrap();
+            let stored = thumbnail.to_string_lossy().into_owned();
+            self.db
+                .call(move |connection| {
+                    videos::insert(
+                        connection,
+                        &NewVideo {
+                            file_path: &path,
+                            title: "Episode",
+                            duration_seconds: 60.0,
+                            thumbnail_path: Some(&stored),
+                            identity: None,
+                        },
+                    )
+                })
+                .await
+                .unwrap();
+            thumbnail
+        }
+
+        /// Library folders, view mode paths, hidden folders and video paths (sorted).
+        async fn state(&self) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
+            self.db
+                .call(|connection| {
+                    let modes = folders::view_modes(connection)?
+                        .into_iter()
+                        .map(|(path, _)| path)
+                        .collect();
+                    let videos = connection
+                        .prepare("SELECT file_path FROM videos ORDER BY file_path")?
+                        .query_map([], |row| row.get(0))?
+                        .collect::<Result<_, _>>()?;
+                    Ok((folders::paths(connection)?, modes, hidden::list(connection)?, videos))
+                })
+                .await
+                .unwrap()
+        }
+
+        async fn hide(&self, parts: &[&str]) {
+            let path = self.path(parts);
+            self.db
+                .call(move |connection| hidden::hide(connection, &path))
+                .await
+                .unwrap();
+        }
+    }
+
     #[tokio::test]
-    async fn removing_a_folder_removes_its_videos_and_settings() {
+    async fn removing_a_folder_removes_its_videos_settings_and_thumbnails() {
+        // Regression: the count was of thumbnails, so videos without one were not counted.
         let fixture = Fixture::new().await;
+        let thumbnails_dir = tempfile::tempdir().unwrap();
+        let thumbnail = fixture
+            .store_with_thumbnail(&["extra.mkv"], thumbnails_dir.path())
+            .await;
         set_view_mode(
             &fixture.db,
             fixture.path(&["Season 2"]),
@@ -560,21 +626,80 @@ mod tests {
         )
         .await
         .unwrap();
-        let thumbnails_dir = tempfile::tempdir().unwrap();
+        fixture.hide(&["Season 10"]).await;
 
-        assert_eq!(
-            remove_folder(&fixture.db, thumbnails_dir.path(), fixture.path(&[]))
-                .await
-                .unwrap(),
-            0
-        );
-        let (folders, modes) = fixture
-            .db
-            .call(|connection| Ok((folders::list(connection)?, folders::view_modes(connection)?)))
+        let removed = remove_folder(&fixture.db, thumbnails_dir.path(), fixture.path(&[]))
             .await
             .unwrap();
-        assert!(folders.is_empty() && modes.is_empty());
+
+        assert_eq!(removed, 2);
+        assert_eq!(fixture.state().await, Default::default());
+        assert!(!thumbnail.exists());
         assert!(home(&fixture.db, 5).await.unwrap().suggestions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn removing_a_folder_keeps_what_a_library_folder_nested_in_it_covers() {
+        // Regression: removing `Show` wiped the videos, view modes and hidden folders of `Show/Season 2`, which
+        // stayed in the library.
+        let fixture = Fixture::new().await;
+        let thumbnails_dir = tempfile::tempdir().unwrap();
+        add_folder(&fixture.db, fixture.path(&["Season 2"])).await.unwrap();
+        let kept_thumbnail = fixture
+            .store_with_thumbnail(&["Season 2", "e10.mkv"], thumbnails_dir.path())
+            .await;
+        for folder in ["Season 2", "Season 10"] {
+            set_view_mode(&fixture.db, fixture.path(&[folder]), Some(FolderViewMode::Continuous))
+                .await
+                .unwrap();
+            fixture.hide(&[folder, "Private"]).await;
+        }
+
+        let removed = remove_folder(&fixture.db, thumbnails_dir.path(), fixture.path(&[]))
+            .await
+            .unwrap();
+
+        assert_eq!(removed, 0);
+        let season_2 = fixture.path(&["Season 2"]);
+        let (folders, modes, hidden, videos) = fixture.state().await;
+        assert_eq!(folders, [fixture.path(&["Season 2"])]);
+        assert_eq!(modes, [season_2]);
+        assert_eq!(hidden, [fixture.path(&["Season 2", "Private"])]);
+        assert_eq!(
+            videos,
+            [
+                fixture.path(&["Season 2", "e10.mkv"]),
+                fixture.path(&["Season 2", "e2.mkv"])
+            ]
+        );
+        assert!(kept_thumbnail.exists());
+    }
+
+    #[tokio::test]
+    async fn removing_a_folder_inside_another_library_folder_keeps_its_videos_and_settings() {
+        // Regression: removing `Show/Season 2` deleted its videos although `Show` still covers them.
+        let fixture = Fixture::new().await;
+        let thumbnails_dir = tempfile::tempdir().unwrap();
+        add_folder(&fixture.db, fixture.path(&["Season 2"])).await.unwrap();
+        set_view_mode(
+            &fixture.db,
+            fixture.path(&["Season 2"]),
+            Some(FolderViewMode::Continuous),
+        )
+        .await
+        .unwrap();
+        fixture.hide(&["Season 2", "Private"]).await;
+
+        let removed = remove_folder(&fixture.db, thumbnails_dir.path(), fixture.path(&["Season 2"]))
+            .await
+            .unwrap();
+
+        assert_eq!(removed, 0);
+        let (folders, modes, hidden, videos) = fixture.state().await;
+        assert_eq!(folders, [fixture.path(&[])]);
+        assert_eq!(modes, [fixture.path(&["Season 2"])]);
+        assert_eq!(hidden, [fixture.path(&["Season 2", "Private"])]);
+        assert_eq!(videos, [fixture.path(&["Season 2", "e2.mkv"])]);
     }
 
     #[tokio::test]

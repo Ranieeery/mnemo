@@ -202,11 +202,18 @@ impl<T: MediaToolkit + 'static> Processor<T> {
         );
     }
 
-    /// Stops reading `folder` and everything inside it because it left the library. Videos read meanwhile are not
+    /// Stops reading the folders that left the library; `library` holds the library folders after the change. Jobs
+    /// of folders still inside one go on (a library folder nested in a removed one). Videos read meanwhile are not
     /// stored either: the writer only keeps videos inside library folders.
-    pub fn forget(&self, folder: &Path) {
-        self.inner
-            .cancel_where(|job| is_within(Path::new(&job.folder), folder), true);
+    pub fn forget_outside(&self, library: &[String]) {
+        self.inner.cancel_where(
+            |job| {
+                !library
+                    .iter()
+                    .any(|root| is_within(Path::new(&job.folder), Path::new(root)))
+            },
+            true,
+        );
     }
 
     pub fn status(&self) -> ProcessingStatus {

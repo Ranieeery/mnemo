@@ -375,25 +375,32 @@ async fn status_shows_the_jobs_and_the_files_being_read() {
 }
 
 #[tokio::test]
-async fn forgetting_a_folder_stops_its_jobs_and_those_of_its_subfolders() {
+async fn forgetting_stops_the_jobs_of_folders_that_left_the_library_only() {
+    // Regression: forgetting a removed folder also cancelled the job of a library folder nested in it.
     let show = tree(&["Season 1/Ep 1.mkv", "Season 1/Ep 2.mkv", "Season 1/Ep 3.mkv"]);
+    let gone = library(&names(3));
     let other = library(&names(2));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 1);
-    harness
-        .enqueue(show.path().join("Season 1"), Priority::Normal, false)
-        .await;
-    harness
-        .enqueue(other.path().to_path_buf(), Priority::Normal, false)
-        .await;
+    for folder in [
+        gone.path().to_path_buf(),
+        show.path().join("Season 1"),
+        other.path().to_path_buf(),
+    ] {
+        harness.enqueue(folder, Priority::Normal, false).await;
+    }
     tokio::time::sleep(Duration::from_millis(30)).await;
 
-    harness.processor.forget(show.path());
-    let outcomes = harness.outcomes(2).await;
-    assert_eq!(Path::new(&outcomes[0].folder), show.path().join("Season 1"));
+    // `Show` was removed from the library, `Show/Season 1` stays in it.
+    let kept =
+        [show.path().join("Season 1"), other.path().to_path_buf()].map(|path| path.to_string_lossy().into_owned());
+    harness.processor.forget_outside(&kept);
+    let outcomes = harness.outcomes(3).await;
+    assert_eq!(Path::new(&outcomes[0].folder), gone.path());
     assert!(outcomes[0].cancelled && outcomes[0].removed);
-    assert_eq!(Path::new(&outcomes[1].folder), other.path());
-    assert!(!outcomes[1].cancelled && !outcomes[1].removed);
-    assert_eq!(outcomes[1].summary.processed, 2);
+    for (outcome, processed) in outcomes[1..].iter().zip([3, 2]) {
+        assert!(!outcome.cancelled && !outcome.removed, "{}", outcome.folder);
+        assert_eq!(outcome.summary.processed, processed, "{}", outcome.folder);
+    }
 }
 
 /// Regression: removing a library folder while its videos waited to be stored brought them back as orphans.

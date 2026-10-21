@@ -170,8 +170,10 @@ src/
 - Nunca edite uma migração já existente; crie uma nova.
 - Filtros por pasta usam faixas sobre o índice de `file_path` (`domain::paths::FolderBounds`), nunca `LIKE`.
 - Remover vídeos ou pastas também remove as thumbnails (só dentro do diretório de thumbnails). Remover uma pasta
-  cancela antes os jobs dela e das subpastas (`Processor::forget`, sem aviso ao usuário), e o escritor do pipeline só
-  grava vídeos que, na mesma transação, ainda estão dentro de uma pasta da biblioteca. Adicionar uma pasta sempre
+  mantém o que outra pasta da biblioteca ainda cobre: tudo, se ela está dentro de outra, e o conteúdo das pastas da
+  biblioteca aninhadas nela. Depois de remover, realocar ou importar, os jobs de pastas que saíram da biblioteca são
+  cancelados (`Processor::forget_outside`, sem aviso ao usuário), e o escritor do pipeline só grava vídeos que, na
+  mesma transação, ainda estão dentro de uma pasta da biblioteca. Adicionar uma pasta sempre
   força a leitura, mesmo que ela já tenha sido lida na sessão antes de ser removida.
 - Vídeos cujo arquivo sumiu não são apagados: recebem `missing_since` (`db/presence.rs`) e voltam com todos os
   dados se o arquivo reaparecer.

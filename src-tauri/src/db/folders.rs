@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::{Connection, OptionalExtension, Row, params};
+use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter};
 
 use super::hidden::VISIBLE;
 use super::layout::{self, NEXT_TOP_LEVEL};
+use super::videos::within_except;
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_view::FolderViewMode;
 use crate::domain::media::display_name;
@@ -172,12 +173,13 @@ pub fn set_view_mode(connection: &Connection, path: &str, mode: Option<FolderVie
     Ok(())
 }
 
-/// Removes the view mode settings of a folder and of everything inside it.
-pub fn clear_view_modes_within(connection: &Connection, path: &str) -> AppResult<()> {
-    let bounds = FolderBounds::new(path);
+/// Removes the view mode settings of a folder and of everything inside it, except those at or inside the `kept`
+/// folders.
+pub fn clear_view_modes_within(connection: &Connection, path: &str, kept: &[String]) -> AppResult<()> {
+    let (condition, values) = within_except("path", path, kept);
     connection.execute(
-        "DELETE FROM folder_settings WHERE path = ?1 OR (path >= ?2 AND path < ?3)",
-        params![path, bounds.lower, bounds.upper],
+        &format!("DELETE FROM folder_settings WHERE {condition}"),
+        params_from_iter(values),
     )?;
     Ok(())
 }
@@ -488,7 +490,7 @@ mod tests {
         move_view_modes(&connection, &path(&["Lib", "Old courses"]), &courses).unwrap();
 
         set_view_mode(&connection, &sibling, None).unwrap();
-        clear_view_modes_within(&connection, &courses).unwrap();
+        clear_view_modes_within(&connection, &courses, &[]).unwrap();
         assert!(view_modes(&connection).unwrap().is_empty());
     }
 }

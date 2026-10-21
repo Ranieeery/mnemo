@@ -1,7 +1,6 @@
-use std::path::Path;
-
 use tauri::{AppHandle, State};
 
+use crate::db::folders;
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::folder_view::FolderViewMode;
@@ -75,11 +74,18 @@ pub async fn add_library_folder(app: AppHandle, state: State<'_, AppState>, path
 #[tauri::command]
 #[specta::specta]
 pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> AppResult<i64> {
-    // First stop reading it, so no video of the folder comes back after the removal.
-    state.processor.forget(Path::new(&path));
     let removed = library::remove_folder(&state.db, &state.paths.thumbnails, path).await?;
+    forget_removed_folders(&state).await?;
     state.sync.refresh();
     Ok(removed)
+}
+
+/// Stops reading folders that left the library. Done after the change succeeded, so a refused one cancels nothing;
+/// videos read meanwhile are not stored, as the writer only keeps videos inside library folders.
+async fn forget_removed_folders(state: &AppState) -> AppResult<()> {
+    let library = state.db.call(|connection| folders::paths(connection)).await?;
+    state.processor.forget_outside(&library);
+    Ok(())
 }
 
 /// Compares the videos of an unreachable library folder with the files at `to`, without changing anything. Fails
@@ -104,9 +110,8 @@ pub async fn relocate_library_folder(
     from: String,
     to: String,
 ) -> AppResult<RelocationResult> {
-    // Nothing of the old path may be read after it moves.
-    state.processor.forget(Path::new(&from));
     let result = state.sync.relocate(from, to).await?;
+    forget_removed_folders(&state).await?;
     asset_scope::allow(&app, &result.folder.path)?;
     Ok(result)
 }
