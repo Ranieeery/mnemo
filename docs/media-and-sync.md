@@ -29,6 +29,11 @@ dos dados) estão no `CLAUDE.md`.
   de um vídeo (com as thumbnails), move vídeos (`presence::move_folder`), modos de exibição, pastas escondidas e
   pastas da biblioteca (`folders::relocate`, mantendo id e ícone). Depois o loop atualiza as raízes (watcher) e compara a pasta nova
   (`read_new`), e o comando libera o asset scope do caminho novo. Thumbnails não dependem do caminho do vídeo.
+- Import (`import_library` → `LibrarySync::import`, em `sync/import.rs`): o comando só lê o arquivo
+  (`backup::read_file`); o loop o importa entre duas comparações, então nenhuma comparação usa a biblioteca antiga.
+  Só se o import der certo: esquece (`Processor::forget`) os jobs das pastas que saíram da biblioteca, aplica o
+  `watch_folders` importado, atualiza as raízes e compara todas as pastas acessíveis (`read_new`), como na abertura.
+  Depois o comando libera o asset scope das pastas importadas.
 - `reconcile.rs` compara o disco com o banco sob os caminhos pedidos:
   - restaura sumidos que voltaram e marca sumidos os que desapareceram;
   - grava o tamanho dos vídeos antigos;

@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
 use crate::db::videos::{self, NewVideo};
-use crate::db::{folders, hidden, presence, tags};
+use crate::db::{backup, folders, hidden, presence, tags};
 use crate::domain::folder_view::FolderViewMode;
 use crate::services::media::processing::tests::{FakeToolkit, Harness};
 
@@ -28,8 +28,12 @@ struct Fixture {
 impl Fixture {
     /// A library folder `Library` with the given files, known to the database, and a sync not started yet.
     async fn new(files: &[&str], enabled: bool) -> Self {
+        Self::with_toolkit(files, enabled, FakeToolkit::default()).await
+    }
+
+    async fn with_toolkit(files: &[&str], enabled: bool, toolkit: FakeToolkit) -> Self {
         let dir = tempfile::tempdir().unwrap();
-        let harness = Harness::new(FakeToolkit::default(), 2);
+        let harness = Harness::new(toolkit, 2);
         let library_changed = Arc::new(AtomicUsize::new(0));
         let notify: SyncNotifier = {
             let library_changed = Arc::clone(&library_changed);
@@ -121,6 +125,14 @@ impl Fixture {
         self.harness
             .db
             .call(move |connection| presence::is_missing(connection, &path))
+            .await
+            .unwrap()
+    }
+
+    async fn export(&self) -> LibraryFile {
+        self.harness
+            .db
+            .call(|connection| backup::export(connection))
             .await
             .unwrap()
     }
@@ -430,4 +442,101 @@ async fn a_located_folder_is_watched_and_compared_at_its_new_path() {
     // Watched at the new path like any library folder.
     fixture.write("Moved/Ep 4.mkv", b"another episode");
     assert_eq!(fixture.harness.outcomes(1).await[0].summary.processed, 1);
+}
+
+#[tokio::test]
+async fn an_import_applies_its_watching_setting_right_away() {
+    // Regression: the imported "Watch folders for changes" was stored, but watching only changed after a restart.
+    let fixture = Fixture::new(&[], true).await;
+    fixture.sync.start();
+    eventually("the folder is watched", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Watching)
+    })
+    .await;
+    let mut file = fixture.export().await;
+
+    for (watch_folders, expected) in [(false, FolderWatch::Off), (true, FolderWatch::Watching)] {
+        if let Some(settings) = file.settings.as_mut() {
+            settings.watch_folders = Some(watch_folders);
+        }
+        fixture.sync.import(file.clone()).await.unwrap();
+        assert_eq!(fixture.watch_of("Library"), Some(expected));
+    }
+}
+
+#[tokio::test]
+async fn an_import_compares_the_imported_folders_with_the_disk() {
+    let fixture = Fixture::new(&[], false).await;
+    fixture.store_legacy("Library/Kept.mkv").await;
+    fixture.store_legacy("Library/Gone.mkv").await;
+    let file = fixture.export().await;
+    fixture
+        .harness
+        .db
+        .call(|connection| Ok(connection.execute_batch("DELETE FROM video_tags; DELETE FROM videos;")?))
+        .await
+        .unwrap();
+    fixture.sync.start();
+    eventually("the startup comparison ran", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Off)
+    })
+    .await;
+    fixture.write("Library/Kept.mkv", b"kept");
+    fixture.write("Library/New.mkv", b"new");
+
+    let summary = fixture.sync.import(file).await.unwrap();
+
+    assert_eq!(summary.videos, 2);
+    assert_eq!(fixture.missing("Library/Kept.mkv").await, Some(false));
+    assert_eq!(fixture.missing("Library/Gone.mkv").await, Some(true));
+    let outcomes = fixture.harness.outcomes(1).await;
+    assert_eq!(outcomes[0].summary.processed, 1);
+}
+
+#[tokio::test]
+async fn an_import_stops_reading_the_folders_it_replaced() {
+    let fixture = Fixture::with_toolkit(
+        &["Library/Ep 1.mkv", "Library/Ep 2.mkv", "Library/Ep 3.mkv"],
+        false,
+        FakeToolkit::slow(Duration::from_millis(200)),
+    )
+    .await;
+    let mut file = fixture.export().await;
+    std::fs::create_dir_all(fixture.path("Other")).unwrap();
+    file.library_folders[0].path = fixture.text("Other");
+    fixture.sync.start();
+    eventually("the folder is being read", || async {
+        !fixture.harness.toolkit().probed.lock().unwrap().is_empty()
+    })
+    .await;
+
+    fixture.sync.import(file).await.unwrap();
+
+    let outcomes = fixture.harness.outcomes(1).await;
+    assert_eq!(outcomes[0].folder, fixture.text("Library"));
+    assert!(outcomes[0].cancelled && outcomes[0].removed);
+    assert!(fixture.harness.stored().await.is_empty());
+}
+
+#[tokio::test]
+async fn a_refused_import_keeps_reading_the_current_folders() {
+    let fixture = Fixture::with_toolkit(
+        &["Library/Ep 1.mkv"],
+        false,
+        FakeToolkit::slow(Duration::from_millis(100)),
+    )
+    .await;
+    let mut file = fixture.export().await;
+    file.library_folders.push(file.library_folders[0].clone());
+    fixture.sync.start();
+    eventually("the folder is being read", || async {
+        !fixture.harness.toolkit().probed.lock().unwrap().is_empty()
+    })
+    .await;
+
+    assert!(fixture.sync.import(file).await.is_err());
+
+    let outcomes = fixture.harness.outcomes(1).await;
+    assert!(!outcomes[0].cancelled);
+    assert_eq!(outcomes[0].summary.processed, 1);
 }

@@ -201,6 +201,8 @@ src/
   - as pastas em verificação periódica;
   - os pedidos de `process_folders`, que compara a pasta antes de enfileirar os vídeos novos;
   - as realocações (`relocate_library_folder` → `LibrarySync::relocate`), aplicadas entre duas comparações.
+  - os imports (`import_library` → `LibrarySync::import`), que aplicam o `watch_folders` do arquivo e comparam
+    todas as pastas em seguida.
 - Um arquivo novo assume um vídeo que desapareceu ou está sumido quando tem o mesmo tamanho e a mesma impressão
   digital (`identity.rs`: xxh3 do tamanho, dos primeiros e dos últimos 64 KiB). Para vídeo ainda sem impressão
   digital, valem mesmo tamanho e mesmo nome de arquivo. O par só vale se for único nos dois sentidos: cópias

@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use crate::db::Db;
 use crate::db::backup::{self, LibraryFile};
-use crate::domain::models::ImportSummary;
 use crate::error::{AppError, AppResult};
 
 pub async fn export_to_file(db: &Db, destination: PathBuf) -> AppResult<()> {
@@ -13,14 +12,15 @@ pub async fn export_to_file(db: &Db, destination: PathBuf) -> AppResult<()> {
         .map_err(|error| AppError::io(&destination, error))
 }
 
-/// Replaces the library with the contents of a version 2 or legacy export.
-pub async fn import_from_file(db: &Db, source: PathBuf) -> AppResult<ImportSummary> {
+/// Reads a version 2 or legacy export. The library sync imports it (`LibrarySync::import`), so no comparison runs
+/// against the replaced library.
+pub async fn read_file(source: PathBuf) -> AppResult<LibraryFile> {
     let bytes = tokio::fs::read(&source)
         .await
         .map_err(|error| AppError::io(&source, error))?;
     let file: LibraryFile =
         serde_json::from_slice(&bytes).map_err(|error| AppError::ImportFormat(error.to_string()))?;
-    db.call(move |connection| backup::import(connection, &file)).await
+    Ok(file)
 }
 
 #[cfg(test)]
@@ -37,8 +37,8 @@ mod tests {
             .unwrap();
 
         export_to_file(&db, file.clone()).await.unwrap();
-        let summary = import_from_file(&Db::open_in_memory().unwrap(), file).await.unwrap();
-        assert_eq!(summary.folders, 1);
+        let read = read_file(file).await.unwrap();
+        assert_eq!(read, db.call(|connection| backup::export(connection)).await.unwrap());
     }
 
     #[tokio::test]
@@ -46,7 +46,6 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("broken.json");
         std::fs::write(&file, b"{ not json").unwrap();
-        let result = import_from_file(&Db::open_in_memory().unwrap(), file).await;
-        assert!(matches!(result, Err(AppError::ImportFormat(_))));
+        assert!(matches!(read_file(file).await, Err(AppError::ImportFormat(_))));
     }
 }

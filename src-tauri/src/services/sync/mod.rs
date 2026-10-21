@@ -2,7 +2,8 @@
 //!
 //! A single loop handles everything in order, so two comparisons never race: the comparison of every reachable
 //! library folder at startup, the changes reported by the watcher, folders that came back online, folders checked
-//! periodically because they cannot be watched, "Sync folder" requests and library folders located at a new path.
+//! periodically because they cannot be watched, "Sync folder" requests, library folders located at a new path and
+//! imported library files.
 //! New files go to the processing pipeline;
 //! renames and moves keep the video's record; vanished files are marked missing, and those missing for 30 days are
 //! deleted at startup. Once the startup work is done, videos stored before 2.3 are fingerprinted one by one whenever
@@ -11,6 +12,7 @@
 mod disk;
 mod follow;
 pub mod identity;
+mod import;
 mod reconcile;
 mod relocate;
 mod roots;
@@ -29,7 +31,8 @@ use tokio::sync::{mpsc, oneshot};
 
 use self::watch::{Change, Watcher};
 use crate::db::Db;
-use crate::domain::models::{FolderWatch, LibraryFolderStatus};
+use crate::db::backup::LibraryFile;
+use crate::domain::models::{FolderWatch, ImportSummary, LibraryFolderStatus};
 use crate::domain::relocation::RelocationResult;
 use crate::error::{AppError, AppResult};
 use crate::services::media::MediaToolkit;
@@ -95,6 +98,11 @@ enum Request {
         from: String,
         to: String,
         done: oneshot::Sender<AppResult<RelocationResult>>,
+    },
+    /// Replace the library with a file's contents, then compare every folder with the disk, and say how it went.
+    Import {
+        file: Box<LibraryFile>,
+        done: oneshot::Sender<AppResult<ImportSummary>>,
     },
 }
 
@@ -212,6 +220,22 @@ impl<T: MediaToolkit + 'static> LibrarySync<T> {
             .map_err(|_| AppError::Internal("the library sync stopped".to_owned()))?
     }
 
+    /// Replaces the library with `file` (see `db::backup::import`) between two comparisons, then applies its
+    /// watching setting and compares every folder with the disk. Reading the replaced folders stops.
+    pub async fn import(&self, file: LibraryFile) -> AppResult<ImportSummary> {
+        let (done, finished) = oneshot::channel();
+        self.inner
+            .requests
+            .send(Request::Import {
+                file: Box::new(file),
+                done,
+            })
+            .map_err(|_| AppError::Internal("the library sync is not running".to_owned()))?;
+        finished
+            .await
+            .map_err(|_| AppError::Internal("the library sync stopped".to_owned()))?
+    }
+
     /// How each library folder is kept in step, once the loop started.
     pub fn statuses(&self) -> Vec<LibraryFolderStatus> {
         self.inner
@@ -270,6 +294,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         let mut refresh = false;
         let mut reconcile_requests = Vec::new();
         let mut relocations = Vec::new();
+        let mut imports = Vec::new();
         for request in batch {
             match request {
                 Request::Changes(more) => changes.extend(more),
@@ -279,7 +304,11 @@ impl<T: MediaToolkit + 'static> Inner<T> {
                 Request::Refresh => refresh = true,
                 Request::Reconcile { paths, done } => reconcile_requests.push((paths, done)),
                 Request::Relocate { from, to, done } => relocations.push((from, to, done)),
+                Request::Import { file, done } => imports.push((file, done)),
             }
+        }
+        for (file, done) in imports {
+            let _ = done.send(self.import(*file).await);
         }
         for (from, to, done) in relocations {
             let _ = done.send(self.relocate(from, to).await);
