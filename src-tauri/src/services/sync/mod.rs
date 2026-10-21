@@ -91,7 +91,7 @@ enum Request {
     /// Compare these paths now, without reading new files (the caller does), and say how it went.
     Reconcile {
         paths: Vec<PathBuf>,
-        done: oneshot::Sender<AppResult<()>>,
+        done: oneshot::Sender<AppResult<Vec<PathBuf>>>,
     },
     /// Point the library folder `from` at `to`, then compare it with the disk, and say how it went.
     Relocate {
@@ -199,10 +199,10 @@ impl<T: MediaToolkit + 'static> LibrarySync<T> {
         self.refresh();
     }
 
-    /// Compares `paths` with the disk now (renamed, moved and vanished files), waiting for any work in progress.
-    /// New files are left to the caller, who must not read them when this fails: renamed or moved files would be
-    /// taken for new ones.
-    pub async fn reconcile_now(&self, paths: Vec<PathBuf>) -> AppResult<()> {
+    /// Compares `paths` with the disk now (renamed, moved and vanished files), waiting for any work in progress, and
+    /// returns the new files the caller can read. Files still being copied are left out: the sync reads them once
+    /// they settle. When this fails nothing may be read, since renamed or moved files would be taken for new ones.
+    pub async fn reconcile_now(&self, paths: Vec<PathBuf>) -> AppResult<Vec<PathBuf>> {
         let (done, finished) = oneshot::channel();
         self.inner
             .requests
@@ -269,7 +269,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
     async fn run(self: Arc<Self>, mut receiver: mpsc::UnboundedReceiver<Request>) {
         tokio::time::sleep(self.timing.start_delay).await;
         let reachable = self.refresh_roots().await;
-        self.compare(reachable, true).await;
+        self.compare(reachable).await;
         self.delete_old_missing().await;
         let backfill = Arc::clone(&self);
         tokio::spawn(async move {
@@ -329,10 +329,16 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         }
         if !changes.is_empty() {
             let paths = self.follow_renames(changes).await;
-            self.compare(paths, true).await;
+            self.compare(paths).await;
         }
         for (paths, done) in reconcile_requests {
-            let _ = done.send(self.try_compare(paths, false).await);
+            let reconciled = self.compare_only(paths).await.map(|reconciled| {
+                if reconciled.changed {
+                    (self.notify)(SyncNotification::LibraryChanged);
+                }
+                reconciled.new_files
+            });
+            let _ = done.send(reconciled);
         }
     }
 }

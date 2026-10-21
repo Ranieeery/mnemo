@@ -19,7 +19,7 @@ pub struct ProcessingSummary {
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingJob {
     pub folder: String,
-    /// Still listing the folder's files; `total` is not known yet.
+    /// Still checking which of its files are new; `total` is not known yet.
     pub scanning: bool,
     /// New videos to read.
     pub total: i64,

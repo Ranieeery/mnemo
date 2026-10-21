@@ -123,15 +123,16 @@ impl Harness {
         .unwrap()
     }
 
-    /// Adds `folder` to the library, as the app always does before reading one, and asks to read it. Returns the
-    /// id of the job reading it.
+    /// Adds `folder` to the library, as the app always does before reading one, and asks to read every video in it,
+    /// as the library sync would after comparing it. Returns the id of the job reading it.
     pub async fn enqueue(&self, folder: PathBuf, priority: Priority, report: bool) -> u64 {
         let path = folder.to_string_lossy().into_owned();
         self.db
             .call(move |connection| crate::db::folders::add(connection, &path))
             .await
             .unwrap();
-        self.processor.enqueue(folder, priority, report)
+        let files = crate::services::scanner::walk_videos(&folder, |_| false, |_, _| Ok(())).unwrap();
+        self.processor.enqueue(folder, files, priority, report)
     }
 
     pub fn toolkit(&self) -> &FakeToolkit {
@@ -357,12 +358,17 @@ async fn serves_normal_jobs_before_low_priority_ones() {
 }
 
 #[tokio::test]
-async fn a_folder_that_cannot_be_read_ends_with_its_error() {
+async fn a_folder_without_new_files_still_ends_its_job() {
+    // "Sync all" waits for the end of every job it asked for, new files or not.
+    let dir = library(&[]);
     let harness = Harness::new(FakeToolkit::default(), 1);
-    let missing = tempfile::tempdir().unwrap().path().join("gone");
-    harness.enqueue(missing, Priority::Normal, false).await;
+    let job = harness
+        .processor
+        .enqueue(dir.path().to_path_buf(), Vec::new(), Priority::Normal, true);
     let outcome = harness.outcomes(1).await.remove(0);
-    assert!(outcome.error.is_some());
+    assert_eq!(outcome.job, job);
+    assert_eq!(outcome.summary, ProcessingSummary::default());
+    assert!(outcome.error.is_none());
 }
 
 #[tokio::test]
@@ -456,7 +462,7 @@ async fn stored_videos_carry_their_file_identity() {
 
 #[tokio::test]
 async fn new_files_of_a_folder_being_read_join_its_job() {
-    // Regression: a folder already queued added nothing, so a file that appeared after the job listed the folder
+    // Regression: a folder already queued added nothing, so a file that appeared after the job started
     // waited for the next comparison.
     let dir = library(&names(2));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 1);
@@ -473,7 +479,7 @@ async fn new_files_of_a_folder_being_read_join_its_job() {
     std::fs::write(&late, b"late").unwrap();
     harness
         .processor
-        .enqueue_files(dir.path().to_path_buf(), vec![late], Priority::Normal);
+        .enqueue(dir.path().to_path_buf(), vec![late], Priority::Normal, false);
 
     let outcome = harness.outcomes(1).await.remove(0);
     assert_eq!(outcome.summary.processed, 3);

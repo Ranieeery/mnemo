@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter};
 
@@ -96,6 +98,19 @@ pub fn get(connection: &Connection, id: i64) -> AppResult<Video> {
 pub fn find_by_path(connection: &Connection, file_path: &str) -> AppResult<Option<Video>> {
     let sql = format!("SELECT {COLUMNS} FROM videos v WHERE v.file_path = ?1");
     Ok(connection.query_row(&sql, [file_path], map_row).optional()?)
+}
+
+/// How many of `paths` are stored videos, and the others.
+pub fn split_stored(connection: &Connection, paths: Vec<PathBuf>) -> AppResult<(usize, Vec<PathBuf>)> {
+    let mut statement = connection.prepare_cached("SELECT 1 FROM videos WHERE file_path = ?1")?;
+    let total = paths.len();
+    let mut new = Vec::new();
+    for path in paths {
+        if !statement.exists([path.to_string_lossy()])? {
+            new.push(path);
+        }
+    }
+    Ok((total - new.len(), new))
 }
 
 pub struct NewVideo<'a> {

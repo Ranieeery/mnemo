@@ -12,8 +12,9 @@ dos dados) estão no `CLAUDE.md`.
   conta; sem outro stream de vídeo, o arquivo é recusado. A thumbnail é gravada com `-update 1`, porque o nome vem do
   vídeo e um `%d` nele seria lido como padrão de sequência.
 - Pipeline (`services/media/processing`): serviço de longa duração no `AppState`. Cada pasta pedida
-  (`process_folders`, que compara a pasta e retorna sem esperar a leitura) vira um job; pedir uma pasta já na fila, ou
-  dentro de uma, não cria job, e um arquivo reivindicado por um job nunca é lido por outro. O comando devolve o id do
+  (`process_folders`, que compara a pasta e retorna sem esperar a leitura) vira um job com os arquivos novos que a
+  comparação achou; o job nunca lista a pasta. Pedir uma pasta já na fila, ou dentro de uma, não cria job (os arquivos
+  entram no existente), e um arquivo reivindicado por um job nunca é lido por outro. O comando devolve o id do
   job de cada pasta (o existente, quando ela já está na fila), e o evento do fim do job traz o mesmo id: é assim que
   o "Sync all" espera os seus jobs, e não um mais antigo da mesma pasta que termine no meio. Um pool fixo de workers lê no máximo
   `processing_concurrency` arquivos por vez (metade dos núcleos, de 1 a 4) e um único escritor grava em lote
@@ -51,10 +52,11 @@ dos dados) estão no `CLAUDE.md`.
     caiu) conta como ilegível, nunca como apagado;
   - um arquivo novo que pode ser um vídeo renomeado ou movido, mas não pode ser lido para a impressão digital, é
     adiado como os que ainda estão em cópia, em vez de virar vídeo novo;
-  - os vídeos novos vão ao pipeline arquivo por arquivo (`Processor::enqueue_files`): o job não lista a pasta, então
-    um arquivo ainda em cópia ao lado deles espera a sua vez. Se a pasta já tem um job, os arquivos entram nele.
-- `process_folders` ("Sync") falha sem enfileirar nada se a comparação falhar: arquivos renomeados ou movidos seriam
-  lidos como novos.
+  - os vídeos novos vão ao pipeline arquivo por arquivo (`Processor::enqueue`): o job não lista a pasta, então um
+    arquivo ainda em cópia ao lado deles espera a sua vez. Se a pasta já tem um job, os arquivos entram nele.
+- `process_folders` ("Sync") enfileira só os arquivos novos que a comparação devolve (`reconcile_now`): os que ainda
+  estão em cópia ficam para o próprio sync, quando estabilizarem. Falha sem enfileirar nada se a comparação falhar:
+  arquivos renomeados ou movidos seriam lidos como novos.
 - O pipeline grava tamanho e impressão digital dos vídeos novos. Os vídeos antigos recebem os dois depois da
   comparação inicial, um arquivo por vez e só com o pipeline ocioso.
 - Watcher (`watch.rs`):

@@ -21,7 +21,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         if !due.contains(&PathBuf::from(&to)) {
             due.push(PathBuf::from(&to));
         }
-        self.compare(due, true).await;
+        self.compare(due).await;
         relocation::summary(&self.db, to).await
     }
 }

@@ -4,6 +4,7 @@ use tauri::State;
 
 use crate::db::folders;
 use crate::domain::models::{MediaToolsStatus, MediaTracks, ProcessingStatus, SubtitleFile, Video};
+use crate::domain::paths::is_within;
 use crate::error::AppResult;
 use crate::services::library::ensure_in_library;
 use crate::services::media::processing::Priority;
@@ -18,9 +19,9 @@ pub async fn media_tools_status() -> MediaToolsStatus {
 
 /// Brings each folder up to date with the disk (renamed, moved and vanished files), then queues its new videos to be
 /// read in the background. Progress and the end of each job arrive as events; `report` asks for the job's summary to
-/// be shown. Folders already queued (or inside one) add nothing. Returns the ids of the jobs reading the folders,
-/// matching the events of their ends. Fails, queuing nothing, if any folder is outside the library or the comparison
-/// fails.
+/// be shown. Files still being copied are read by the sync once they settle. A folder already queued (or inside one)
+/// adds its new files to that job. Returns the ids of the jobs reading the folders, matching the events of their ends.
+/// Fails, queuing nothing, if any folder is outside the library or the comparison fails.
 #[tauri::command]
 #[specta::specta]
 pub async fn process_folders(state: State<'_, AppState>, paths: Vec<String>, report: bool) -> AppResult<Vec<u64>> {
@@ -29,10 +30,17 @@ pub async fn process_folders(state: State<'_, AppState>, paths: Vec<String>, rep
         ensure_in_library(Path::new(path), &library)?;
     }
     let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-    state.sync.reconcile_now(paths.clone()).await?;
+    let new_files = state.sync.reconcile_now(paths.clone()).await?;
     let mut jobs: Vec<u64> = paths
         .into_iter()
-        .map(|path| state.processor.enqueue(path, Priority::Normal, report))
+        .map(|path| {
+            let files = new_files
+                .iter()
+                .filter(|file| is_within(file, &path))
+                .cloned()
+                .collect();
+            state.processor.enqueue(path, files, Priority::Normal, report)
+        })
         .collect();
     jobs.sort_unstable();
     jobs.dedup();

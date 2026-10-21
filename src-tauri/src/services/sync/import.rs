@@ -29,7 +29,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         // Every imported folder is compared like at startup: files renamed or moved since the export keep their
         // videos, and new files are read.
         let reachable = self.reachable_roots().into_iter().map(PathBuf::from).collect();
-        self.compare(reachable, true).await;
+        self.compare(reachable).await;
         (self.notify)(SyncNotification::LibraryChanged);
         Ok(summary)
     }

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::disk::{outermost, root_of};
-use super::reconcile::reconcile;
+use super::reconcile::{Reconciled, reconcile};
 use super::watch::Change;
 use super::{Inner, Request, SyncNotification};
 use crate::db::{folders, hidden, presence};
@@ -73,47 +73,46 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         paths
     }
 
-    /// Compares `paths` with the disk, logging a failure (see [`Self::try_compare`]).
-    pub(super) async fn compare(&self, paths: Vec<PathBuf>, read_new: bool) {
-        if let Err(error) = self.try_compare(paths, read_new).await {
-            tracing::warn!(%error, "failed to compare library folders with the disk");
+    /// Compares `paths` with the disk and sends the new files to the pipeline, logging a failure. The app is told the
+    /// library changed: new files show in their folders before they are read.
+    pub(super) async fn compare(&self, paths: Vec<PathBuf>) {
+        if paths.is_empty() {
+            return;
+        }
+        match self.compare_only(paths).await {
+            Ok(reconciled) => {
+                let new_files = reconciled.new_files;
+                let parents = new_files.iter().filter_map(|file| file.parent().map(Path::to_path_buf));
+                for folder in outermost(parents.collect()) {
+                    let files = new_files
+                        .iter()
+                        .filter(|file| is_within(file, &folder))
+                        .cloned()
+                        .collect();
+                    self.processor.enqueue(folder, files, Priority::Normal, false);
+                }
+                (self.notify)(SyncNotification::LibraryChanged);
+            }
+            Err(error) => tracing::warn!(%error, "failed to compare library folders with the disk"),
         }
     }
 
-    /// Compares `paths` with the disk. With `read_new`, new files go to the pipeline (once they stopped growing)
-    /// and the app is told the library changed.
-    pub(super) async fn try_compare(&self, paths: Vec<PathBuf>, read_new: bool) -> AppResult<()> {
+    /// Compares `paths` with the disk; the new files it returns can be read now. Files still being written are
+    /// looked at again later by the sync itself: read now, they would be stored half copied.
+    pub(super) async fn compare_only(&self, paths: Vec<PathBuf>) -> AppResult<Reconciled> {
         if paths.is_empty() {
-            return Ok(());
+            return Ok(Reconciled::default());
         }
-        let reconciled = reconcile(&self.db, paths, self.timing.settle).await?;
-        if !reconciled.deferred.is_empty() {
+        let mut reconciled = reconcile(&self.db, paths, self.timing.settle).await?;
+        let deferred = std::mem::take(&mut reconciled.deferred);
+        if !deferred.is_empty() {
             let requests = self.requests.clone();
             let retry_delay = self.timing.retry_delay;
-            let deferred = reconciled.deferred;
             tokio::spawn(async move {
                 tokio::time::sleep(retry_delay).await;
                 let _ = requests.send(Request::Changes(deferred.into_iter().map(Change::Touched).collect()));
             });
         }
-        if read_new {
-            let parents = reconciled
-                .new_files
-                .iter()
-                .filter_map(|file| file.parent().map(Path::to_path_buf));
-            for folder in outermost(parents.collect()) {
-                let files = reconciled
-                    .new_files
-                    .iter()
-                    .filter(|file| is_within(file, &folder))
-                    .cloned()
-                    .collect();
-                self.processor.enqueue_files(folder, files, Priority::Normal);
-            }
-            (self.notify)(SyncNotification::LibraryChanged);
-        } else if reconciled.changed {
-            (self.notify)(SyncNotification::LibraryChanged);
-        }
-        Ok(())
+        Ok(reconciled)
     }
 }

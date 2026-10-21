@@ -8,6 +8,7 @@ use super::*;
 use crate::db::videos::{self, NewVideo};
 use crate::db::{backup, folders, hidden, presence, tags};
 use crate::domain::folder_view::FolderViewMode;
+use crate::services::media::processing::Priority;
 use crate::services::media::processing::tests::{FakeToolkit, Harness};
 
 const TEST_TIMING: Timing = Timing {
@@ -127,6 +128,22 @@ impl Fixture {
         self.harness
             .db
             .call(move |connection| presence::is_missing(connection, &path))
+            .await
+            .unwrap()
+    }
+
+    /// The stored size of the video at `path`: `None` when it is not stored.
+    async fn file_size(&self, path: &str) -> Option<Option<i64>> {
+        let path = path.to_owned();
+        self.harness
+            .db
+            .call(move |connection| {
+                Ok(connection
+                    .query_row("SELECT file_size FROM videos WHERE file_path = ?1", [&path], |row| {
+                        row.get(0)
+                    })
+                    .optional()?)
+            })
             .await
             .unwrap()
     }
@@ -675,20 +692,52 @@ async fn a_new_file_is_read_without_its_siblings_still_being_copied() {
     let big = fixture.text("Library/Show/Extras/Big.mkv");
     let complete = std::fs::metadata(&big).unwrap().len() as i64;
     eventually("the copied file is read once complete", || async {
-        let big = big.clone();
-        let stored: Option<Option<i64>> = fixture
-            .harness
-            .db
-            .call(move |connection| {
-                Ok(connection
-                    .query_row("SELECT file_size FROM videos WHERE file_path = ?1", [&big], |row| {
-                        row.get(0)
-                    })
-                    .optional()?)
-            })
-            .await
-            .unwrap();
-        stored == Some(Some(complete))
+        fixture.file_size(&big).await == Some(Some(complete))
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn a_sync_leaves_files_still_being_copied_for_later() {
+    // Regression: "Sync" read the whole folder again after comparing it, including a file the comparison had left for
+    // later because it was still being copied, and stored it half copied.
+    let fixture = Fixture::new(&[], false).await;
+    fixture.sync.start();
+    eventually("the folder is listed", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Off)
+    })
+    .await;
+    let copying = fixture.path("Library/Big.mkv");
+    fixture.write("Library/Big.mkv", b"start");
+    let copy = tokio::spawn(async move {
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            let mut file = std::fs::OpenOptions::new().append(true).open(&copying).unwrap();
+            std::io::Write::write_all(&mut file, b"more").unwrap();
+        }
+    });
+    fixture.write("Library/Ep 1.mkv", b"new episode");
+
+    // What `process_folders` does.
+    let library = fixture.path("Library");
+    let new_files = fixture.sync.reconcile_now(vec![library.clone()]).await.unwrap();
+    assert_eq!(new_files, [fixture.path("Library/Ep 1.mkv")]);
+    fixture
+        .harness
+        .processor
+        .enqueue(library, new_files, Priority::Normal, true);
+    eventually("the new file is read", || async {
+        fixture.missing("Library/Ep 1.mkv").await == Some(false)
+    })
+    .await;
+    assert!(!copy.is_finished(), "the copy should still be going");
+    assert_eq!(*fixture.harness.toolkit().probed.lock().unwrap(), ["Ep 1.mkv"]);
+
+    copy.await.unwrap();
+    let big = fixture.text("Library/Big.mkv");
+    let complete = std::fs::metadata(&big).unwrap().len() as i64;
+    eventually("the copied file is read once complete", || async {
+        fixture.file_size(&big).await == Some(Some(complete))
     })
     .await;
 }

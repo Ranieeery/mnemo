@@ -1,10 +1,11 @@
 //! Background processing: reads the metadata and a thumbnail of every new video below the requested folders.
 //!
-//! Each requested folder is a job; asking for a folder that is already queued (or inside one) adds nothing. The new
-//! files of all jobs are read by a fixed pool of workers, at most `concurrency` at once, and a file claimed by one job
-//! is never read by another. Workers never touch the database: a single writer stores their results in batches.
-//! Cancelling a job kills the ffmpeg processes it is running and drops its queued files. Nothing is stored halfway,
-//! so a cancelled or interrupted job is resumed by asking for the folder again: what was stored is skipped.
+//! Each requested folder is a job, given the new files the library sync found there; asking for a folder that is
+//! already queued (or inside one) adds its files to that job. The files of all jobs are read by a fixed pool of
+//! workers, at most `concurrency` at once, and a file claimed by one job is never read by another. Workers never
+//! touch the database: a single writer stores their results in batches. Cancelling a job kills the ffmpeg processes
+//! it is running and drops its queued files. Nothing is stored halfway, so a cancelled or interrupted job is resumed
+//! by asking for the folder again: what was stored is skipped.
 
 mod jobs;
 mod scan;
@@ -166,21 +167,11 @@ impl<T: MediaToolkit + 'static> Processor<T> {
         }
     }
 
-    /// Queues the new videos below `folder` and returns the id of the job that reads them. Nothing is added when the
-    /// folder is already queued, alone or inside another queued folder; `report` then carries over to that job, whose
-    /// id is returned. Must be called inside the async runtime.
-    pub fn enqueue(&self, folder: PathBuf, priority: Priority, report: bool) -> u64 {
-        self.enqueue_job(folder, None, priority, report)
-    }
-
-    /// Queues `files` (new videos inside `folder`) without listing the folder: the library sync found them and saw
-    /// them settle, while files still being copied next to them wait for their own turn. When the folder is already
-    /// queued, the files join that job.
-    pub fn enqueue_files(&self, folder: PathBuf, files: Vec<PathBuf>, priority: Priority) {
-        self.enqueue_job(folder, Some(files), priority, false);
-    }
-
-    fn enqueue_job(&self, folder: PathBuf, files: Option<Vec<PathBuf>>, priority: Priority, report: bool) -> u64 {
+    /// Queues `files` (new videos inside `folder`) and returns the id of the job that reads them. The folder is not
+    /// listed: the library sync found the files and saw them settle, while files still being copied next to them wait
+    /// for their own turn. When the folder is already queued, alone or inside another queued folder, the files join
+    /// that job, `report` carries over to it and its id is returned. Must be called inside the async runtime.
+    pub fn enqueue(&self, folder: PathBuf, files: Vec<PathBuf>, priority: Priority, report: bool) -> u64 {
         self.start();
         let job_id = {
             let mut state = self.inner.lock();
@@ -190,8 +181,8 @@ impl<T: MediaToolkit + 'static> Processor<T> {
                 .find(|job| !job.cancel.is_cancelled() && is_within(&folder, Path::new(&job.folder)))
             {
                 job.report |= report;
-                // A job that listed its folder before these files appeared would never read them.
-                for file in files.into_iter().flatten() {
+                // The job already checked its own files, so it would never read these otherwise.
+                for file in files {
                     if claimed.insert(file.to_string_lossy().into_owned()) {
                         job.pending.push_back(file);
                         job.total += 1;
@@ -214,7 +205,7 @@ impl<T: MediaToolkit + 'static> Processor<T> {
         };
         self.inner.status_changed.notify_one();
         let inner = Arc::clone(&self.inner);
-        tokio::spawn(async move { inner.scan(job_id, folder, files).await });
+        tokio::spawn(async move { inner.scan(job_id, files).await });
         job_id
     }
 

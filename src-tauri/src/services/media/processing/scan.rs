@@ -1,6 +1,5 @@
-//! A job's first step: listing the folder's videos and queueing the ones still to read.
+//! A job's first step: queueing the files that are neither stored nor claimed by another job.
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use super::{Inner, State, take_finished};
@@ -10,10 +9,9 @@ use crate::services::media::MediaToolkit;
 use crate::services::scanner;
 
 impl<T: MediaToolkit + 'static> Inner<T> {
-    /// Lists the folder's videos (or takes `files`, when given) and queues the ones neither stored nor claimed by
-    /// another job.
-    pub(super) async fn scan(&self, job_id: u64, folder: PathBuf, files: Option<Vec<PathBuf>>) {
-        let found = self.new_files(folder, files).await;
+    /// Queues the job's `files` that are neither stored nor claimed by another job.
+    pub(super) async fn scan(&self, job_id: u64, files: Vec<PathBuf>) {
+        let found = self.new_files(files).await;
         let finished = {
             let mut state = self.lock();
             let State { jobs, claimed, .. } = &mut *state;
@@ -41,28 +39,14 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         self.report(finished);
     }
 
-    /// The videos below `folder` (or `files`) that are not in the library yet, in natural order, and how many already
-    /// are.
-    async fn new_files(&self, folder: PathBuf, files: Option<Vec<PathBuf>>) -> AppResult<(Vec<PathBuf>, i64)> {
-        let mut files = match files {
-            Some(files) => files,
-            None => {
-                let root = folder.clone();
-                tokio::task::spawn_blocking(move || scanner::walk_videos(&root, |_| false, |_, _| Ok(()))).await??
-            }
-        };
+    /// The `files` that are not in the library yet (stored meanwhile by another job), in natural order, and how many
+    /// already are.
+    async fn new_files(&self, mut files: Vec<PathBuf>) -> AppResult<(Vec<PathBuf>, i64)> {
         scanner::sort_by_path(&mut files);
-        let folder_text = folder.to_string_lossy().into_owned();
-        let stored: HashSet<String> = self
+        let (stored, files) = self
             .db
-            .call(move |connection| videos::in_folder(connection, &folder_text, true))
-            .await?
-            .into_iter()
-            .map(|video| video.file_path)
-            .collect();
-        let total = files.len();
-        files.retain(|file| !stored.contains(file.to_string_lossy().as_ref()));
-        let already_stored = (total - files.len()) as i64;
-        Ok((files, already_stored))
+            .call(move |connection| videos::split_stored(connection, files))
+            .await?;
+        Ok((files, stored as i64))
     }
 }
