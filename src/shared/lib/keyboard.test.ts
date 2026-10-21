@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NAMED_SHORTCUT_KEYS } from "../ipc/bindings";
 import { comboFromEvent, comboLabel, comboParts, hasCommandModifier, isReservedCombo, isTextEntry } from "./keyboard";
 
 function press(key: string, modifiers: Partial<Record<"ctrlKey" | "altKey" | "shiftKey" | "metaKey", boolean>> = {}) {
@@ -14,6 +15,20 @@ describe("comboFromEvent", () => {
         expect(press("+")).toBe("Plus");
         expect(press("ArrowLeft")).toBe("ArrowLeft");
         expect(press("F5")).toBe("F5");
+    });
+
+    it("records every named key the backend accepts", () => {
+        for (const key of NAMED_SHORTCUT_KEYS.filter((name) => name !== "Space" && name !== "Plus")) {
+            expect(press(key)).toBe(key);
+            expect(press(key, { ctrlKey: true })).toBe(`Ctrl+${key}`);
+        }
+        expect(press("Enter", { shiftKey: true })).toBe("Shift+Enter");
+    });
+
+    it("keeps letters that grow when upper-cased, and Shift out of Plus", () => {
+        expect(press("ß")).toBe("ß");
+        expect(press("é")).toBe("É");
+        expect(press("+", { shiftKey: true })).toBe("Plus");
     });
 
     it("adds modifiers in a fixed order", () => {

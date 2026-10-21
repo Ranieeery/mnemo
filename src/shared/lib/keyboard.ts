@@ -1,4 +1,4 @@
-import { type KeyboardShortcuts, RESERVED_SHORTCUT_KEYS } from "../ipc/bindings";
+import { type KeyboardShortcuts, NAMED_SHORTCUT_KEYS, RESERVED_SHORTCUT_KEYS } from "../ipc/bindings";
 
 /**
  * Key combinations as the backend stores them: modifiers in a fixed order and a key, joined by "+"
@@ -8,24 +8,8 @@ import { type KeyboardShortcuts, RESERVED_SHORTCUT_KEYS } from "../ipc/bindings"
 /** The configured keys of every action, for reading (the generated defaults are read-only). */
 export type ShortcutKeys = { readonly [Action in keyof KeyboardShortcuts]: readonly string[] };
 
-/** Keys known by name, beyond single characters. Escape, Tab and Enter are recognized only to say they are reserved. */
-const NAMED_KEYS = new Set([
-    "ArrowLeft",
-    "ArrowRight",
-    "ArrowUp",
-    "ArrowDown",
-    "Backspace",
-    "Delete",
-    "Insert",
-    "Home",
-    "End",
-    "PageUp",
-    "PageDown",
-    "Escape",
-    "Tab",
-    "Enter",
-    ...Array.from({ length: 12 }, (_, index) => `F${index + 1}`),
-]);
+/** Keys known by name, beyond single characters: the same list the backend accepts. */
+const NAMED_KEYS: ReadonlySet<string> = new Set(NAMED_SHORTCUT_KEYS);
 
 type KeyLike = Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey"> & {
     isComposing?: boolean;

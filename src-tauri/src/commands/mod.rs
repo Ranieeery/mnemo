@@ -19,7 +19,7 @@ use crate::domain::models::PlayerPreferences;
 use crate::domain::player::{
     MAX_PLAYBACK_SPEED, MAX_UP_NEXT_WIDTH, MIN_PLAYBACK_SPEED, MIN_UP_NEXT_WIDTH, PLAYBACK_SPEED_STEP,
 };
-use crate::domain::shortcuts::{KeyboardShortcuts, MAX_KEYS_PER_SHORTCUT, RESERVED_SHORTCUT_KEYS};
+use crate::domain::shortcuts::{KeyboardShortcuts, MAX_KEYS_PER_SHORTCUT, NAMED_SHORTCUT_KEYS, RESERVED_SHORTCUT_KEYS};
 use crate::domain::subtitle_style::{
     MAX_SUBTITLE_POSITION, MAX_SUBTITLE_SIZE, MIN_SUBTITLE_SIZE, SUBTITLE_SIZE_STEP, SubtitleStyle,
 };
@@ -130,6 +130,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("DEFAULT_KEYBOARD_SHORTCUTS", KeyboardShortcuts::default())
         .constant("RESERVED_SHORTCUT_KEYS", RESERVED_SHORTCUT_KEYS)
         .constant("MAX_KEYS_PER_SHORTCUT", MAX_KEYS_PER_SHORTCUT)
+        .constant("NAMED_SHORTCUT_KEYS", NAMED_SHORTCUT_KEYS)
         .constant("DEFAULT_SUBTITLE_STYLE", SubtitleStyle::default())
         .constant("MIN_SUBTITLE_SIZE", MIN_SUBTITLE_SIZE)
         .constant("MAX_SUBTITLE_SIZE", MAX_SUBTITLE_SIZE)

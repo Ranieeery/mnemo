@@ -244,6 +244,8 @@ export const MIN_UP_NEXT_WIDTH = 240 as const;
 
 export const MIN_WATCHED_THRESHOLD = 0.5 as const;
 
+export const NAMED_SHORTCUT_KEYS = ["Space","Plus","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Backspace","Delete","Insert","Home","End","PageUp","PageDown","Escape","Tab","Enter","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"] as const;
+
 export const PLAYBACK_SPEED_STEP = 0.25 as const;
 
 export const RESERVED_SHORTCUT_KEYS = ["Escape","?","Tab","Shift+Tab","Enter"] as const;

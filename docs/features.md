@@ -238,8 +238,9 @@ teclado e mouse (ver `CLAUDE.md`).
 - `?` em qualquer tela (fora de campos de texto) ou o botão de teclado na barra superior e no player abre a ajuda com
   as teclas atuais; dela, "Customize in Settings" leva à aba.
 - Formato: modificadores na ordem `Ctrl+Alt+Shift+Meta` e a tecla do `KeyboardEvent.key` (segue o layout; letras em
-  maiúscula, `Space`, `Plus`; `Shift` só com teclas nomeadas). Padrões, teclas reservadas e validação em
-  `domain/shortcuts.rs`, expostos pelos bindings; `shared/lib/keyboard.ts` converte eventos e formata para exibição.
+  maiúscula, exceto as que crescem ao virar maiúscula, como `ß`; `Space`, `Plus`; `Shift` só com teclas nomeadas, e
+  não com `Plus`). Padrões, teclas nomeadas (inclusive `Escape`, `Tab` e `Enter`, que valem com modificadores),
+  teclas reservadas e validação em `domain/shortcuts.rs`, expostos pelos bindings; `shared/lib/keyboard.ts` converte eventos e formata para exibição.
   Valores salvos inválidos são reparados ação por ação. Os tooltips mostram a tecla configurada.
 
 ## Settings e manutenção

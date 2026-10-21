@@ -18,7 +18,9 @@ pub const MAX_KEYS_PER_SHORTCUT: usize = 2;
 
 const MODIFIERS: [&str; 4] = ["Ctrl", "Alt", "Shift", "Meta"];
 
-const NAMED_KEYS: [&str; 13] = [
+/// Keys known by name, beyond single characters. Escape, Tab and Enter are named so that combinations with them
+/// (`Ctrl+Enter`) can be assigned and the plain keys are refused as reserved rather than as malformed.
+pub const NAMED_SHORTCUT_KEYS: [&str; 28] = [
     "Space",
     "Plus",
     "ArrowLeft",
@@ -32,6 +34,21 @@ const NAMED_KEYS: [&str; 13] = [
     "End",
     "PageUp",
     "PageDown",
+    "Escape",
+    "Tab",
+    "Enter",
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12",
 ];
 
 /// The keys of every configurable action. Empty lists are allowed: the action simply has no key.
@@ -144,19 +161,23 @@ pub fn is_valid_binding(binding: &str) -> bool {
     }
     let mut characters = key.chars();
     let single_character = match (characters.next(), characters.next()) {
-        (Some(character), None) => !character.is_whitespace() && !character.is_lowercase() && character != '+',
+        (Some(character), None) => !character.is_whitespace() && character != '+' && is_upper_case_form(character),
         _ => false,
     };
-    let named = NAMED_KEYS.contains(key) || is_function_key(key);
-    // With a character, Shift is already part of it ("?" rather than "Shift+/").
-    let shift_with_character = single_character && modifiers.contains(&"Shift");
-    (single_character || named) && !shift_with_character
+    let named = NAMED_SHORTCUT_KEYS.contains(key);
+    // With a character, Shift is already part of it ("?" rather than "Shift+/"); "Plus" is the "+" character.
+    let character = single_character || *key == "Plus";
+    (single_character || named) && !(character && modifiers.contains(&"Shift"))
 }
 
-fn is_function_key(key: &str) -> bool {
-    key.strip_prefix('F')
-        .and_then(|number| number.parse::<u8>().ok())
-        .is_some_and(|number| (1..=12).contains(&number))
+/// Whether `character` is written as the frontend records it: upper case, unless upper-casing turns it into several
+/// characters ("ß" becomes "SS"), in which case it keeps its own form.
+fn is_upper_case_form(character: char) -> bool {
+    let mut upper = character.to_uppercase();
+    match (upper.next(), upper.next()) {
+        (Some(only), None) => only == character,
+        _ => true,
+    }
 }
 
 /// Checks shortcuts before they are stored: well-formed, not reserved, at most two per action and none used twice.
@@ -251,7 +272,10 @@ mod tests {
             "[",
             "Plus",
             "F5",
+            "F12",
             "7",
+            "É",
+            "Shift+Space",
         ] {
             assert!(is_valid_binding(binding), "{binding}");
         }
@@ -264,11 +288,44 @@ mod tests {
             "Ctrl+Ctrl+K",
             "Shift+?",
             "F13",
+            "F0",
+            "F01",
             "Spacebar",
             "+",
             " ",
+            "é",
+            // The frontend records Shift with "+" as plain "Plus", so this one could never fire.
+            "Shift+Plus",
         ] {
             assert!(!is_valid_binding(binding), "{binding:?}");
+        }
+    }
+
+    #[test]
+    fn accepts_what_the_frontend_records() {
+        // Combinations with the reserved named keys, and "ß", which upper-cases to "SS" and so keeps its own form.
+        let shortcuts = KeyboardShortcuts {
+            mute: keys(&["Ctrl+Enter", "Shift+Enter"]),
+            theater: keys(&["Ctrl+Tab", "Ctrl+Escape"]),
+            subtitles: keys(&["ß", "Ctrl+ß"]),
+            ..KeyboardShortcuts::default()
+        };
+        validate_shortcuts(&shortcuts).unwrap();
+        assert_eq!(repair_shortcuts(shortcuts.clone()), shortcuts);
+    }
+
+    #[test]
+    fn reserved_keys_are_well_formed_and_refused_as_reserved() {
+        for reserved in RESERVED_SHORTCUT_KEYS {
+            assert!(is_valid_binding(reserved), "{reserved}");
+            let shortcuts = KeyboardShortcuts {
+                mute: keys(&[reserved]),
+                ..KeyboardShortcuts::default()
+            };
+            let Err(AppError::InvalidInput(message)) = validate_shortcuts(&shortcuts) else {
+                panic!("{reserved} was accepted");
+            };
+            assert!(message.contains("reserved"), "{reserved}: {message}");
         }
     }
 
