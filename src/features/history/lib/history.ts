@@ -1,4 +1,5 @@
 import type { DailyWatchTotal, HistoryEntry } from "../../../shared/ipc/bindings";
+import { plural } from "../../../shared/lib/plural";
 
 /** The chart covers this many days, or this many weeks (Monday to Sunday). */
 export const CHART_DAYS = 14;
@@ -79,7 +80,7 @@ export function formatWatchTime(seconds: number): string {
     return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
-export type DayGroup = { day: string; entries: HistoryEntry[] };
+type DayGroup = { day: string; entries: HistoryEntry[] };
 
 /** Consecutive entries of the same day, in the order they came (newest first). */
 export function groupByDay(entries: readonly HistoryEntry[]): DayGroup[] {
@@ -110,7 +111,7 @@ function describe(name: string, videos: number, seconds: number): string {
     if (videos === 0) {
         return `${name}: nothing watched`;
     }
-    return `${name}: ${formatWatchTime(seconds)}, ${videos} ${videos === 1 ? "video" : "videos"}`;
+    return `${name}: ${formatWatchTime(seconds)}, ${plural(videos, "video")}`;
 }
 
 /** The last `CHART_DAYS` days up to today, oldest first, with empty days filled in. */

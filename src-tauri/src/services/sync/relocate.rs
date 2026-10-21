@@ -17,7 +17,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
 
         // The old path leaves the watched folders and the new one joins them, due for a comparison like any folder
         // that came back; folders due for other reasons are compared too, so none of them waits a turn.
-        let mut due: Vec<PathBuf> = self.refresh_roots().await.into_iter().map(PathBuf::from).collect();
+        let mut due = self.refresh_roots().await;
         if !due.contains(&PathBuf::from(&to)) {
             due.push(PathBuf::from(&to));
         }

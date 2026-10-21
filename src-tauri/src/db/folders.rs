@@ -12,6 +12,9 @@ use crate::domain::models::LibraryFolder;
 use crate::domain::paths::FolderBounds;
 use crate::error::{AppError, AppResult};
 
+/// The columns [`map_folder`] reads, in its order.
+const COLUMNS: &str = "id, path, custom_icon, created_at, icon_color, custom_name, group_id";
+
 fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
     let path: String = row.get(1)?;
     let folder_name = display_name(Path::new(&path));
@@ -33,10 +36,9 @@ fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
 
 /// The library folders, in the order they were added (see `layout` for the custom order).
 pub fn list(connection: &Connection) -> AppResult<Vec<LibraryFolder>> {
-    let mut statement = connection.prepare_cached(
-        "SELECT id, path, custom_icon, created_at, icon_color, custom_name, group_id FROM library_folders
-         ORDER BY created_at, id",
-    )?;
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT {COLUMNS} FROM library_folders ORDER BY created_at, id"
+    ))?;
     let folders = statement.query_map([], map_folder)?.collect::<Result<_, _>>()?;
     Ok(folders)
 }
@@ -48,12 +50,16 @@ pub fn paths(connection: &Connection) -> AppResult<Vec<String>> {
 pub fn find(connection: &Connection, path: &str) -> AppResult<Option<LibraryFolder>> {
     Ok(connection
         .query_row(
-            "SELECT id, path, custom_icon, created_at, icon_color, custom_name, group_id FROM library_folders
-             WHERE path = ?1",
+            &format!("SELECT {COLUMNS} FROM library_folders WHERE path = ?1"),
             [path],
             map_folder,
         )
         .optional()?)
+}
+
+/// Like [`find`], but a missing folder is an error.
+pub fn get(connection: &Connection, path: &str) -> AppResult<LibraryFolder> {
+    find(connection, path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))
 }
 
 /// Adds a library folder at the end of the list, without a group; adding an existing one returns it unchanged.
@@ -64,7 +70,7 @@ pub fn add(connection: &Connection, path: &str) -> AppResult<LibraryFolder> {
         ),
         [path],
     )?;
-    find(connection, path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))
+    get(connection, path)
 }
 
 /// Removes a library folder and closes the gap it leaves in the custom order.

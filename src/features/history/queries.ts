@@ -4,7 +4,7 @@ import { call } from "../../shared/ipc/client";
 import { queryKeys } from "../../shared/ipc/queryKeys";
 
 /** Entries per page of the watch history. */
-export const HISTORY_PAGE_SIZE = 50;
+const HISTORY_PAGE_SIZE = 50;
 
 const FIRST_PAGE: HistoryCursor | null = null;
 

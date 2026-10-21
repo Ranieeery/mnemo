@@ -101,6 +101,11 @@ pub fn root_of<'a>(path: &Path, library: &'a [String]) -> Option<&'a String> {
     library.iter().find(|root| is_within(path, Path::new(root)))
 }
 
+/// Whether `path` is inside a library folder that can be reached now. Can block on a sleeping or offline drive.
+pub fn root_is_reachable(path: &Path, library: &[String]) -> bool {
+    root_of(path, library).is_some_and(|root| Path::new(root).is_dir())
+}
+
 /// Drops the paths inside other paths of the list, and repeats.
 pub fn outermost(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
     paths.sort();

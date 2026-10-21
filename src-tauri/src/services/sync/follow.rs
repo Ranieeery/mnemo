@@ -8,7 +8,6 @@ use super::watch::Change;
 use super::{Inner, Request, SyncNotification};
 use crate::db::{folders, hidden, presence};
 use crate::domain::media::is_video_path;
-use crate::domain::models::FolderWatch;
 use crate::services::media::MediaToolkit;
 use crate::services::media::processing::Priority;
 
@@ -16,13 +15,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
     /// Applies the renames the watcher paired (so videos never fingerprinted keep their record too) and returns
     /// every path to compare.
     pub(super) async fn follow_renames(&self, changes: Vec<Change>) -> Vec<PathBuf> {
-        let reachable: Vec<PathBuf> = self
-            .lock()
-            .roots
-            .iter()
-            .filter(|(_, root)| root.watch != FolderWatch::Unavailable)
-            .map(|(path, _)| PathBuf::from(path))
-            .collect();
+        let reachable = self.reachable_roots();
         let mut paths = Vec::new();
         let mut renames = Vec::new();
         for change in changes {
@@ -32,7 +25,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
                     paths.extend([from, to]);
                 }
                 Change::Touched(path) | Change::Rescan(Some(path)) => paths.push(path),
-                Change::Rescan(None) => paths.extend(reachable.iter().cloned()),
+                Change::Rescan(None) => paths.extend(reachable.iter().map(PathBuf::from)),
             }
         }
         if !renames.is_empty() {

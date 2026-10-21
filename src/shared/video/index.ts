@@ -1,11 +1,5 @@
 export { entryTitle, toEntry, watchedFraction } from "./entry";
-export {
-    type FolderVisibility,
-    folderVisibility,
-    nearestHiddenFolder,
-    useFolderVisibility,
-    useSetFolderHidden,
-} from "./folderVisibility";
+export { folderVisibility, nearestHiddenFolder, useFolderVisibility, useSetFolderHidden } from "./folderVisibility";
 export { HiddenFolderMark, hiddenFolderLabel } from "./HiddenFolderMark";
 export { replaceVideo } from "./replaceVideo";
 export { SubtitleLine } from "./SubtitleLine";

@@ -1,7 +1,15 @@
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use crate::domain::models::{AudioTrack, MediaTracks, SubtitleTrack};
 use crate::error::{AppError, AppResult};
+
+fn parse_json<T: DeserializeOwned>(json: &[u8]) -> AppResult<T> {
+    serde_json::from_slice(json).map_err(|error| AppError::MediaProcessFailed {
+        tool: "ffprobe".into(),
+        message: format!("unexpected output: {error}"),
+    })
+}
 
 #[derive(Deserialize)]
 struct ProbeOutput {
@@ -23,10 +31,7 @@ struct ProbeFormat {
 /// Extracts the duration from `ffprobe -print_format json -show_format -show_streams` output. Files without a video
 /// stream are rejected; a missing or unparsable duration counts as unknown (0).
 pub fn parse_duration(json: &[u8]) -> AppResult<f64> {
-    let output: ProbeOutput = serde_json::from_slice(json).map_err(|error| AppError::MediaProcessFailed {
-        tool: "ffprobe".into(),
-        message: format!("unexpected output: {error}"),
-    })?;
+    let output: ProbeOutput = parse_json(json)?;
     if !output
         .streams
         .iter()
@@ -82,10 +87,7 @@ const TEXT_SUBTITLE_CODECS: &[&str] = &["subrip", "srt", "ass", "ssa", "webvtt",
 /// Lists the audio and subtitle streams from `ffprobe -print_format json -show_streams` output. Indexes count each
 /// kind separately, as ffmpeg's `0:a:N` and `0:s:N` stream specifiers do.
 pub fn parse_tracks(json: &[u8]) -> AppResult<MediaTracks> {
-    let output: TrackOutput = serde_json::from_slice(json).map_err(|error| AppError::MediaProcessFailed {
-        tool: "ffprobe".into(),
-        message: format!("unexpected output: {error}"),
-    })?;
+    let output: TrackOutput = parse_json(json)?;
     let mut tracks = MediaTracks {
         audio: Vec::new(),
         subtitles: Vec::new(),

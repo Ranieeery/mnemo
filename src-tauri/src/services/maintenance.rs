@@ -68,7 +68,7 @@ const UNUSED_THUMBNAIL_GRACE: Duration = Duration::from_secs(60 * 60);
 /// Deletes videos that belong to no library folder, with their thumbnails, and thumbnail files no video uses (left
 /// by an interrupted processing run). Returns how many videos were removed.
 pub async fn clean_orphaned_videos(db: &Db, thumbnails_dir: &Path) -> AppResult<i64> {
-    let removed = db
+    let (count, removed_thumbnails) = db
         .call(|connection| {
             let transaction = connection.transaction()?;
             let library_folders = folders::paths(&transaction)?;
@@ -78,7 +78,6 @@ pub async fn clean_orphaned_videos(db: &Db, thumbnails_dir: &Path) -> AppResult<
             Ok((count, removed_thumbnails))
         })
         .await?;
-    let (count, removed_thumbnails) = removed;
     let used: HashSet<String> = db
         .call(|connection| videos::thumbnail_paths(connection))
         .await?

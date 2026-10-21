@@ -27,7 +27,8 @@ pub(super) fn map_row(row: &Row) -> rusqlite::Result<Video> {
     })
 }
 
-/// Reads `is_watched` tolerating the text booleans the legacy SQL plugin could write while both frontends coexist.
+/// Reads `is_watched` tolerating text booleans: migrations turn the ones left by the legacy SQL plugin into integers,
+/// but a 1.x build opened on the same file afterwards can write them again.
 fn read_flag(value: Value) -> bool {
     match value {
         Value::Integer(number) => number != 0,
@@ -35,6 +36,27 @@ fn read_flag(value: Value) -> bool {
         Value::Text(text) => text == "1" || text.eq_ignore_ascii_case("true"),
         Value::Null | Value::Blob(_) => false,
     }
+}
+
+/// SQL condition (over `v.file_path`) that is true for videos inside any of the given folders, with its parameters
+/// (`?1` onwards).
+pub(super) fn inside_any(folders: &[String]) -> (String, Vec<String>) {
+    if folders.is_empty() {
+        return ("0".to_owned(), Vec::new());
+    }
+    let mut conditions = Vec::with_capacity(folders.len());
+    let mut values = Vec::with_capacity(folders.len() * 2);
+    for folder in folders {
+        let bounds = FolderBounds::new(folder);
+        conditions.push(format!(
+            "(v.file_path >= ?{} AND v.file_path < ?{})",
+            values.len() + 1,
+            values.len() + 2
+        ));
+        values.push(bounds.lower);
+        values.push(bounds.upper);
+    }
+    (format!("({})", conditions.join(" OR ")), values)
 }
 
 pub(super) fn query_videos(connection: &Connection, sql: &str, params: impl rusqlite::Params) -> AppResult<Vec<Video>> {
@@ -66,24 +88,28 @@ pub struct NewVideo<'a> {
     pub identity: Option<&'a FileIdentity>,
 }
 
+const INSERT: &str = "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, file_size, fingerprint,
+                                          is_watched, watch_progress_seconds)
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0)
+                      ON CONFLICT (file_path) DO NOTHING";
+
+/// Runs [`INSERT`] for one video; returns 0 when a video was already stored under its path.
+fn execute_insert(statement: &mut rusqlite::CachedStatement, video: &NewVideo) -> rusqlite::Result<usize> {
+    statement.execute(params![
+        video.file_path,
+        video.title,
+        video.duration_seconds.round(),
+        video.thumbnail_path,
+        video.identity.map(|identity| identity.size),
+        video.identity.map(|identity| identity.fingerprint.as_str()),
+    ])
+}
+
 /// Inserts a processed video. A video already stored under the same path is kept as is and returned. The pipeline
 /// stores videos with [`insert_batch`]; this one sets up test data.
 #[cfg(test)]
 pub fn insert(connection: &Connection, video: &NewVideo) -> AppResult<Video> {
-    connection.execute(
-        "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, file_size, fingerprint, is_watched,
-                             watch_progress_seconds)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0)
-         ON CONFLICT (file_path) DO NOTHING",
-        params![
-            video.file_path,
-            video.title,
-            video.duration_seconds.round(),
-            video.thumbnail_path,
-            video.identity.map(|identity| identity.size),
-            video.identity.map(|identity| identity.fingerprint.as_str()),
-        ],
-    )?;
+    execute_insert(&mut connection.prepare_cached(INSERT)?, video)?;
     find_by_path(connection, video.file_path)?.ok_or_else(|| AppError::NotFound(video.file_path.to_owned()))
 }
 
@@ -93,22 +119,9 @@ pub fn insert_batch(connection: &mut Connection, videos: &[NewVideo]) -> AppResu
     let transaction = connection.transaction()?;
     let mut inserted = Vec::with_capacity(videos.len());
     {
-        let mut statement = transaction.prepare_cached(
-            "INSERT INTO videos (file_path, title, duration_seconds, thumbnail_path, file_size, fingerprint, is_watched,
-                                 watch_progress_seconds)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0)
-             ON CONFLICT (file_path) DO NOTHING",
-        )?;
+        let mut statement = transaction.prepare_cached(INSERT)?;
         for video in videos {
-            let changed = statement.execute(params![
-                video.file_path,
-                video.title,
-                video.duration_seconds.round(),
-                video.thumbnail_path,
-                video.identity.map(|identity| identity.size),
-                video.identity.map(|identity| identity.fingerprint.as_str()),
-            ])?;
-            inserted.push(changed == 1);
+            inserted.push(execute_insert(&mut statement, video)? == 1);
         }
     }
     transaction.commit()?;
@@ -284,7 +297,7 @@ pub(crate) mod tests {
         .unwrap()
     }
 
-    fn paths(videos: &[Video]) -> Vec<String> {
+    pub fn paths(videos: &[Video]) -> Vec<String> {
         videos.iter().map(|video| video.file_path.clone()).collect()
     }
 

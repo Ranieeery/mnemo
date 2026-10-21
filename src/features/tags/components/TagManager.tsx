@@ -2,6 +2,7 @@ import { Eraser, Tags, Trash2, Unlink } from "lucide-react";
 import { useState } from "react";
 import type { TagWithUsage } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
+import { plural } from "../../../shared/lib/plural";
 import { Button, ConfirmDialog, EmptyState, ErrorState, IconButton, Skeleton } from "../../../shared/ui";
 import { useAllTags, useDeleteAllTags, useDeleteTag, useDeleteUnusedTags, useRemoveTagFromAllVideos } from "../queries";
 import { CreateTagForm } from "./CreateTagForm";
@@ -84,7 +85,7 @@ export function TagManager() {
                     <li key={tag.id} className="flex items-center gap-3 px-4 py-2">
                         <span className="min-w-0 flex-1 truncate text-body text-text">{tag.name}</span>
                         <span className="text-small text-text-muted tabular-nums">
-                            {tag.videoCount} {tag.videoCount === 1 ? "video" : "videos"}
+                            {plural(tag.videoCount, "video")}
                         </span>
                         <IconButton
                             label={`Remove "${tag.name}" from all videos`}

@@ -13,6 +13,21 @@ pub enum SubtitleFormat {
     Ass,
 }
 
+impl SubtitleFormat {
+    /// Every format, in the order subtitles are looked up next to a video.
+    pub const ALL: [Self; 4] = [Self::Srt, Self::Vtt, Self::Sub, Self::Ass];
+
+    /// File extension (lowercase, without the dot).
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Srt => "srt",
+            Self::Vtt => "vtt",
+            Self::Sub => "sub",
+            Self::Ass => "ass",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SubtitleFile {

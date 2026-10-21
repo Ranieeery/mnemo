@@ -5,9 +5,6 @@ pub const VIDEO_EXTENSIONS: &[&str] = &[
     "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg", "3gp", "ogv", "ts", "mts", "m2ts",
 ];
 
-/// Subtitle formats looked up next to a video, in priority order.
-pub const SUBTITLE_EXTENSIONS: &[&str] = &["srt", "vtt", "sub", "ass"];
-
 /// What recognizes a video file after a rename or move: its size and a hash of its head and tail
 /// (`services::sync::identity`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,13 +15,13 @@ pub struct FileIdentity {
 
 /// Returns whether the path has a known video extension (case-insensitive).
 pub fn is_video_path(path: &Path) -> bool {
-    has_extension_in(path, VIDEO_EXTENSIONS)
-}
-
-fn has_extension_in(path: &Path, extensions: &[&str]) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| extensions.iter().any(|known| known.eq_ignore_ascii_case(extension)))
+        .is_some_and(|extension| {
+            VIDEO_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(extension))
+        })
 }
 
 /// How many videos the pipeline reads at once: half the CPU cores, between 1 and 4. ffmpeg already uses several

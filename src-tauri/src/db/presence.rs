@@ -5,7 +5,7 @@
 use rusqlite::{Connection, params, params_from_iter};
 
 use super::hidden::VISIBLE;
-use super::videos::{COLUMNS, query_videos};
+use super::videos::{COLUMNS, inside_any, query_videos};
 use crate::domain::media::FileIdentity;
 use crate::domain::models::MissingVideos;
 use crate::domain::paths::FolderBounds;
@@ -192,18 +192,7 @@ pub fn delete_missing(
     if folders.is_empty() {
         return Ok((0, Vec::new()));
     }
-    let mut values: Vec<String> = Vec::with_capacity(folders.len() * 2 + 1);
-    let mut inside = Vec::with_capacity(folders.len());
-    for folder in folders {
-        let bounds = FolderBounds::new(folder);
-        inside.push(format!(
-            "(file_path >= ?{} AND file_path < ?{})",
-            values.len() + 1,
-            values.len() + 2
-        ));
-        values.push(bounds.lower);
-        values.push(bounds.upper);
-    }
+    let (inside, mut values) = inside_any(folders);
     let age = match older_than_days {
         Some(days) => {
             values.push(format!("-{days} days"));
@@ -211,10 +200,8 @@ pub fn delete_missing(
         }
         None => String::new(),
     };
-    let sql = format!(
-        "DELETE FROM videos WHERE missing_since IS NOT NULL {age} AND ({}) RETURNING thumbnail_path",
-        inside.join(" OR ")
-    );
+    let sql =
+        format!("DELETE FROM videos AS v WHERE missing_since IS NOT NULL {age} AND {inside} RETURNING thumbnail_path");
     let mut statement = connection.prepare(&sql)?;
     let thumbnails = statement
         .query_map(params_from_iter(values), |row| row.get::<_, Option<String>>(0))?

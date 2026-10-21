@@ -11,7 +11,6 @@ type ConfirmDialogProps = {
     description: ReactNode;
     /** Names the action, e.g. "Remove folder"; never a generic "OK". */
     confirmLabel: string;
-    cancelLabel?: string;
     tone?: "default" | "danger";
     /**
      * Runs the action. The dialog stays open with a busy button until it settles and closes on success; on failure it
@@ -26,7 +25,6 @@ export function ConfirmDialog({
     title,
     description,
     confirmLabel,
-    cancelLabel = "Cancel",
     tone = "default",
     onConfirm,
 }: ConfirmDialogProps) {
@@ -55,7 +53,7 @@ export function ConfirmDialog({
                     </AlertDialog.Description>
                     <div className="mt-4 flex justify-end gap-2">
                         <AlertDialog.Cancel asChild>
-                            <Button disabled={pending}>{cancelLabel}</Button>
+                            <Button disabled={pending}>Cancel</Button>
                         </AlertDialog.Cancel>
                         <Button variant={tone === "danger" ? "danger" : "primary"} loading={pending} onClick={confirm}>
                             {confirmLabel}

@@ -1,4 +1,5 @@
 import type { Video, VideoEntry } from "../ipc/bindings";
+import { baseName } from "../lib/paths";
 
 /** Title to show: the library title once processed, otherwise the file name without its extension. */
 export function entryTitle(entry: VideoEntry): string {
@@ -7,8 +8,7 @@ export function entryTitle(entry: VideoEntry): string {
 
 /** A processed video as an entry, for views that only list library records (home, library search). */
 export function toEntry(video: Video): VideoEntry {
-    const name = video.filePath.split(/[\\/]/).at(-1) ?? video.filePath;
-    return { path: video.filePath, name, video };
+    return { path: video.filePath, name: baseName(video.filePath), video };
 }
 
 /** Fraction of the video watched, between 0 and 1. */

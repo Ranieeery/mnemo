@@ -7,7 +7,7 @@ import { savePlayerPreferences, useSavedPlayerPreferences } from "../queries";
 import { playerPreferences, preferencesOf, usePlayerStore } from "../store";
 
 /** Changes are saved this long after the last one, so dragging the volume saves once. */
-export const SAVE_DELAY_MS = 400;
+const SAVE_DELAY_MS = 400;
 
 const samePreferences = (a: PlayerPreferences, b: PlayerPreferences) =>
     a.volume === b.volume &&

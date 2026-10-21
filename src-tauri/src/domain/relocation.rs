@@ -9,7 +9,7 @@ use specta::Type;
 use super::models::LibraryFolder;
 
 /// Below this share of stored videos found at the new location, it may not be the same folder.
-pub const ENOUGH_FOUND: f64 = 0.5;
+const ENOUGH_FOUND: f64 = 0.5;
 
 /// How well a new location matches the videos stored for a library folder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]

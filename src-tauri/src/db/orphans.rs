@@ -2,30 +2,9 @@
 
 use rusqlite::{Connection, params_from_iter};
 
-use super::videos::{COLUMNS, query_videos};
+use super::videos::{COLUMNS, inside_any, query_videos};
 use crate::domain::models::Video;
-use crate::domain::paths::FolderBounds;
 use crate::error::AppResult;
-
-/// SQL condition (over `v.file_path`) that is true for videos inside any of the given folders.
-fn inside_any(folders: &[String]) -> (String, Vec<String>) {
-    if folders.is_empty() {
-        return ("0".to_owned(), Vec::new());
-    }
-    let mut conditions = Vec::with_capacity(folders.len());
-    let mut values = Vec::with_capacity(folders.len() * 2);
-    for folder in folders {
-        let bounds = FolderBounds::new(folder);
-        conditions.push(format!(
-            "(v.file_path >= ?{} AND v.file_path < ?{})",
-            values.len() + 1,
-            values.len() + 2
-        ));
-        values.push(bounds.lower);
-        values.push(bounds.upper);
-    }
-    (format!("({})", conditions.join(" OR ")), values)
-}
 
 /// Videos that do not belong to any library folder (their folder was removed by an old version).
 pub fn orphans(connection: &Connection, library_folders: &[String]) -> AppResult<Vec<Video>> {
@@ -76,11 +55,7 @@ pub fn library_totals(connection: &Connection, library_folders: &[String]) -> Ap
 mod tests {
     use super::*;
     use crate::db::test_support;
-    use crate::db::videos::tests::{add_video, path};
-
-    fn paths(videos: &[Video]) -> Vec<String> {
-        videos.iter().map(|video| video.file_path.clone()).collect()
-    }
+    use crate::db::videos::tests::{add_video, path, paths};
 
     #[test]
     fn orphans_are_videos_outside_every_library_folder() {

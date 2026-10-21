@@ -7,7 +7,7 @@ use tokio::sync::Notify;
 
 use super::*;
 use crate::domain::media::display_name;
-use crate::error::AppError;
+use crate::error::{AppError, AppResult};
 use crate::services::scanner::tests::tree;
 
 /// Toolkit double: reading takes `delay` (and can be cancelled meanwhile); files named "broken…" cannot be read,

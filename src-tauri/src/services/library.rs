@@ -98,11 +98,10 @@ pub async fn set_folder_appearance(
 /// Renames a library folder in the app only; an empty `name` (or `None`) shows the folder's own name again.
 pub async fn rename_folder(db: &Db, path: String, name: Option<String>) -> AppResult<LibraryFolder> {
     db.call(move |connection| {
-        let folder =
-            folders::find(connection, &path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))?;
+        let folder = folders::get(connection, &path)?;
         let custom_name = normalize_custom_name(name.as_deref().unwrap_or_default(), &folder.folder_name)?;
         folders::set_custom_name(connection, &path, custom_name.as_deref())?;
-        folders::find(connection, &path)?.ok_or_else(|| AppError::NotFound(format!("library folder {path}")))
+        folders::get(connection, &path)
     })
     .await
 }
@@ -260,17 +259,31 @@ async fn walk(db: &Db, root: &Path, scope: &Path) -> AppResult<Vec<PathBuf>> {
 /// Groups video files by folder (natural order of the relative path, then of the file name) and attaches the
 /// library record of each processed file.
 async fn video_groups(db: &Db, root: &Path, files: Vec<PathBuf>, recursive: bool) -> AppResult<Vec<VideoGroup>> {
-    let root_text = root.to_string_lossy().into_owned();
-    let mut records: HashMap<String, Video> = db
-        .call(move |connection| videos::in_folder(connection, &root_text, recursive))
+    let records = records_in(db, root.to_string_lossy().into_owned(), recursive).await?;
+    Ok(group_by_folder(root, files, records))
+}
+
+/// The library records below `folder` (only directly inside it unless `recursive`), by file path.
+pub(crate) async fn records_in(db: &Db, folder: String, recursive: bool) -> AppResult<HashMap<String, Video>> {
+    Ok(db
+        .call(move |connection| videos::in_folder(connection, &folder, recursive))
         .await?
         .into_iter()
         .map(|video| (video.file_path.clone(), video))
-        .collect();
-    Ok(group_by_folder(root, files, &mut records))
+        .collect())
 }
 
-fn group_by_folder(root: &Path, files: Vec<PathBuf>, records: &mut HashMap<String, Video>) -> Vec<VideoGroup> {
+/// A video file with its library record, taken out of `records`; `None` when it was not processed yet.
+pub(crate) fn video_entry(file: PathBuf, records: &mut HashMap<String, Video>) -> VideoEntry {
+    let path = file.to_string_lossy().into_owned();
+    VideoEntry {
+        name: display_name(&file),
+        video: records.remove(&path),
+        path,
+    }
+}
+
+fn group_by_folder(root: &Path, files: Vec<PathBuf>, mut records: HashMap<String, Video>) -> Vec<VideoGroup> {
     let mut by_folder: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
     for file in files {
         let folder = file
@@ -286,17 +299,7 @@ fn group_by_folder(root: &Path, files: Vec<PathBuf>, records: &mut HashMap<Strin
             VideoGroup {
                 relative_path: relative_to(&folder, root),
                 folder_path: folder.to_string_lossy().into_owned(),
-                entries: files
-                    .into_iter()
-                    .map(|file| {
-                        let path = file.to_string_lossy().into_owned();
-                        VideoEntry {
-                            name: display_name(&file),
-                            video: records.remove(&path),
-                            path,
-                        }
-                    })
-                    .collect(),
+                entries: files.into_iter().map(|file| video_entry(file, &mut records)).collect(),
             }
         })
         .collect();

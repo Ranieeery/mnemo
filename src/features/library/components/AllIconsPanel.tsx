@@ -1,5 +1,6 @@
 import { use, useMemo, useState } from "react";
 import type { FolderColor } from "../../../shared/ipc/bindings";
+import { chunk } from "../../../shared/lib/chunk";
 import { loadAllIcons, ScrollContainer, SearchInput, VirtualList } from "../../../shared/ui";
 import { filterIconNames } from "../lib/iconPicker";
 import { IconOption } from "./IconOption";
@@ -65,12 +66,4 @@ export function AllIconsPanel({ selected, onSelect, color }: AllIconsPanelProps)
             )}
         </div>
     );
-}
-
-function chunk<T>(items: readonly T[], size: number): T[][] {
-    const rows: T[][] = [];
-    for (let start = 0; start < items.length; start += size) {
-        rows.push(items.slice(start, start + size));
-    }
-    return rows;
 }

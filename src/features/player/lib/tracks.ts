@@ -101,7 +101,7 @@ function channelLayout(channels: number | null): string | null {
 }
 
 /** "AC3", "E-AC3", "PCM"... */
-export function audioCodecName(codec: string): string {
+function audioCodecName(codec: string): string {
     return audioCodecNames[codec] ?? (codec.startsWith("pcm") ? "PCM" : codec.toUpperCase());
 }
 

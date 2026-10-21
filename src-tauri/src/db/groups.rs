@@ -8,19 +8,22 @@ use crate::domain::folder_order::ungrouped;
 use crate::domain::models::LibraryGroup;
 use crate::error::{AppError, AppResult};
 
+/// The columns [`map_group`] reads, in its order.
+const COLUMNS: &str = "id, name, collapsed, created_at";
+
 fn map_group(row: &Row) -> rusqlite::Result<LibraryGroup> {
     Ok(LibraryGroup {
         id: row.get(0)?,
         name: row.get(1)?,
-        collapsed: row.get::<_, i64>(2)? != 0,
+        collapsed: row.get(2)?,
         created_at: row.get(3)?,
     })
 }
 
 /// The groups, in the order they were created (see `layout` for the custom order).
 pub fn list(connection: &Connection) -> AppResult<Vec<LibraryGroup>> {
-    let mut statement = connection
-        .prepare_cached("SELECT id, name, collapsed, created_at FROM library_groups ORDER BY created_at, id")?;
+    let mut statement =
+        connection.prepare_cached(&format!("SELECT {COLUMNS} FROM library_groups ORDER BY created_at, id"))?;
     let groups = statement.query_map([], map_group)?.collect::<Result<_, _>>()?;
     Ok(groups)
 }
@@ -28,7 +31,7 @@ pub fn list(connection: &Connection) -> AppResult<Vec<LibraryGroup>> {
 pub fn find(connection: &Connection, id: i64) -> AppResult<LibraryGroup> {
     connection
         .query_row(
-            "SELECT id, name, collapsed, created_at FROM library_groups WHERE id = ?1",
+            &format!("SELECT {COLUMNS} FROM library_groups WHERE id = ?1"),
             [id],
             map_group,
         )

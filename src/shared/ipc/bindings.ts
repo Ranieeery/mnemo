@@ -157,8 +157,8 @@ export const commands = {
 	/**  The audio and subtitle streams inside a library video. */
 	listMediaTracks: (path: string) => typedError<MediaTracks, IpcError>(__TAURI_INVOKE("list_media_tracks", { path })),
 	/**
-	 *  A text subtitle stream of a library video (`index` among its subtitle streams), converted to WebVTT. Reads the
-	 *  whole file, so it can take a few seconds on large videos.
+	 *  A text subtitle stream of a library video (`index` among its subtitle streams), as ASS when it is ASS/SSA and as
+	 *  WebVTT otherwise. Reads the whole file, so it can take a few seconds on large videos.
 	 */
 	extractSubtitle: (path: string, index: number) => typedError<SubtitleFile, IpcError>(__TAURI_INVOKE("extract_subtitle", { path, index })),
 	getSettings: () => typedError<AppSettings, IpcError>(__TAURI_INVOKE("get_settings")),

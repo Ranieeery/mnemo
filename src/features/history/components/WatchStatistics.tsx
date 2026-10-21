@@ -1,6 +1,7 @@
 import { ChartColumn } from "lucide-react";
 import { useState } from "react";
 import { errorMessage } from "../../../shared/ipc/client";
+import { plural } from "../../../shared/lib/plural";
 import { ChoiceGroup, EmptyState, ErrorState, Skeleton } from "../../../shared/ui";
 import {
     CHART_DAYS,
@@ -75,7 +76,7 @@ export function WatchStatistics() {
             </div>
             <p className="text-body text-text-muted">
                 <span className="text-heading font-semibold text-text tabular-nums">{formatWatchTime(seconds)}</span> in
-                the {span}, {videos} {videos === 1 ? "video" : "videos"}
+                the {span}, {plural(videos, "video")}
             </p>
             <WatchTimeChart
                 periods={periods}

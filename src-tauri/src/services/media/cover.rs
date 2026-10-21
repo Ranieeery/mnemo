@@ -45,7 +45,7 @@ pub async fn set_video_thumbnail<T: MediaToolkit>(
         )
         .await
     {
-        discard(thumbnails_dir, vec![new_thumbnail]).await;
+        thumbnails::discard(thumbnails_dir, vec![new_thumbnail]).await;
         return Err(error);
     }
 
@@ -56,22 +56,14 @@ pub async fn set_video_thumbnail<T: MediaToolkit>(
     {
         Ok(updated) => updated,
         Err(error) => {
-            discard(thumbnails_dir, vec![new_thumbnail]).await;
+            thumbnails::discard(thumbnails_dir, vec![new_thumbnail]).await;
             return Err(error);
         }
     };
     if let Some(old) = video.thumbnail_path.filter(|old| *old != new_thumbnail) {
-        discard(thumbnails_dir, vec![old]).await;
+        thumbnails::discard(thumbnails_dir, vec![old]).await;
     }
     Ok(updated)
-}
-
-/// Deletes thumbnail files off the async runtime; `thumbnails::delete` only touches the thumbnails directory.
-async fn discard(thumbnails_dir: &Path, files: Vec<String>) {
-    let thumbnails_dir = thumbnails_dir.to_path_buf();
-    if let Err(error) = tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &files)).await {
-        tracing::warn!(%error, "failed to delete thumbnails");
-    }
 }
 
 #[cfg(test)]

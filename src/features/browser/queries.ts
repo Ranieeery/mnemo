@@ -1,7 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { commands, type FolderViewMode } from "../../shared/ipc/bindings";
-import { call, errorMessage } from "../../shared/ipc/client";
+import { call } from "../../shared/ipc/client";
+import { useLibraryMutation } from "../../shared/ipc/queries";
 import { queryKeys } from "../../shared/ipc/queryKeys";
+import { plural } from "../../shared/lib/plural";
 import { toast } from "../../shared/ui";
 
 export function useFolderContents(path: string) {
@@ -20,25 +22,6 @@ export function useFolderSummary(path: string, enabled = true) {
     });
 }
 
-/** Shared settings of the folder mutations: refresh every view, report failures. */
-function useLibraryMutation<Variables, Result>(
-    mutationFn: (variables: Variables) => Promise<Result>,
-    failureTitle: string,
-    onSuccess?: (result: Result, variables: Variables) => void
-) {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn,
-        onSuccess: async (result, variables) => {
-            await queryClient.invalidateQueries({ queryKey: queryKeys.library });
-            onSuccess?.(result, variables);
-        },
-        onError: (error) => {
-            toast({ title: failureTitle, description: errorMessage(error), tone: "danger" });
-        },
-    });
-}
-
 export function useSetViewMode() {
     return useLibraryMutation(
         ({ path, mode }: { path: string; mode: FolderViewMode | null }) => call(commands.setFolderViewMode(path, mode)),
@@ -52,7 +35,7 @@ export function useSetFolderWatched() {
         "Could not update the videos",
         (changed, { watched }) =>
             toast({
-                title: `Marked ${changed} ${changed === 1 ? "video" : "videos"} as ${watched ? "watched" : "unwatched"}`,
+                title: `Marked ${plural(changed, "video")} as ${watched ? "watched" : "unwatched"}`,
                 tone: "success",
             })
     );
@@ -64,7 +47,7 @@ export function useAddTagToFolder() {
         "Could not add the tag",
         (tagged, { name }) =>
             toast({
-                title: `Tagged ${tagged} ${tagged === 1 ? "video" : "videos"} with "${name.trim().toLowerCase()}"`,
+                title: `Tagged ${plural(tagged, "video")} with "${name.trim().toLowerCase()}"`,
                 tone: "success",
             })
     );
@@ -74,6 +57,6 @@ export function useRemoveFolderTags() {
     return useLibraryMutation(
         ({ path }: { path: string }) => call(commands.removeAllTagsFromFolder(path)),
         "Could not remove the tags",
-        (removed) => toast({ title: `Removed ${removed} ${removed === 1 ? "tag" : "tags"}`, tone: "success" })
+        (removed) => toast({ title: `Removed ${plural(removed, "tag")}`, tone: "success" })
     );
 }

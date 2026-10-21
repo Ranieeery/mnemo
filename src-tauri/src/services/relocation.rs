@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 use crate::db::presence::KnownFile;
 use crate::db::{Db, folders, hidden, presence};
 use crate::domain::media::display_name;
-use crate::domain::models::LibraryFolder;
 use crate::domain::paths::is_within;
 use crate::domain::relocation::{RelocationCheck, RelocationResult, classify, relocated};
 use crate::error::{AppError, AppResult};
@@ -134,8 +133,7 @@ pub async fn apply(db: &Db, from: String, to: String) -> AppResult<Vec<String>> 
 /// The library folder at `to` and how many of its videos are there, once compared with the disk.
 pub async fn summary(db: &Db, to: String) -> AppResult<RelocationResult> {
     db.call(move |connection| {
-        let folder: LibraryFolder =
-            folders::find(connection, &to)?.ok_or_else(|| AppError::NotFound(format!("library folder {to}")))?;
+        let folder = folders::get(connection, &to)?;
         let known = presence::known_at(connection, &to)?;
         Ok(RelocationResult {
             folder,

@@ -235,7 +235,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
     async fn run(self: Arc<Self>, mut receiver: mpsc::UnboundedReceiver<Request>) {
         tokio::time::sleep(self.timing.start_delay).await;
         let reachable = self.refresh_roots().await;
-        self.compare(reachable.iter().map(PathBuf::from).collect(), true).await;
+        self.compare(reachable, true).await;
         self.delete_old_missing().await;
         let backfill = Arc::clone(&self);
         tokio::spawn(async move {
@@ -286,7 +286,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         }
         if refresh {
             let due = self.refresh_roots().await;
-            changes.extend(due.into_iter().map(|root| Change::Rescan(Some(PathBuf::from(root)))));
+            changes.extend(due.into_iter().map(|root| Change::Rescan(Some(root))));
         }
         if !changes.is_empty() {
             let paths = self.follow_renames(changes).await;

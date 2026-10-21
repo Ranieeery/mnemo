@@ -3,12 +3,12 @@ import type { VideoEntry, VideoGroup } from "../../../shared/ipc/bindings";
 /** What the folder sorts its videos by. "added" is when the video joined the library. */
 export const SORT_FIELDS = ["name", "duration", "added"] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
-export type SortDirection = "asc" | "desc";
+type SortDirection = "asc" | "desc";
 
 /** A field and a direction, as kept in the URL: "duration-desc". */
 export type VideoSort = `${SortField}-${SortDirection}`;
 const VIDEO_SORTS: readonly VideoSort[] = SORT_FIELDS.flatMap((field) => [`${field}-asc`, `${field}-desc`] as const);
-export const DEFAULT_SORT: VideoSort = "name-asc";
+const DEFAULT_SORT: VideoSort = "name-asc";
 
 export function sortField(sort: VideoSort): SortField {
     return sort.startsWith("duration") ? "duration" : sort.startsWith("added") ? "added" : "name";

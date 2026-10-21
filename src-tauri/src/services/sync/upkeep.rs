@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use super::{Inner, identity};
 use crate::db::presence;
-use crate::domain::models::FolderWatch;
 use crate::error::AppResult;
 use crate::services::media::MediaToolkit;
 use crate::services::media::thumbnails;
@@ -19,22 +18,13 @@ const BACKFILL_BATCH: i64 = 50;
 impl<T: MediaToolkit + 'static> Inner<T> {
     /// Deletes the videos missing for too long below reachable library folders, with their thumbnails.
     pub(super) async fn delete_old_missing(&self) {
-        let reachable: Vec<String> = self
-            .lock()
-            .roots
-            .iter()
-            .filter(|(_, root)| root.watch != FolderWatch::Unavailable)
-            .map(|(path, _)| path.clone())
-            .collect();
+        let reachable = self.reachable_roots();
         let deleted = self
             .db
             .call(move |connection| presence::delete_missing(connection, &reachable, Some(MISSING_KEPT_DAYS)))
             .await;
         match deleted {
-            Ok((_, thumbnails)) => {
-                let thumbnails_dir = self.thumbnails_dir.clone();
-                let _ = tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &thumbnails)).await;
-            }
+            Ok((_, removed_thumbnails)) => thumbnails::discard(&self.thumbnails_dir, removed_thumbnails).await,
             Err(error) => tracing::warn!(%error, "failed to delete videos missing for long"),
         }
     }

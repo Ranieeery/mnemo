@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import type { VideoEntry } from "../ipc/bindings";
+import { chunk } from "../lib/chunk";
 import { useColumns, VirtualList } from "../ui";
 import { VideoCard, VideoCardSkeleton } from "./VideoCard";
 
@@ -8,6 +9,7 @@ export const VIDEO_GRID_GAP = 16;
 
 /** Grid classes; the column count is computed so virtualized rows and the CSS grid agree. */
 const gridClasses = "grid gap-x-4 gap-y-6";
+const SKELETON_CARDS = 8;
 
 type VideoGridProps = {
     entries: readonly VideoEntry[];
@@ -43,7 +45,7 @@ export function VideoGrid({ entries, detail }: VideoGridProps) {
 }
 
 /** Loading state of a grid: a couple of rows of card skeletons. */
-export function VideoGridSkeleton({ count = 8 }: { count?: number }) {
+export function VideoGridSkeleton() {
     return (
         <div
             role="status"
@@ -51,18 +53,10 @@ export function VideoGridSkeleton({ count = 8 }: { count?: number }) {
             className={gridClasses}
             style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${VIDEO_CARD_MIN_WIDTH}px, 1fr))` }}
         >
-            {Array.from({ length: count }, (_, index) => (
+            {Array.from({ length: SKELETON_CARDS }, (_, index) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have no identity.
                 <VideoCardSkeleton key={index} />
             ))}
         </div>
     );
-}
-
-function chunk<T>(items: readonly T[], size: number): T[][] {
-    const rows: T[][] = [];
-    for (let index = 0; index < items.length; index += size) {
-        rows.push(items.slice(index, index + size));
-    }
-    return rows;
 }

@@ -67,8 +67,8 @@ pub async fn list_media_tracks(state: State<'_, AppState>, path: String) -> AppR
     media::tracks::list_tracks(&state.db, &media::Ffmpeg, path).await
 }
 
-/// A text subtitle stream of a library video (`index` among its subtitle streams), converted to WebVTT. Reads the
-/// whole file, so it can take a few seconds on large videos.
+/// A text subtitle stream of a library video (`index` among its subtitle streams), as ASS when it is ASS/SSA and as
+/// WebVTT otherwise. Reads the whole file, so it can take a few seconds on large videos.
 #[tauri::command]
 #[specta::specta]
 pub async fn extract_subtitle(state: State<'_, AppState>, path: String, index: i64) -> AppResult<SubtitleFile> {

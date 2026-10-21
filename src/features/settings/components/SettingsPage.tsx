@@ -4,7 +4,7 @@ import { LibraryTab } from "./LibraryTab";
 import { MaintenanceTab } from "./MaintenanceTab";
 import { PlaybackTab } from "./PlaybackTab";
 
-export const SETTINGS_TABS = ["library", "playback", "shortcuts", "tags", "maintenance"] as const;
+const SETTINGS_TABS = ["library", "playback", "shortcuts", "tags", "maintenance"] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export function isSettingsTab(value: unknown): value is SettingsTab {

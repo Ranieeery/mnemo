@@ -14,7 +14,7 @@ use crate::services::media::MediaToolkit;
 impl<T: MediaToolkit + 'static> Inner<T> {
     /// Brings the folder list up to date: checks which folders are reachable and (un)watches them. Returns the
     /// folders to compare now: added, reachable again, or due for their periodic comparison.
-    pub(super) async fn refresh_roots(self: &Arc<Self>) -> Vec<String> {
+    pub(super) async fn refresh_roots(self: &Arc<Self>) -> Vec<PathBuf> {
         let library = match self.db.call(|connection| folders::paths(connection)).await {
             Ok(library) => library,
             Err(error) => {
@@ -37,7 +37,17 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         due
     }
 
-    pub(super) fn refresh_roots_blocking(&self, library: Vec<String>) -> (Vec<String>, bool) {
+    /// The library folders that were reachable at the last check.
+    pub(super) fn reachable_roots(&self) -> Vec<String> {
+        self.lock()
+            .roots
+            .iter()
+            .filter(|(_, root)| root.watch != FolderWatch::Unavailable)
+            .map(|(path, _)| path.clone())
+            .collect()
+    }
+
+    fn refresh_roots_blocking(&self, library: Vec<String>) -> (Vec<PathBuf>, bool) {
         let reachable: Vec<(String, bool)> = library
             .into_iter()
             .map(|root| {
@@ -102,28 +112,27 @@ impl<T: MediaToolkit + 'static> Inner<T> {
             let poll_due = watch == FolderWatch::Polling && root.last_compared.elapsed() >= self.timing.poll_interval;
             if came_back || poll_due {
                 root.last_compared = Instant::now();
-                due.push(path);
+                due.push(PathBuf::from(path));
             }
         }
         (due, changed)
     }
 
-    pub(super) fn watch(&self, state: &mut State, root: &str) -> Result<(), String> {
-        if state.watcher.is_none() {
-            let requests = self.requests.clone();
-            let watcher = Watcher::new(self.timing.debounce, move |signal| {
-                let _ = requests.send(match signal {
-                    Signal::Changes(changes) => Request::Changes(changes),
-                    Signal::Failed { paths, reason, limit } => Request::WatchFailed { paths, reason, limit },
-                });
-            })
-            .map_err(|error| format!("Watching is not supported here: {error}"))?;
-            state.watcher = Some(watcher);
-        }
-        match &mut state.watcher {
-            Some(watcher) => watcher.watch(Path::new(root)),
-            None => Err("Watching is not supported here".to_owned()),
-        }
+    fn watch(&self, state: &mut State, root: &str) -> Result<(), String> {
+        let watcher = match state.watcher.take() {
+            Some(watcher) => watcher,
+            None => {
+                let requests = self.requests.clone();
+                Watcher::new(self.timing.debounce, move |signal| {
+                    let _ = requests.send(match signal {
+                        Signal::Changes(changes) => Request::Changes(changes),
+                        Signal::Failed { paths, reason, limit } => Request::WatchFailed { paths, reason, limit },
+                    });
+                })
+                .map_err(|error| format!("Watching is not supported here: {error}"))?
+            }
+        };
+        state.watcher.insert(watcher).watch(Path::new(root))
     }
 
     /// A watch broke: compare what it covered, and fall back to periodic comparisons when the limit was reached.

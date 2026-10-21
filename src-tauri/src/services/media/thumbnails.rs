@@ -65,6 +65,14 @@ pub fn delete(thumbnails_dir: &Path, thumbnails: &[String]) {
     }
 }
 
+/// Deletes thumbnail files that will not be used, off the async runtime.
+pub async fn discard(thumbnails_dir: &Path, files: Vec<String>) {
+    let thumbnails_dir = thumbnails_dir.to_path_buf();
+    if let Err(error) = tokio::task::spawn_blocking(move || delete(&thumbnails_dir, &files)).await {
+        tracing::warn!(%error, "failed to delete thumbnails");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

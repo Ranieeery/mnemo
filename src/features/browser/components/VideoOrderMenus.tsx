@@ -38,7 +38,7 @@ const directionLabels: Record<VideoSort, string> = {
     "added-desc": "newest first",
 };
 
-export const statusLabels: Record<StatusFilter, string> = {
+const statusLabels: Record<StatusFilter, string> = {
     all: "All videos",
     unwatched: "Unwatched",
     "in-progress": "In progress",

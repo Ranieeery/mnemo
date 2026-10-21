@@ -44,6 +44,10 @@ pub fn sort_by_name(paths: &mut [PathBuf]) {
     paths.sort_by(|a, b| natural_cmp(&display_name(a), &display_name(b)));
 }
 
+pub fn sort_by_path(paths: &mut [PathBuf]) {
+    paths.sort_by(|a, b| natural_cmp(&a.to_string_lossy(), &b.to_string_lossy()));
+}
+
 /// Every video below `root`, recursively, except inside the subfolders `skip` returns true for. `on_folder` is called
 /// before each folder is read with the number of files seen so far; returning an error (e.g. [`AppError::Cancelled`])
 /// stops the walk. Unreadable subfolders are skipped and symlinked folders are not followed, which rules out cycles.

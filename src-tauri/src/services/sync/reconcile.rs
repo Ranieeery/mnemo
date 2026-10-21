@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use rusqlite::Connection;
 
-use super::disk::{DiskFile, DiskScan, outermost, root_of, scan_path, settle_new_files};
+use super::disk::{DiskFile, DiskScan, outermost, root_is_reachable, root_of, scan_path, settle_new_files};
 use super::identity::identify;
 use crate::db::presence::{self, KnownFile};
 use crate::db::{Db, folders};
@@ -212,7 +212,7 @@ pub async fn reconcile(db: &Db, paths: Vec<PathBuf>, settle: Duration) -> AppRes
         tokio::task::spawn_blocking(move || {
             let reachable: Vec<PathBuf> = paths
                 .into_iter()
-                .filter(|path| root_of(path, &library).is_some_and(|root| Path::new(root).is_dir()))
+                .filter(|path| root_is_reachable(path, &library))
                 .collect();
             let mut scan = DiskScan::default();
             for path in &reachable {
@@ -255,7 +255,7 @@ pub async fn reconcile(db: &Db, paths: Vec<PathBuf>, settle: Duration) -> AppRes
     plan.mark_missing = tokio::task::spawn_blocking(move || {
         vanished
             .into_iter()
-            .filter(|video| root_of(Path::new(&video.path), &library).is_some_and(|root| Path::new(root).is_dir()))
+            .filter(|video| root_is_reachable(Path::new(&video.path), &library))
             .collect()
     })
     .await?;

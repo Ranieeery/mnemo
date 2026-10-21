@@ -7,7 +7,7 @@ import { debounce } from "../../shared/lib/debounce";
 import { toast } from "../../shared/ui";
 
 /** Dragging the edge saves once, this long after it stops. */
-export const SIDEBAR_SAVE_DELAY_MS = 400;
+const SIDEBAR_SAVE_DELAY_MS = 400;
 
 async function save(preferences: SidebarPreferences) {
     try {

@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { folderName } from "../lib/folderName";
 import type { ShortcutKeys } from "../lib/keyboard";
 import { isWithin } from "../lib/paths";
+import { toast } from "../ui/Toast";
 import {
     commands,
     DEFAULT_KEYBOARD_SHORTCUTS,
@@ -9,8 +10,25 @@ import {
     type LibraryFolderStatus,
     type SubtitleStyle,
 } from "./bindings";
-import { call } from "./client";
+import { call, errorMessage } from "./client";
 import { queryKeys } from "./queryKeys";
+
+/** A change to library data: refreshes every view of the library and reports failures with `failureTitle`. */
+export function useLibraryMutation<Variables, Result>(
+    mutationFn: (variables: Variables) => Promise<Result>,
+    failureTitle: string,
+    onSuccess?: (result: Result, variables: Variables) => void
+) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn,
+        onSuccess: async (result, variables) => {
+            await queryClient.invalidateQueries({ queryKey: queryKeys.library });
+            onSuccess?.(result, variables);
+        },
+        onError: (error) => toast({ title: failureTitle, description: errorMessage(error), tone: "danger" }),
+    });
+}
 
 /** Queries several features read: the library folders, the hidden ones and whether ffmpeg/ffprobe are available. */
 

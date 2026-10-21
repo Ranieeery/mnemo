@@ -1,6 +1,5 @@
 //! Library search (database) and folder search (disk, including videos not processed yet).
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -12,7 +11,7 @@ use crate::domain::media::display_name;
 use crate::domain::models::{SearchProgress, Video, VideoEntry};
 use crate::domain::natural_order::natural_cmp;
 use crate::error::{AppError, AppResult};
-use crate::services::library::ensure_in_library;
+use crate::services::library::{ensure_in_library, records_in, video_entry};
 use crate::services::scanner;
 
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
@@ -92,27 +91,15 @@ pub async fn search_folder(
         .into_iter()
         .filter(|file| display_name(file).to_lowercase().contains(&needle))
         .collect();
-    matches.sort_by(|a, b| natural_cmp(&a.to_string_lossy(), &b.to_string_lossy()));
+    scanner::sort_by_path(&mut matches);
 
-    let mut records: HashMap<String, Video> = db
-        .call(move |connection| videos::in_folder(connection, &folder, true))
-        .await?
-        .into_iter()
-        .map(|video| (video.file_path.clone(), video))
-        .collect();
+    let mut records = records_in(db, folder, true).await?;
     if !gate.is_current(ticket) {
         return Err(AppError::Cancelled);
     }
     Ok(matches
         .into_iter()
-        .map(|file| {
-            let path = file.to_string_lossy().into_owned();
-            VideoEntry {
-                name: display_name(&file),
-                video: records.remove(&path),
-                path,
-            }
-        })
+        .map(|file| video_entry(file, &mut records))
         .collect())
 }
 

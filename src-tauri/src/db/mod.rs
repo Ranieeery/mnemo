@@ -41,11 +41,9 @@ impl Db {
         Self::initialize(Connection::open_in_memory()?)
     }
 
-    fn initialize(mut connection: Connection) -> AppResult<Self> {
-        configure(&connection)?;
-        migrations::run(&mut connection)?;
+    fn initialize(connection: Connection) -> AppResult<Self> {
         Ok(Self {
-            connection: Arc::new(Mutex::new(connection)),
+            connection: Arc::new(Mutex::new(prepare(connection)?)),
         })
     }
 
@@ -66,9 +64,16 @@ impl Db {
     }
 }
 
+/// Applies the connection settings and brings the schema up to date, preserving legacy data.
+fn prepare(mut connection: Connection) -> AppResult<Connection> {
+    configure(&connection)?;
+    migrations::run(&mut connection)?;
+    Ok(connection)
+}
+
 fn configure(connection: &Connection) -> AppResult<()> {
-    // The legacy frontend keeps its own connection to the same file until it is removed, hence the busy timeout.
-    // `journal_mode` reports the resulting mode (in-memory databases stay "memory"), so read and ignore it.
+    // The busy timeout makes another process using the same file (a second copy of the app, a 1.x build) wait for
+    // its turn instead of failing. `journal_mode` reports the resulting mode (in-memory databases stay "memory"), so read and ignore it.
     connection.pragma_update_and_check(None, "journal_mode", "WAL", |_| Ok(()))?;
     connection.pragma_update(None, "foreign_keys", "ON")?;
     connection.pragma_update(None, "synchronous", "NORMAL")?;
@@ -96,10 +101,7 @@ pub(crate) mod test_support {
 
     /// A fresh in-memory database with the current schema.
     pub fn connection() -> Connection {
-        let mut connection = Connection::open_in_memory().unwrap();
-        super::configure(&connection).unwrap();
-        super::migrations::run(&mut connection).unwrap();
-        connection
+        super::prepare(Connection::open_in_memory().unwrap()).unwrap()
     }
 }
 

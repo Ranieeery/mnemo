@@ -1,18 +1,18 @@
 //! The single writer: stores what the workers read in batches, one transaction each.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use super::{FileError, Inner, worker};
+use super::{FileError, Inner};
 use crate::db::folders;
 use crate::db::videos::{self, NewVideo};
 use crate::domain::media::FileIdentity;
 use crate::services::library::ensure_in_library;
-use crate::services::media::MediaToolkit;
+use crate::services::media::{MediaToolkit, thumbnails};
 
 /// A batch is stored when it holds this many videos, or when the oldest has waited this long.
 const BATCH_SIZE: usize = 25;
@@ -93,8 +93,10 @@ async fn store<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, batch: Vec<Read
     match stored {
         Ok(results) => {
             for (read, result) in batch.into_iter().zip(results) {
-                if result != Some(true) {
-                    discard_thumbnail(&inner.thumbnails_dir, read.thumbnail_path.as_deref()).await;
+                if result != Some(true)
+                    && let Some(thumbnail) = &read.thumbnail_path
+                {
+                    thumbnails::discard(&inner.thumbnails_dir, vec![thumbnail.clone()]).await;
                 }
                 inner.settle(read.job_id, &[read.file_path], |job, _| {
                     job.done += 1;
@@ -110,7 +112,9 @@ async fn store<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, batch: Vec<Read
             tracing::warn!(%error, "failed to store processed videos");
             let message = error.to_string();
             for read in batch {
-                discard_thumbnail(&inner.thumbnails_dir, read.thumbnail_path.as_deref()).await;
+                if let Some(thumbnail) = &read.thumbnail_path {
+                    thumbnails::discard(&inner.thumbnails_dir, vec![thumbnail.clone()]).await;
+                }
                 let path = read.file_path.clone();
                 let message = message.clone();
                 inner.settle(read.job_id, &[read.file_path], |job, errors| {
@@ -120,11 +124,5 @@ async fn store<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, batch: Vec<Read
                 });
             }
         }
-    }
-}
-
-async fn discard_thumbnail(thumbnails_dir: &Path, thumbnail: Option<&str>) {
-    if let Some(thumbnail) = thumbnail {
-        worker::discard(thumbnails_dir, PathBuf::from(thumbnail)).await;
     }
 }

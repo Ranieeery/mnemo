@@ -1,6 +1,6 @@
 //! A worker: takes the next queued file, reads its duration and thumbnail, and hands the result to the writer.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use super::writer::Read;
@@ -54,7 +54,7 @@ fn finish<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, task: Task, result: 
                 }
             }
             inner.settle(task.job_id, &[file], |_, _| {});
-            cancel_all(inner);
+            inner.cancel_where(|_| true, false);
         }
         Err(error) => {
             tracing::warn!(file = %task.file.display(), %error, "failed to read video");
@@ -69,28 +69,25 @@ fn finish<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>, task: Task, result: 
     }
 }
 
-fn cancel_all<T: MediaToolkit + 'static>(inner: &Arc<Inner<T>>) {
-    inner.cancel_where(|_| true, false);
-}
-
 /// Reads one video. A thumbnail that fails is not fatal (the card shows a placeholder); a cancelled or partial one is
 /// deleted.
 async fn read<T: MediaToolkit>(toolkit: &T, thumbnails_dir: &Path, task: &Task) -> AppResult<Read> {
     let (file, cancel) = (task.file.as_path(), &task.cancel);
     let duration = toolkit.probe(file, cancel).await?;
     let output = thumbnails::file_for(thumbnails_dir, file);
+    let output_path = output.to_string_lossy().into_owned();
     let thumbnail = match toolkit
         .thumbnail(file, &output, thumbnails::capture_time(duration), cancel)
         .await
     {
-        Ok(()) => Some(output),
+        Ok(()) => Some(output_path),
         Err(error @ (AppError::Cancelled | AppError::MediaToolMissing { .. })) => {
-            discard(thumbnails_dir, output).await;
+            thumbnails::discard(thumbnails_dir, vec![output_path]).await;
             return Err(error);
         }
         Err(error) => {
             tracing::warn!(file = %file.display(), %error, "failed to generate thumbnail");
-            discard(thumbnails_dir, output).await;
+            thumbnails::discard(thumbnails_dir, vec![output_path]).await;
             None
         }
     };
@@ -105,16 +102,7 @@ async fn read<T: MediaToolkit>(toolkit: &T, thumbnails_dir: &Path, task: &Task) 
         file_path: file.to_string_lossy().into_owned(),
         title: title_from_path(file),
         duration_seconds: duration,
-        thumbnail_path: thumbnail.map(|path| path.to_string_lossy().into_owned()),
+        thumbnail_path: thumbnail,
         identity,
     })
-}
-
-/// Deletes a thumbnail file that will not be used, off the async runtime.
-pub(super) async fn discard(thumbnails_dir: &Path, file: PathBuf) {
-    let thumbnails_dir = thumbnails_dir.to_path_buf();
-    let files = vec![file.to_string_lossy().into_owned()];
-    if let Err(error) = tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &files)).await {
-        tracing::warn!(%error, "failed to delete thumbnail");
-    }
 }

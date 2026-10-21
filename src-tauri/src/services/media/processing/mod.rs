@@ -6,6 +6,8 @@
 //! Cancelling a job kills the ffmpeg processes it is running and drops its queued files. Nothing is stored halfway,
 //! so a cancelled or interrupted job is resumed by asking for the folder again: what was stored is skipped.
 
+mod jobs;
+mod scan;
 mod worker;
 mod writer;
 
@@ -21,15 +23,11 @@ use tokio::sync::{Notify, mpsc};
 use tokio_util::sync::CancellationToken;
 
 use super::MediaToolkit;
-use crate::db::{Db, videos};
+use crate::db::Db;
 use crate::domain::models::{FileError, ProcessingJob, ProcessingOutcome, ProcessingStatus, ProcessingSummary};
-use crate::domain::natural_order::natural_cmp;
 use crate::domain::paths::is_within;
-use crate::error::AppResult;
-use crate::services::scanner;
+use jobs::take_finished;
 
-/// Failures kept for the details view; older ones are dropped.
-const MAX_ERRORS: usize = 50;
 /// The status is sent at most this often, however busy the workers are.
 const STATUS_INTERVAL: Duration = Duration::from_millis(200);
 
@@ -106,6 +104,26 @@ struct Job {
 }
 
 impl Job {
+    fn new(id: u64, folder: &Path, priority: Priority, report: bool) -> Self {
+        Self {
+            id,
+            folder: folder.to_string_lossy().into_owned(),
+            priority,
+            report,
+            cancel: CancellationToken::new(),
+            scanning: true,
+            pending: VecDeque::new(),
+            reading: Vec::new(),
+            outstanding: 0,
+            total: 0,
+            done: 0,
+            summary: ProcessingSummary::default(),
+            missing_tool: false,
+            error: None,
+            removed: false,
+        }
+    }
+
     fn is_finished(&self) -> bool {
         !self.scanning && self.pending.is_empty() && self.outstanding == 0
     }
@@ -167,23 +185,7 @@ impl<T: MediaToolkit + 'static> Processor<T> {
             }
             state.next_id += 1;
             let id = state.next_id;
-            state.jobs.push(Job {
-                id,
-                folder: folder.to_string_lossy().into_owned(),
-                priority,
-                report,
-                cancel: CancellationToken::new(),
-                scanning: true,
-                pending: VecDeque::new(),
-                reading: Vec::new(),
-                outstanding: 0,
-                total: 0,
-                done: 0,
-                summary: ProcessingSummary::default(),
-                missing_tool: false,
-                error: None,
-                removed: false,
-            });
+            state.jobs.push(Job::new(id, &folder, priority, report));
             id
         };
         self.inner.status_changed.notify_one();
@@ -250,22 +252,6 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         }
     }
 
-    fn cancel_where(&self, matches: impl Fn(&Job) -> bool, removed: bool) {
-        let finished = {
-            let mut state = self.lock();
-            let State { jobs, claimed, .. } = &mut *state;
-            for job in jobs.iter_mut().filter(|job| matches(job)) {
-                job.cancel.cancel();
-                job.removed |= removed;
-                for file in job.pending.drain(..) {
-                    claimed.remove(file.to_string_lossy().as_ref());
-                }
-            }
-            take_finished(&mut state)
-        };
-        self.report(finished);
-    }
-
     /// Sends the outcome of finished jobs and a fresh status.
     fn report(&self, finished: Vec<ProcessingOutcome>) {
         for outcome in finished {
@@ -273,112 +259,6 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         }
         self.status_changed.notify_one();
     }
-
-    /// Lists the folder's videos and queues the ones neither stored nor claimed by another job.
-    async fn scan(&self, job_id: u64, folder: PathBuf) {
-        let found = self.new_files(folder).await;
-        let finished = {
-            let mut state = self.lock();
-            let State { jobs, claimed, .. } = &mut *state;
-            if let Some(job) = jobs.iter_mut().find(|job| job.id == job_id) {
-                job.scanning = false;
-                match found {
-                    Ok(_) if job.cancel.is_cancelled() => {}
-                    Ok((files, stored)) => {
-                        job.summary.skipped += stored;
-                        for file in files {
-                            if claimed.insert(file.to_string_lossy().into_owned()) {
-                                job.pending.push_back(file);
-                            } else {
-                                job.summary.skipped += 1;
-                            }
-                        }
-                        job.total = job.pending.len() as i64;
-                    }
-                    Err(error) => job.error = Some(error.to_string()),
-                }
-            }
-            take_finished(&mut state)
-        };
-        self.work.notify_waiters();
-        self.report(finished);
-    }
-
-    /// The videos below `folder` that are not in the library yet, in natural order, and how many already are.
-    async fn new_files(&self, folder: PathBuf) -> AppResult<(Vec<PathBuf>, i64)> {
-        let root = folder.clone();
-        let mut files =
-            tokio::task::spawn_blocking(move || scanner::walk_videos(&root, |_| false, |_, _| Ok(()))).await??;
-        files.sort_by(|a, b| natural_cmp(&a.to_string_lossy(), &b.to_string_lossy()));
-        let folder_text = folder.to_string_lossy().into_owned();
-        let stored: HashSet<String> = self
-            .db
-            .call(move |connection| videos::in_folder(connection, &folder_text, true))
-            .await?
-            .into_iter()
-            .map(|video| video.file_path)
-            .collect();
-        let total = files.len();
-        files.retain(|file| !stored.contains(file.to_string_lossy().as_ref()));
-        let already_stored = (total - files.len()) as i64;
-        Ok((files, already_stored))
-    }
-
-    /// The next file to read: from the highest priority job, oldest first.
-    fn take_next(&self) -> Option<Task> {
-        let mut state = self.lock();
-        let job = state
-            .jobs
-            .iter_mut()
-            .filter(|job| !job.pending.is_empty())
-            .min_by_key(|job| (job.priority, job.id))?;
-        let file = job.pending.pop_front()?;
-        job.reading.push(file.to_string_lossy().into_owned());
-        job.outstanding += 1;
-        Some(Task {
-            job_id: job.id,
-            file,
-            cancel: job.cancel.clone(),
-        })
-    }
-
-    /// Settles files that are done with, whatever happened to them: they free their claim, and their job finishes
-    /// once nothing else is left. `update` records what happened in the job.
-    fn settle(&self, job_id: u64, files: &[String], update: impl FnOnce(&mut Job, &mut VecDeque<FileError>)) {
-        let finished = {
-            let mut state = self.lock();
-            let State {
-                jobs, claimed, errors, ..
-            } = &mut *state;
-            for file in files {
-                claimed.remove(file);
-            }
-            if let Some(job) = jobs.iter_mut().find(|job| job.id == job_id) {
-                job.reading.retain(|reading| !files.contains(reading));
-                job.outstanding = job.outstanding.saturating_sub(files.len());
-                update(job, errors);
-            }
-            while errors.len() > MAX_ERRORS {
-                errors.pop_front();
-            }
-            take_finished(&mut state)
-        };
-        self.report(finished);
-    }
-}
-
-/// Removes finished jobs and returns how they ended.
-fn take_finished(state: &mut State) -> Vec<ProcessingOutcome> {
-    let mut finished = Vec::new();
-    state.jobs.retain(|job| {
-        if job.is_finished() {
-            finished.push(job.outcome());
-            false
-        } else {
-            true
-        }
-    });
-    finished
 }
 
 /// Sends the status when it changes, at most every `STATUS_INTERVAL`.

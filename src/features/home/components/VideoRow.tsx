@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Video } from "../../../shared/ipc/bindings";
+import { Skeleton } from "../../../shared/ui";
 import { toEntry, VideoCard, VideoCardSkeleton } from "../../../shared/video";
 
 type VideoRowProps = {
@@ -28,7 +29,7 @@ export function VideoRow({ heading, videos, columns }: VideoRowProps) {
 export function VideoRowSkeleton({ columns }: { columns: number }) {
     return (
         <div className="flex flex-col gap-3" role="status" aria-label="Loading videos">
-            <div className="h-6 w-48 animate-pulse-soft rounded-control bg-surface-raised motion-reduce:animate-none" />
+            <Skeleton className="h-6 w-48" />
             <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                 {Array.from({ length: columns }, (_, index) => (
                     // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have no identity.
