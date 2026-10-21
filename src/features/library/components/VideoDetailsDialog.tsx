@@ -45,7 +45,9 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
     const updateDetails = useUpdateDetails();
     const [title, setTitle] = useState(video.title);
     const [description, setDescription] = useState(video.description);
-    const changed = title !== video.title || description !== video.description;
+    // What is stored now: the dialog keeps the video it was opened with, so a save moves this instead.
+    const [saved, setSaved] = useState({ title: video.title, description: video.description });
+    const changed = title !== saved.title || description !== saved.description;
     const titleError = title.trim() ? undefined : "The title cannot be empty.";
     const tools = useMediaTools();
     const setThumbnail = useSetVideoThumbnail();
@@ -55,7 +57,17 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
     const submit = (event: FormEvent) => {
         event.preventDefault();
         if (!titleError) {
-            updateDetails.mutate({ id: video.id, title, description });
+            updateDetails.mutate(
+                { id: video.id, title, description },
+                {
+                    // The backend trims the title; showing what it stored keeps `changed` honest.
+                    onSuccess: (updated) => {
+                        setSaved({ title: updated.title, description: updated.description });
+                        setTitle(updated.title);
+                        setDescription(updated.description);
+                    },
+                }
+            );
         }
     };
 

@@ -59,7 +59,7 @@ export function TagManager() {
             <CreateTagForm />
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-body text-text-muted">
-                    {tags.data.length} tags, {unused} unused
+                    {plural(tags.data.length, "tag")}, {unused} unused
                 </p>
                 <div className="flex gap-2">
                     <Button
@@ -136,24 +136,24 @@ function describe(pending: PendingAction, unused: number, total: number) {
         case "delete":
             return {
                 title: `Delete tag "${pending.tag.name}"?`,
-                description: `It is removed from ${pending.tag.videoCount} videos and from the tag list.`,
+                description: `It is removed from ${plural(pending.tag.videoCount, "video")} and from the tag list.`,
                 confirmLabel: "Delete tag",
             };
         case "detach":
             return {
                 title: `Remove "${pending.tag.name}" from all videos?`,
-                description: `${pending.tag.videoCount} videos lose this tag. The tag stays in the list.`,
+                description: `${plural(pending.tag.videoCount, "video")} ${pending.tag.videoCount === 1 ? "loses" : "lose"} this tag. The tag stays in the list.`,
                 confirmLabel: "Remove from videos",
             };
         case "deleteAll":
             return {
-                title: `Delete all ${total} tags?`,
+                title: `Delete all ${plural(total, "tag")}?`,
                 description: "Every tag is removed from every video. This cannot be undone.",
                 confirmLabel: "Delete all tags",
             };
         case "deleteUnused":
             return {
-                title: `Delete ${unused} unused tags?`,
+                title: `Delete ${plural(unused, "unused tag")}?`,
                 description: "Only tags that no video uses are deleted.",
                 confirmLabel: "Delete unused tags",
             };

@@ -53,7 +53,7 @@ export function useRemoveLibraryFolder() {
             await queryClient.invalidateQueries({ queryKey: queryKeys.library });
             toast({
                 title: `Removed ${folder.name}`,
-                description: `${removedVideos} videos removed from the library. Files on disk were not touched.`,
+                description: `${plural(removedVideos, "video")} removed from the library. Files on disk were not touched.`,
                 tone: "success",
             });
         },

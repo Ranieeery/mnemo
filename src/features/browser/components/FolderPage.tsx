@@ -63,7 +63,7 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                             {summary.data ? (
                                 <p className="text-body text-text-muted tabular-nums">
-                                    {summary.data.totalVideos} videos, {summary.data.watchedVideos} watched
+                                    {plural(summary.data.totalVideos, "video")}, {summary.data.watchedVideos} watched
                                 </p>
                             ) : (
                                 <Skeleton className="h-5 w-40" />

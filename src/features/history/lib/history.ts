@@ -1,4 +1,5 @@
 import type { DailyWatchTotal, HistoryEntry } from "../../../shared/ipc/bindings";
+import { dayKey } from "../../../shared/lib/dayKey";
 import { plural } from "../../../shared/lib/plural";
 
 /** The chart covers this many days, or this many weeks (Monday to Sunday). */
@@ -8,13 +9,6 @@ export const CHART_WEEKS = 12;
 /** English names to match the interface; the clock follows the system's 12/24-hour preference. */
 const LOCALE = "en-US";
 const systemHourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
-
-/** `YYYY-MM-DD` of a date in local time, the format the backend uses for days. */
-export function dayKey(date: Date): string {
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${date.getFullYear()}-${month}-${day}`;
-}
 
 /** A local day at noon, so adding days never trips over daylight saving changes. */
 function parseDay(day: string): Date {

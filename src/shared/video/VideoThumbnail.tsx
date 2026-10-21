@@ -24,8 +24,9 @@ export function VideoThumbnail({
     watched = false,
     className,
 }: VideoThumbnailProps) {
-    const [failed, setFailed] = useState(false);
-    const showImage = thumbnailPath !== null && !failed;
+    // Remembers which path failed, so a new thumbnail (another frame, a regenerated one) gets its own chance to load.
+    const [failedPath, setFailedPath] = useState<string | null>(null);
+    const showImage = thumbnailPath !== null && thumbnailPath !== failedPath;
     const inProgress = !watched && progress > 0 && progress < 1;
 
     return (
@@ -36,7 +37,7 @@ export function VideoThumbnail({
                     alt=""
                     loading="lazy"
                     decoding="async"
-                    onError={() => setFailed(true)}
+                    onError={() => setFailedPath(thumbnailPath)}
                     className={cx(
                         "size-full object-cover transition-opacity duration-(--duration-base) ease-standard",
                         watched && "opacity-55"

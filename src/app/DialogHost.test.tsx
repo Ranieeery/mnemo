@@ -15,7 +15,7 @@ describe("video details dialog", () => {
                 { id: 1, name: "drama", videoCount: 3 },
                 { id: 2, name: "favorites", videoCount: 5 },
             ],
-            update_video_details: { ...video, title: "Pilot (remastered)" },
+            update_video_details: { ...video, title: "Pilot (remastered)", description: "First episode" },
             add_tag_to_video: [],
             remove_tag_from_video: [],
         });
@@ -66,6 +66,42 @@ describe("video details dialog", () => {
         expect(await screen.findByText("Restored the automatic thumbnail")).toBeInTheDocument();
         expect(callsOf(calls, "set_video_thumbnail")).toEqual([{ id: 9, positionSeconds: null }]);
         expect(dialog.querySelector("img")).toHaveAttribute("src", expect.stringContaining("automatic.jpg"));
+    });
+
+    it("compares with what was saved last, so the original title can be saved back", async () => {
+        const video = videoFixture({ id: 9, title: "Pilot", description: "" });
+        const calls = mockCommands({
+            get_video_tags: [],
+            list_tags: [],
+            update_video_details: ({ title, description }: Record<string, unknown>) => ({
+                ...video,
+                title: String(title).trim(),
+                description,
+            }),
+        });
+        const { user } = renderScreen(<DialogHost />);
+        act(() => openVideoDetails(video));
+
+        const dialog = await screen.findByRole("dialog", { name: "Video details" });
+        const title = within(dialog).getByRole("textbox", { name: "Title" });
+        const save = within(dialog).getByRole("button", { name: "Save changes" });
+        await user.clear(title);
+        await user.type(title, "  Pilot 2  ");
+        await user.click(save);
+        // The field shows the trimmed title the backend stored, and there is nothing left to save.
+        await waitFor(() => expect(title).toHaveValue("Pilot 2"));
+        expect(save).toBeDisabled();
+
+        await user.clear(title);
+        await user.type(title, "Pilot");
+        expect(save).toBeEnabled();
+        await user.click(save);
+        await waitFor(() =>
+            expect(callsOf(calls, "update_video_details")).toEqual([
+                { id: 9, title: "  Pilot 2  ", description: "" },
+                { id: 9, title: "Pilot", description: "" },
+            ])
+        );
     });
 
     it("does not save an empty title", async () => {

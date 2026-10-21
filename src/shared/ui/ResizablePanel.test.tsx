@@ -38,7 +38,7 @@ const edge = () => screen.getByRole("separator", { name: "Resize panel" });
 
 function drag(from: number, to: number) {
     fireEvent.pointerDown(edge(), { clientX: from });
-    fireEvent.pointerMove(window, { clientX: to });
+    fireEvent.pointerMove(window, { clientX: to, buttons: 1 });
     fireEvent.pointerUp(window);
 }
 
@@ -78,6 +78,30 @@ describe("ResizablePanel", () => {
         expect(panel()).toHaveStyle({ width: "200px" });
         drag(200, 5000);
         expect(panel()).toHaveStyle({ width: `${Math.max(200, Math.min(400, window.innerWidth / 2))}px` });
+    });
+
+    it("drags only with the primary button", () => {
+        renderWithUi(<Panel side="left" />);
+        fireEvent.pointerDown(edge(), { clientX: 300, button: 2 });
+        fireEvent.pointerMove(window, { clientX: 340, buttons: 2 });
+        expect(panel()).toHaveStyle({ width: "300px" });
+        expect(document.body).not.toHaveClass("cursor-col-resize");
+    });
+
+    it.each([
+        ["the pointer is cancelled", () => fireEvent.pointerCancel(window)],
+        ["the window loses focus", () => fireEvent.blur(window)],
+        ["a move arrives with no button held", () => fireEvent.pointerMove(window, { clientX: 320, buttons: 0 })],
+    ])("stops dragging when %s", (_, end) => {
+        renderWithUi(<Panel side="left" />);
+        fireEvent.pointerDown(edge(), { clientX: 300 });
+        fireEvent.pointerMove(window, { clientX: 340, buttons: 1 });
+        expect(document.body).toHaveClass("cursor-col-resize");
+
+        end();
+        expect(document.body).not.toHaveClass("cursor-col-resize");
+        fireEvent.pointerMove(window, { clientX: 380, buttons: 1 });
+        expect(panel()).toHaveStyle({ width: "340px" });
     });
 
     it("keeps arrow keys from reaching other shortcuts", async () => {

@@ -56,7 +56,7 @@ export function useResetWatchStatus() {
         "Could not reset the watch status",
         (count) =>
             toast({
-                title: `Cleared the watch status of ${count} videos`,
+                title: `Cleared the watch status of ${plural(count, "video")}`,
                 description: "Tags were kept.",
                 tone: "success",
             })
@@ -78,7 +78,7 @@ export function useImportLibrary() {
         (summary) =>
             toast({
                 title: "Library imported",
-                description: `${summary.folders} folders, ${summary.videos} videos and ${summary.tags} tags.`,
+                description: `${plural(summary.folders, "folder")}, ${plural(summary.videos, "video")} and ${plural(summary.tags, "tag")}.`,
                 tone: "success",
             })
     );
@@ -88,7 +88,7 @@ export function useCleanOrphanedVideos() {
     return useSettingsMutation(
         () => call(commands.cleanOrphanedVideos()),
         "Could not clean up",
-        (count) => toast({ title: `Removed ${count} orphaned videos`, tone: "success" })
+        (count) => toast({ title: `Removed ${plural(count, "orphaned video")}`, tone: "success" })
     );
 }
 

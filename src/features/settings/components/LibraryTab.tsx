@@ -3,7 +3,9 @@ import { Download, RefreshCw, RotateCcw, Upload } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { errorMessage } from "../../../shared/ipc/client";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
+import { dayKey } from "../../../shared/lib/dayKey";
 import { formatDuration } from "../../../shared/lib/formatDuration";
+import { plural } from "../../../shared/lib/plural";
 import { syncFolders } from "../../../shared/stores/processing";
 import { Button, Card, ConfirmDialog, ErrorState, Skeleton, Switch, toast } from "../../../shared/ui";
 import {
@@ -73,10 +75,6 @@ function WatchFoldersSwitch() {
     );
 }
 
-function today(): string {
-    return new Date().toISOString().slice(0, 10);
-}
-
 /** Library statistics, folders, backups and the bulk maintenance of watch status. */
 export function LibraryTab({ foldersPanel }: { foldersPanel: ReactNode }) {
     const folders = useLibraryFolders();
@@ -89,7 +87,7 @@ export function LibraryTab({ foldersPanel }: { foldersPanel: ReactNode }) {
 
     const exportToFile = async () => {
         const path = await save({
-            defaultPath: `mnemo-library-${today()}.json`,
+            defaultPath: `mnemo-library-${dayKey(new Date())}.json`,
             filters: [{ name: "Mnemo library", extensions: ["json"] }],
         });
         if (path) {
@@ -109,8 +107,8 @@ export function LibraryTab({ foldersPanel }: { foldersPanel: ReactNode }) {
         try {
             const { processed, failed } = await syncFolders((folders.data ?? []).map((folder) => folder.path));
             toast({
-                title: processed > 0 ? `Added ${processed} new videos` : "The library is up to date",
-                description: failed > 0 ? `${failed} files could not be read.` : undefined,
+                title: processed > 0 ? `Added ${plural(processed, "new video")}` : "The library is up to date",
+                description: failed > 0 ? `${plural(failed, "file")} could not be read.` : undefined,
                 tone: "success",
             });
         } catch (error) {

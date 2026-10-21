@@ -12,6 +12,8 @@ import { cx } from "../lib/cx";
 /** How far one arrow key press moves the edge. */
 const KEY_STEP = 16;
 
+const END_EVENTS = ["pointerup", "pointercancel", "blur"] as const;
+
 type ResizablePanelProps = Omit<ComponentProps<"aside">, "style" | "ref"> & {
     /** Side of the window the panel sits on; its free edge, on the other side, is the one that is dragged. */
     side: "left" | "right";
@@ -122,19 +124,33 @@ function ResizeHandle({
     const direction = side === "left" ? 1 : -1;
 
     const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0) {
+            return;
+        }
         event.preventDefault();
         const startX = event.clientX;
         const startWidth = currentWidth();
-        const move = (moveEvent: globalThis.PointerEvent) =>
+        // The `pointerup` can be lost (released outside the window, a system dialog takes focus), so the drag also
+        // ends when the pointer is cancelled, the window loses focus or a move arrives with no button held.
+        const move = (moveEvent: globalThis.PointerEvent) => {
+            if (moveEvent.buttons === 0) {
+                stop();
+                return;
+            }
             resize(startWidth + (moveEvent.clientX - startX) * direction);
+        };
         const stop = () => {
             window.removeEventListener("pointermove", move);
-            window.removeEventListener("pointerup", stop);
+            for (const type of END_EVENTS) {
+                window.removeEventListener(type, stop);
+            }
             document.body.classList.remove("cursor-col-resize", "select-none");
             onDraggingChange(false);
         };
         window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", stop);
+        for (const type of END_EVENTS) {
+            window.addEventListener(type, stop);
+        }
         // Keeps the resize cursor and avoids selecting text while the pointer crosses the page.
         document.body.classList.add("cursor-col-resize", "select-none");
         onDraggingChange(true);

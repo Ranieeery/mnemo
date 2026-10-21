@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
@@ -78,6 +78,26 @@ describe("SettingsPage", () => {
         await user.click(within(dialog).getByRole("button", { name: "Replace library" }));
         expect(await screen.findByText("Library imported")).toBeInTheDocument();
         expect(callsOf(calls, "import_library")).toEqual([{ path: "D:\\Backups\\library.json" }]);
+    });
+
+    it("names the export after the local day, near midnight too", async () => {
+        const calls = mockSettings({ "plugin:dialog|save": null });
+        const { user } = renderSettings();
+        const exportButton = await screen.findByRole("button", { name: "Export" });
+        // Outside UTC, one of these times falls on another UTC day.
+        vi.useFakeTimers({ toFake: ["Date"] });
+        try {
+            for (const time of [new Date(2026, 9, 21, 0, 30), new Date(2026, 9, 21, 23, 30)]) {
+                vi.setSystemTime(time);
+                await user.click(exportButton);
+            }
+        } finally {
+            vi.useRealTimers();
+        }
+        await waitFor(() => expect(callsOf(calls, "plugin:dialog|save")).toHaveLength(2));
+        for (const args of callsOf(calls, "plugin:dialog|save")) {
+            expect(args).toMatchObject({ options: { defaultPath: "mnemo-library-2026-10-21.json" } });
+        }
     });
 
     it("saves the watched threshold when the slider is released", async () => {

@@ -4,6 +4,7 @@ import { errorMessage } from "../../../shared/ipc/client";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
 import { folderName } from "../../../shared/lib/folderName";
 import { parentPath, relativeSegments } from "../../../shared/lib/paths";
+import { plural } from "../../../shared/lib/plural";
 import { EmptyState, ErrorState, Progress } from "../../../shared/ui";
 import { toEntry, VideoGrid, VideoGridSkeleton } from "../../../shared/video";
 import { LIBRARY_SEARCH_LIMIT, useFolderSearch, useLibrarySearch } from "../queries";
@@ -60,7 +61,7 @@ export function FolderSearchResults({ path, query }: { path: string; query: stri
                 <Progress label="Searching files" value={null} size="thin" />
                 <p className="truncate text-small text-text-muted">
                     {progress
-                        ? `Looked at ${progress.scannedFiles} files, now in ${folderName(progress.currentFolder, libraryFolders)}`
+                        ? `Looked at ${plural(progress.scannedFiles, "file")}, now in ${folderName(progress.currentFolder, libraryFolders)}`
                         : "Searching files on disk"}
                 </p>
             </div>

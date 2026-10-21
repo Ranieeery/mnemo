@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { dayKey } from "../../../shared/lib/dayKey";
 import { videoFixture } from "../../../shared/test/fixtures";
 import {
     axisTicks,
     CHART_DAYS,
     CHART_WEEKS,
     dailyPeriods,
-    dayKey,
     dayLabel,
     formatWatchTime,
     groupByDay,

@@ -22,7 +22,7 @@ describe("TagManager", () => {
         const calls = mockCommands({ list_tags: tags, delete_unused_tags: 1 });
         const { user } = renderScreen(<TagManager />);
         await user.click(await screen.findByRole("button", { name: "Delete unused tags" }));
-        const dialog = await screen.findByRole("alertdialog", { name: "Delete 1 unused tags?" });
+        const dialog = await screen.findByRole("alertdialog", { name: "Delete 1 unused tag?" });
         await user.click(within(dialog).getByRole("button", { name: "Delete unused tags" }));
         expect(await screen.findByText("Deleted 1 unused tag")).toBeInTheDocument();
         expect(callsOf(calls, "delete_unused_tags")).toHaveLength(1);
