@@ -1,4 +1,4 @@
-use std::path::{MAIN_SEPARATOR, Path};
+use std::path::{Component, MAIN_SEPARATOR, Path, is_separator};
 
 /// Half-open string range `[lower, upper)` that matches every path strictly inside a folder.
 ///
@@ -13,11 +13,8 @@ pub struct FolderBounds {
 
 impl FolderBounds {
     pub fn new(folder: &str) -> Self {
-        let lower = if folder.ends_with(['/', '\\']) {
-            folder.to_owned()
-        } else {
-            format!("{folder}{MAIN_SEPARATOR}")
-        };
+        // Children are stored with the platform separator, so a trailing `/` on Windows becomes `\`.
+        let lower = format!("{}{MAIN_SEPARATOR}", folder.trim_end_matches(is_separator));
         // Both separators are ASCII, so bumping the last byte yields the smallest string above every child path.
         let mut upper = lower.clone();
         if let Some(separator) = upper.pop() {
@@ -32,9 +29,10 @@ impl FolderBounds {
     }
 }
 
-/// Returns whether `path` is `folder` itself or lies inside it, comparing whole path components.
+/// Returns whether `path` is `folder` itself or lies inside it, comparing whole path components. A path with `..` never
+/// is: `D:\Videos\..\Windows` starts with `D:\Videos` but points outside it.
 pub fn is_within(path: &Path, folder: &Path) -> bool {
-    path.starts_with(folder)
+    path.starts_with(folder) && !path.components().any(|component| component == Component::ParentDir)
 }
 
 /// Path of `path` relative to `root`, with the platform separator; empty when they are the same folder.
@@ -84,6 +82,26 @@ mod tests {
         let bounds = FolderBounds::new(&folder);
         assert_eq!(bounds.lower, folder);
         assert!(contains(&bounds, &format!("{folder}a.mkv")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn folder_with_a_forward_slash_matches_children_stored_with_backslashes() {
+        // Regression: `D:/` kept its `/`, so the range matched no stored path.
+        let bounds = FolderBounds::new("D:/");
+        assert_eq!(bounds.lower, "D:\\");
+        assert!(contains(&bounds, "D:\\Videos\\a.mkv"));
+    }
+
+    #[test]
+    fn a_path_climbing_out_with_parent_components_is_not_within() {
+        // Regression: `Path::starts_with` accepted `Videos/../Windows/x.exe`, letting commands reach any file.
+        let folder = Path::new("Videos");
+        assert!(is_within(&folder.join("Show").join("a.mkv"), folder));
+        assert!(is_within(folder, folder));
+        assert!(!is_within(&folder.join("..").join("Windows").join("x.exe"), folder));
+        assert!(!is_within(&folder.join("Show").join("..").join("a.mkv"), folder));
+        assert!(!is_within(Path::new("Videos 2"), folder));
     }
 
     #[test]

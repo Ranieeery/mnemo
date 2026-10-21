@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::domain::paths::is_within;
+
 /// Frame used for the thumbnail: 10 s in, or a quarter of the way through short videos.
 pub fn capture_time(duration_seconds: f64) -> f64 {
     (duration_seconds / 4.0).clamp(0.0, 10.0)
@@ -53,7 +55,7 @@ pub fn delete_unused(thumbnails_dir: &Path, used: &HashSet<String>, older_than: 
 pub fn delete(thumbnails_dir: &Path, thumbnails: &[String]) {
     for thumbnail in thumbnails {
         let path = Path::new(thumbnail);
-        if !path.starts_with(thumbnails_dir) {
+        if !is_within(path, thumbnails_dir) {
             tracing::warn!(path = %thumbnail, "not deleting a thumbnail outside the thumbnails directory");
             continue;
         }
@@ -131,6 +133,27 @@ mod tests {
         delete(thumbnails_dir.path(), &paths);
 
         assert!(!inside.exists());
+        assert!(outside.exists());
+    }
+
+    #[test]
+    fn refuses_paths_that_climb_out_of_the_thumbnails_dir() {
+        // Regression: `Path::starts_with` accepted `<thumbnails>\..\x`, and thumbnail paths come from import files.
+        let root = tempfile::tempdir().unwrap();
+        let thumbnails_dir = root.path().join("thumbnails");
+        std::fs::create_dir(&thumbnails_dir).unwrap();
+        let outside = root.path().join("keep.txt");
+        std::fs::write(&outside, b"").unwrap();
+
+        delete(
+            &thumbnails_dir,
+            &[thumbnails_dir
+                .join("..")
+                .join("keep.txt")
+                .to_string_lossy()
+                .into_owned()],
+        );
+
         assert!(outside.exists());
     }
 }

@@ -149,7 +149,7 @@ export const commands = {
 	getProcessingStatus: () => __TAURI_INVOKE<ProcessingStatus>("get_processing_status"),
 	/**  Makes the frame at `position_seconds` the video's thumbnail, or restores the automatic one when `null`. */
 	setVideoThumbnail: (id: number, positionSeconds: number | null) => typedError<Video, IpcError>(__TAURI_INVOKE("set_video_thumbnail", { id, positionSeconds })),
-	/**  The external subtitle next to a video, if any. */
+	/**  The external subtitle next to a library video, if any. */
 	findSubtitle: (videoPath: string) => typedError<{
 	format: SubtitleFormat,
 	content: string,

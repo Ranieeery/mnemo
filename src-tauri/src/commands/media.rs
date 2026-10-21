@@ -75,9 +75,9 @@ pub async fn extract_subtitle(state: State<'_, AppState>, path: String, index: i
     media::tracks::extract_subtitle(&state.db, &media::Ffmpeg, path, index).await
 }
 
-/// The external subtitle next to a video, if any.
+/// The external subtitle next to a library video, if any.
 #[tauri::command]
 #[specta::specta]
-pub async fn find_subtitle(video_path: String) -> AppResult<Option<SubtitleFile>> {
-    tokio::task::spawn_blocking(move || subtitles::find_for(Path::new(&video_path))).await?
+pub async fn find_subtitle(state: State<'_, AppState>, video_path: String) -> AppResult<Option<SubtitleFile>> {
+    subtitles::find_for_video(&state.db, video_path).await
 }
