@@ -183,6 +183,24 @@ pub fn apply(connection: &mut Connection, plan: &Plan) -> AppResult<bool> {
     Ok(!plan.restore.is_empty() || !plan.mark_missing.is_empty() || relocated > 0)
 }
 
+/// Identifies each file, returning the identities and the files that could not be read.
+fn identify_all(paths: Vec<String>) -> (HashMap<String, FileIdentity>, HashSet<String>) {
+    let mut identities = HashMap::new();
+    let mut unidentified = HashSet::new();
+    for path in paths {
+        match identify(Path::new(&path)) {
+            Ok(identity) => {
+                identities.insert(path, identity);
+            }
+            Err(error) => {
+                tracing::warn!(%path, %error, "could not fingerprint a new file; trying again later");
+                unidentified.insert(path);
+            }
+        }
+    }
+    (identities, unidentified)
+}
+
 /// What a reconciliation did.
 #[derive(Debug, Default)]
 pub struct Reconciled {
@@ -239,15 +257,13 @@ pub async fn reconcile(db: &Db, paths: Vec<PathBuf>, settle: Duration) -> AppRes
         .await?
     };
 
-    let deferred = settle_new_files(&known, &mut scan, settle).await?;
+    let mut deferred = settle_new_files(&known, &mut scan, settle).await?;
     let wanted = to_identify(&known, &elsewhere, &scan);
-    let identities: HashMap<String, FileIdentity> = tokio::task::spawn_blocking(move || {
-        wanted
-            .into_iter()
-            .filter_map(|path| identify(Path::new(&path)).ok().map(|identity| (path, identity)))
-            .collect()
-    })
-    .await?;
+    let (identities, unidentified) = tokio::task::spawn_blocking(move || identify_all(wanted)).await?;
+    // A file that may be a renamed or moved video but cannot be read now (locked a moment after it settled, a share
+    // that dropped) is looked at again later: taken as new now, its video would be lost to a duplicate.
+    scan.files.retain(|file| !unidentified.contains(&file.path));
+    deferred.extend(unidentified.into_iter().map(PathBuf::from));
 
     let mut plan = plan(&known, &elsewhere, &scan, &identities);
     // The drive may have gone in the meantime: its videos are not missing, just unreachable.

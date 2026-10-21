@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -25,11 +26,13 @@ pub struct DiskScan {
     pub unreadable: Vec<PathBuf>,
 }
 
-/// The videos at `path`: the file itself, or every video below it when it is a folder; nothing when it is gone.
-/// Synchronous: run it on the blocking thread pool. Symlinked folders are not followed, which rules out cycles.
+/// The videos at `path`: the file itself, or every video below it when it is a folder; nothing when it is gone, and
+/// `unreadable` when it cannot be looked at (a share that dropped, no permission). Synchronous: run it on the blocking
+/// thread pool. Symlinked folders are not followed, which rules out cycles.
 pub fn scan_path(path: &Path, into: &mut DiskScan) {
     match fs::metadata(path) {
-        Err(_) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(_) => into.unreadable.push(path.to_path_buf()),
         Ok(metadata) if metadata.is_dir() => walk(path, into),
         Ok(metadata) => {
             if is_video_path(path) {
@@ -118,4 +121,24 @@ pub fn outermost(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
         }
     }
     kept
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_path_that_is_gone_has_nothing_and_one_that_cannot_be_looked_at_is_unreadable() {
+        // Regression: any error was taken for "gone", so a share that dropped for a moment marked its videos missing.
+        let dir = tempfile::tempdir().unwrap();
+        let mut scan = DiskScan::default();
+        scan_path(&dir.path().join("gone"), &mut scan);
+        assert!(scan.files.is_empty() && scan.unreadable.is_empty());
+
+        // A name the system refuses fails with an error other than "not found", as an unreachable share does.
+        let broken = dir.path().join("bad\0name");
+        scan_path(&broken, &mut scan);
+        assert!(scan.files.is_empty());
+        assert_eq!(scan.unreadable, [broken]);
+    }
 }

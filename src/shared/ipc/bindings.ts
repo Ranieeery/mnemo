@@ -140,7 +140,7 @@ export const commands = {
 	 *  Brings each folder up to date with the disk (renamed, moved and vanished files), then queues its new videos to be
 	 *  read in the background. Progress and the end of each job arrive as events; `report` asks for the job's summary to
 	 *  be shown. Folders already queued (or inside one) add nothing. Fails, queuing nothing, if any folder is outside the
-	 *  library.
+	 *  library or the comparison fails.
 	 */
 	processFolders: (paths: string[], report: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("process_folders", { paths, report })),
 	/**  Cancels reading the videos of one folder, or of every folder when `null`; running ffmpeg processes are killed. */

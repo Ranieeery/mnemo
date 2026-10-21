@@ -310,3 +310,56 @@ async fn new_files_still_being_written_are_deferred() {
     assert_eq!(reconciled.new_files, vec![library.path("Library/Ready.mkv")]);
     assert_eq!(reconciled.deferred, vec![growing]);
 }
+
+/// Opens `path` so that nobody else can open it until the handle is dropped, like a program still writing it.
+#[cfg(windows)]
+fn lock(path: &Path) -> std::fs::File {
+    use std::os::windows::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new().read(true).share_mode(0).open(path).unwrap()
+}
+
+#[cfg(windows)]
+#[tokio::test]
+async fn a_renamed_file_that_cannot_be_read_yet_is_deferred_not_taken_for_a_new_one() {
+    // Regression: a fingerprint that failed was dropped, so the renamed file became a new video and the old one,
+    // with its progress and tags, stayed missing.
+    let library = Library::new().await;
+    let original = library.write("Library/Ep 1.mkv", &content(3));
+    let video = library.store(&original, true).await;
+    let renamed = library.path("Library/Pilot.mkv");
+    std::fs::rename(&original, &renamed).unwrap();
+
+    let locked = lock(&renamed);
+    let reconciled = library.reconcile(&["Library"]).await;
+    assert!(reconciled.new_files.is_empty());
+    assert_eq!(reconciled.deferred, vec![renamed.clone()]);
+    drop(locked);
+
+    let reconciled = library.reconcile(&["Library"]).await;
+    assert!(reconciled.new_files.is_empty());
+    let (moved, missing, tags) = library.video(video.id).await.unwrap();
+    assert_eq!(PathBuf::from(&moved.file_path), renamed);
+    assert!(!missing);
+    assert_eq!(tags, 1);
+}
+
+#[tokio::test]
+async fn a_library_folder_unplugged_while_new_files_settle_loses_nothing() {
+    let library = Library::new().await;
+    let file = library.write("Library/Ep 1.mkv", &content(8));
+    let video = library.store(&file, true).await;
+    std::fs::remove_file(&file).unwrap();
+    library.write("Library/New.mkv", &content(9));
+    let root = library.path("Library");
+    let unplug = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        std::fs::remove_dir_all(root).unwrap();
+    });
+
+    // The vanished video is found during the scan, but the drive is gone by the time the comparison is written.
+    reconcile(&library.db, vec![library.path("Library")], Duration::from_millis(300))
+        .await
+        .unwrap();
+    unplug.await.unwrap();
+    assert!(!library.video(video.id).await.unwrap().1);
+}

@@ -38,7 +38,15 @@ dos dados) estão no `CLAUDE.md`.
   - restaura sumidos que voltaram e marca sumidos os que desapareceram;
   - grava o tamanho dos vídeos antigos;
   - reconhece renomeados e movidos (inclusive entre pastas da biblioteca e com o app fechado) e devolve os arquivos
-    novos para o pipeline.
+    novos para o pipeline;
+  - um caminho que existe mas não pode ser lido (erro diferente de "não encontrado", como um compartilhamento que
+    caiu) conta como ilegível, nunca como apagado;
+  - um arquivo novo que pode ser um vídeo renomeado ou movido, mas não pode ser lido para a impressão digital, é
+    adiado como os que ainda estão em cópia, em vez de virar vídeo novo;
+  - os vídeos novos vão ao pipeline arquivo por arquivo (`Processor::enqueue_files`): o job não lista a pasta, então
+    um arquivo ainda em cópia ao lado deles espera a sua vez. Se a pasta já tem um job, os arquivos entram nele.
+- `process_folders` ("Sync") falha sem enfileirar nada se a comparação falhar: arquivos renomeados ou movidos seriam
+  lidos como novos.
 - O pipeline grava tamanho e impressão digital dos vídeos novos. Os vídeos antigos recebem os dois depois da
   comparação inicial, um arquivo por vez e só com o pipeline ocioso.
 - Watcher (`watch.rs`):

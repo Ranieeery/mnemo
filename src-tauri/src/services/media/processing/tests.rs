@@ -444,3 +444,28 @@ async fn stored_videos_carry_their_file_identity() {
     assert_eq!(unidentified, 0);
     assert_eq!(harness.stored().await.len(), 2);
 }
+
+#[tokio::test]
+async fn new_files_of_a_folder_being_read_join_its_job() {
+    // Regression: a folder already queued added nothing, so a file that appeared after the job listed the folder
+    // waited for the next comparison.
+    let dir = library(&names(2));
+    let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 1);
+    harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while harness.toolkit().probed.lock().unwrap().is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+
+    let late = dir.path().join("Ep 9.mkv");
+    std::fs::write(&late, b"late").unwrap();
+    harness
+        .processor
+        .enqueue_files(dir.path().to_path_buf(), vec![late], Priority::Normal);
+
+    let outcome = harness.outcomes(1).await.remove(0);
+    assert_eq!(outcome.summary.processed, 3);
+}

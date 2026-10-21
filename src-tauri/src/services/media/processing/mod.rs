@@ -168,15 +168,36 @@ impl<T: MediaToolkit + 'static> Processor<T> {
     /// Queues the new videos below `folder`. Nothing is added when the folder is already queued, alone or inside
     /// another queued folder; `report` then carries over to that job. Must be called inside the async runtime.
     pub fn enqueue(&self, folder: PathBuf, priority: Priority, report: bool) {
+        self.enqueue_job(folder, None, priority, report);
+    }
+
+    /// Queues `files` (new videos inside `folder`) without listing the folder: the library sync found them and saw
+    /// them settle, while files still being copied next to them wait for their own turn. When the folder is already
+    /// queued, the files join that job.
+    pub fn enqueue_files(&self, folder: PathBuf, files: Vec<PathBuf>, priority: Priority) {
+        self.enqueue_job(folder, Some(files), priority, false);
+    }
+
+    fn enqueue_job(&self, folder: PathBuf, files: Option<Vec<PathBuf>>, priority: Priority, report: bool) {
         self.start();
         let job_id = {
             let mut state = self.inner.lock();
-            if let Some(job) = state
-                .jobs
+            let State { jobs, claimed, .. } = &mut *state;
+            if let Some(job) = jobs
                 .iter_mut()
                 .find(|job| !job.cancel.is_cancelled() && is_within(&folder, Path::new(&job.folder)))
             {
                 job.report |= report;
+                // A job that listed its folder before these files appeared would never read them.
+                for file in files.into_iter().flatten() {
+                    if claimed.insert(file.to_string_lossy().into_owned()) {
+                        job.pending.push_back(file);
+                        job.total += 1;
+                    }
+                }
+                drop(state);
+                self.inner.work.notify_waiters();
+                self.inner.status_changed.notify_one();
                 return;
             }
             // A new run starts with a clean error list.
@@ -190,7 +211,7 @@ impl<T: MediaToolkit + 'static> Processor<T> {
         };
         self.inner.status_changed.notify_one();
         let inner = Arc::clone(&self.inner);
-        tokio::spawn(async move { inner.scan(job_id, folder).await });
+        tokio::spawn(async move { inner.scan(job_id, folder, files).await });
     }
 
     /// Cancels the job of `folder`, or every job when `None`. Running ffmpeg processes are killed; what was already

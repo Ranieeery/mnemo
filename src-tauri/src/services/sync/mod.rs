@@ -88,10 +88,10 @@ enum Request {
     },
     /// Check the library folders: added, removed, reachable again, due for a periodic comparison.
     Refresh,
-    /// Compare these paths now, without reading new files (the caller does), and say when done.
+    /// Compare these paths now, without reading new files (the caller does), and say how it went.
     Reconcile {
         paths: Vec<PathBuf>,
-        done: oneshot::Sender<()>,
+        done: oneshot::Sender<AppResult<()>>,
     },
     /// Point the library folder `from` at `to`, then compare it with the disk, and say how it went.
     Relocate {
@@ -199,12 +199,17 @@ impl<T: MediaToolkit + 'static> LibrarySync<T> {
     }
 
     /// Compares `paths` with the disk now (renamed, moved and vanished files), waiting for any work in progress.
-    /// New files are left to the caller.
-    pub async fn reconcile_now(&self, paths: Vec<PathBuf>) {
+    /// New files are left to the caller, who must not read them when this fails: renamed or moved files would be
+    /// taken for new ones.
+    pub async fn reconcile_now(&self, paths: Vec<PathBuf>) -> AppResult<()> {
         let (done, finished) = oneshot::channel();
-        if self.inner.requests.send(Request::Reconcile { paths, done }).is_ok() {
-            let _ = finished.await;
-        }
+        self.inner
+            .requests
+            .send(Request::Reconcile { paths, done })
+            .map_err(|_| AppError::Internal("the library sync is not running".to_owned()))?;
+        finished
+            .await
+            .map_err(|_| AppError::Internal("the library sync stopped".to_owned()))?
     }
 
     /// Locates the library folder `from` at `to` (see `services::relocation`) between two comparisons, then compares
@@ -322,8 +327,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
             self.compare(paths, true).await;
         }
         for (paths, done) in reconcile_requests {
-            self.compare(paths, false).await;
-            let _ = done.send(());
+            let _ = done.send(self.try_compare(paths, false).await);
         }
     }
 }

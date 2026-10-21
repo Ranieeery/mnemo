@@ -2,6 +2,8 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use rusqlite::OptionalExtension;
+
 use super::*;
 use crate::db::videos::{self, NewVideo};
 use crate::db::{backup, folders, hidden, presence, tags};
@@ -307,7 +309,7 @@ async fn with_watching_off_changes_wait_for_a_sync() {
     tokio::time::sleep(Duration::from_millis(400)).await;
     assert_eq!(fixture.missing("Library/Ep 1.mkv").await, Some(false));
 
-    fixture.sync.reconcile_now(vec![fixture.path("Library")]).await;
+    fixture.sync.reconcile_now(vec![fixture.path("Library")]).await.unwrap();
     assert_eq!(fixture.missing("Library/Ep 1.mkv").await, Some(true));
 
     fixture.sync.set_enabled(true);
@@ -539,4 +541,83 @@ async fn a_refused_import_keeps_reading_the_current_folders() {
     let outcomes = fixture.harness.outcomes(1).await;
     assert!(!outcomes[0].cancelled);
     assert_eq!(outcomes[0].summary.processed, 1);
+}
+
+#[tokio::test]
+async fn startup_keeps_old_missing_videos_of_unplugged_folders() {
+    let fixture = Fixture::new(&[], true).await;
+    std::fs::create_dir_all(fixture.path("Other")).unwrap();
+    let other = fixture.text("Other");
+    fixture
+        .harness
+        .db
+        .call(move |connection| folders::add(connection, &other))
+        .await
+        .unwrap();
+    let unplugged = fixture.store_legacy("Library/Old.mkv").await;
+    let reachable = fixture.store_legacy("Other/Old.mkv").await;
+    fixture
+        .harness
+        .db
+        .call(|connection| Ok(connection.execute("UPDATE videos SET missing_since = datetime('now', '-31 days')", [])?))
+        .await
+        .unwrap();
+    std::fs::remove_dir_all(fixture.path("Library")).unwrap();
+
+    fixture.sync.start();
+    // Both are deleted by the same statement, so once one is gone the other was considered too.
+    eventually("the old missing video of the reachable folder is deleted", || async {
+        fixture.video_path(reachable).await.is_none()
+    })
+    .await;
+    assert!(fixture.video_path(unplugged).await.is_some());
+}
+
+#[tokio::test]
+async fn a_new_file_is_read_without_its_siblings_still_being_copied() {
+    // Regression: the new file's whole folder was read, including a file next to it still being copied.
+    let fixture = Fixture::new(&[], true).await;
+    fixture.sync.start();
+    eventually("the folder is watched", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Watching)
+    })
+    .await;
+    let copying = fixture.path("Library/Show/Extras/Big.mkv");
+    fixture.write("Library/Show/Extras/Big.mkv", b"start");
+    let copy = tokio::spawn(async move {
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            let mut file = std::fs::OpenOptions::new().append(true).open(&copying).unwrap();
+            std::io::Write::write_all(&mut file, b"more").unwrap();
+        }
+    });
+    fixture.write("Library/Show/Ep 3.mkv", b"new episode");
+
+    eventually("the new file is read", || async {
+        fixture.missing("Library/Show/Ep 3.mkv").await == Some(false)
+    })
+    .await;
+    assert!(!copy.is_finished(), "the copy should still be going");
+    assert_eq!(*fixture.harness.toolkit().probed.lock().unwrap(), ["Ep 3.mkv"]);
+
+    copy.await.unwrap();
+    let big = fixture.text("Library/Show/Extras/Big.mkv");
+    let complete = std::fs::metadata(&big).unwrap().len() as i64;
+    eventually("the copied file is read once complete", || async {
+        let big = big.clone();
+        let stored: Option<Option<i64>> = fixture
+            .harness
+            .db
+            .call(move |connection| {
+                Ok(connection
+                    .query_row("SELECT file_size FROM videos WHERE file_path = ?1", [&big], |row| {
+                        row.get(0)
+                    })
+                    .optional()?)
+            })
+            .await
+            .unwrap();
+        stored == Some(Some(complete))
+    })
+    .await;
 }

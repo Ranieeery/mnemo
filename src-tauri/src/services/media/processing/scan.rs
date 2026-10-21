@@ -10,9 +10,10 @@ use crate::services::media::MediaToolkit;
 use crate::services::scanner;
 
 impl<T: MediaToolkit + 'static> Inner<T> {
-    /// Lists the folder's videos and queues the ones neither stored nor claimed by another job.
-    pub(super) async fn scan(&self, job_id: u64, folder: PathBuf) {
-        let found = self.new_files(folder).await;
+    /// Lists the folder's videos (or takes `files`, when given) and queues the ones neither stored nor claimed by
+    /// another job.
+    pub(super) async fn scan(&self, job_id: u64, folder: PathBuf, files: Option<Vec<PathBuf>>) {
+        let found = self.new_files(folder, files).await;
         let finished = {
             let mut state = self.lock();
             let State { jobs, claimed, .. } = &mut *state;
@@ -40,11 +41,16 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         self.report(finished);
     }
 
-    /// The videos below `folder` that are not in the library yet, in natural order, and how many already are.
-    async fn new_files(&self, folder: PathBuf) -> AppResult<(Vec<PathBuf>, i64)> {
-        let root = folder.clone();
-        let mut files =
-            tokio::task::spawn_blocking(move || scanner::walk_videos(&root, |_| false, |_, _| Ok(()))).await??;
+    /// The videos below `folder` (or `files`) that are not in the library yet, in natural order, and how many already
+    /// are.
+    async fn new_files(&self, folder: PathBuf, files: Option<Vec<PathBuf>>) -> AppResult<(Vec<PathBuf>, i64)> {
+        let mut files = match files {
+            Some(files) => files,
+            None => {
+                let root = folder.clone();
+                tokio::task::spawn_blocking(move || scanner::walk_videos(&root, |_| false, |_, _| Ok(()))).await??
+            }
+        };
         scanner::sort_by_path(&mut files);
         let folder_text = folder.to_string_lossy().into_owned();
         let stored: HashSet<String> = self
