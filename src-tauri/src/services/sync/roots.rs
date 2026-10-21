@@ -1,11 +1,12 @@
 //! The library folders the sync keeps track of: which are reachable, and how each is watched.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
 use super::watch::{Change, Signal, Watcher};
-use super::{Inner, Request, Root, State, SyncNotification};
+use super::{Inner, Request, Root, SyncNotification};
 use crate::db::folders;
 use crate::domain::models::FolderWatch;
 use crate::domain::paths::is_within;
@@ -13,7 +14,7 @@ use crate::services::media::MediaToolkit;
 
 impl<T: MediaToolkit + 'static> Inner<T> {
     /// Brings the folder list up to date: checks which folders are reachable and (un)watches them. Returns the
-    /// folders to compare now: added, reachable again, or due for their periodic comparison.
+    /// folders to compare now: added, reachable again, watched again, or due for their periodic comparison.
     pub(super) async fn refresh_roots(self: &Arc<Self>) -> Vec<PathBuf> {
         let library = match self.db.call(|connection| folders::paths(connection)).await {
             Ok(library) => library,
@@ -55,52 +56,67 @@ impl<T: MediaToolkit + 'static> Inner<T> {
                 (root, reachable)
             })
             .collect();
-        let mut state = self.lock();
-        let mut changed = false;
-        let removed: Vec<String> = state
-            .roots
-            .keys()
-            .filter(|root| !reachable.iter().any(|(path, _)| path == *root))
-            .cloned()
-            .collect();
-        for root in removed {
-            if let Some(watcher) = &mut state.watcher {
-                watcher.unwatch(Path::new(&root));
-            }
-            state.roots.remove(&root);
-            changed = true;
-        }
+        // Only the loop changes the roots, so they can be read here and written back once the watches are in place,
+        // without holding the state meanwhile.
+        let (enabled, previous): (bool, BTreeMap<String, (FolderWatch, Option<String>)>) = {
+            let state = self.lock();
+            let previous = state
+                .roots
+                .iter()
+                .map(|(path, root)| (path.clone(), (root.watch, root.reason.clone())))
+                .collect();
+            (state.enabled, previous)
+        };
 
+        let decided: Vec<(String, FolderWatch, Option<String>)> = {
+            let mut watcher = self.watcher();
+            for (root, (watch, _)) in &previous {
+                if *watch == FolderWatch::Watching && !reachable.iter().any(|(path, _)| path == root) {
+                    unwatch(&mut watcher, root);
+                }
+            }
+            reachable
+                .into_iter()
+                .map(|(path, reachable)| {
+                    let (watch, reason) = match (reachable, previous.get(&path)) {
+                        (true, Some((watch @ (FolderWatch::Watching | FolderWatch::Polling), reason))) if enabled => {
+                            (*watch, reason.clone())
+                        }
+                        (true, _) if enabled => match self.watch(&mut watcher, &path) {
+                            Ok(()) => (FolderWatch::Watching, None),
+                            Err(reason) => (FolderWatch::Polling, Some(reason)),
+                        },
+                        (reachable, previous) => {
+                            if previous.is_some_and(|(watch, _)| *watch == FolderWatch::Watching) {
+                                unwatch(&mut watcher, &path);
+                            }
+                            let watch = if reachable {
+                                FolderWatch::Off
+                            } else {
+                                FolderWatch::Unavailable
+                            };
+                            (watch, None)
+                        }
+                    };
+                    (path, watch, reason)
+                })
+                .collect()
+        };
+
+        let mut state = self.lock();
+        state
+            .roots
+            .retain(|root, _| decided.iter().any(|(path, _, _)| path == root));
+        let mut changed = state.roots.len() != previous.len();
         let mut due = Vec::new();
-        for (path, reachable) in reachable {
-            let previous = state.roots.get(&path).map(|root| root.watch);
-            let (watch, reason) = match (reachable, previous) {
-                (false, _) => {
-                    if previous.is_some_and(|watch| watch != FolderWatch::Unavailable)
-                        && let Some(watcher) = &mut state.watcher
-                    {
-                        watcher.unwatch(Path::new(&path));
-                    }
-                    (FolderWatch::Unavailable, None)
-                }
-                (true, _) if !state.enabled => {
-                    if previous == Some(FolderWatch::Watching)
-                        && let Some(watcher) = &mut state.watcher
-                    {
-                        watcher.unwatch(Path::new(&path));
-                    }
-                    (FolderWatch::Off, None)
-                }
-                (true, Some(FolderWatch::Watching | FolderWatch::Polling)) => {
-                    let root = &state.roots[&path];
-                    (root.watch, root.reason.clone())
-                }
-                (true, _) => match self.watch(&mut state, &path) {
-                    Ok(()) => (FolderWatch::Watching, None),
-                    Err(reason) => (FolderWatch::Polling, Some(reason)),
-                },
+        for (path, watch, reason) in decided {
+            let previous = previous.get(&path).map(|(watch, _)| *watch);
+            // What changed while the folder was unknown, unreachable or not watched went unseen.
+            let unseen = match previous {
+                None | Some(FolderWatch::Unavailable) => watch != FolderWatch::Unavailable,
+                Some(FolderWatch::Off) => matches!(watch, FolderWatch::Watching | FolderWatch::Polling),
+                Some(FolderWatch::Watching | FolderWatch::Polling) => false,
             };
-            let came_back = reachable && previous.is_none_or(|watch| watch == FolderWatch::Unavailable);
             let root = state.roots.entry(path.clone()).or_insert_with(|| Root {
                 watch,
                 reason: None,
@@ -110,7 +126,7 @@ impl<T: MediaToolkit + 'static> Inner<T> {
             root.watch = watch;
             root.reason = reason;
             let poll_due = watch == FolderWatch::Polling && root.last_compared.elapsed() >= self.timing.poll_interval;
-            if came_back || poll_due {
+            if unseen || poll_due {
                 root.last_compared = Instant::now();
                 due.push(PathBuf::from(path));
             }
@@ -118,8 +134,8 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         (due, changed)
     }
 
-    fn watch(&self, state: &mut State, root: &str) -> Result<(), String> {
-        let watcher = match state.watcher.take() {
+    fn watch(&self, watcher: &mut Option<Watcher>, root: &str) -> Result<(), String> {
+        let created = match watcher.take() {
             Some(watcher) => watcher,
             None => {
                 let requests = self.requests.clone();
@@ -132,33 +148,47 @@ impl<T: MediaToolkit + 'static> Inner<T> {
                 .map_err(|error| format!("Watching is not supported here: {error}"))?
             }
         };
-        state.watcher.insert(watcher).watch(Path::new(root))
+        watcher.insert(created).watch(Path::new(root))
     }
 
-    /// A watch broke: compare what it covered, and fall back to periodic comparisons when the limit was reached.
+    /// A watch broke: compare what it covered (every watched folder when `paths` is empty), and fall back to periodic
+    /// comparisons when the limit was reached.
     pub(super) fn watch_failed(&self, paths: &[PathBuf], reason: String, limit: bool) -> Vec<Change> {
-        let mut state = self.lock();
-        let roots: Vec<String> = state
+        let roots: Vec<String> = self
+            .lock()
             .roots
-            .keys()
-            .filter(|root| paths.is_empty() || paths.iter().any(|path| is_within(path, Path::new(root))))
-            .cloned()
+            .iter()
+            .filter(|(root, entry)| {
+                entry.watch == FolderWatch::Watching
+                    && (paths.is_empty() || paths.iter().any(|path| is_within(path, Path::new(root))))
+            })
+            .map(|(root, _)| root.clone())
             .collect();
-        if limit {
+        if limit && !roots.is_empty() {
+            let mut watcher = self.watcher();
             for root in &roots {
-                if let Some(watcher) = &mut state.watcher {
-                    watcher.unwatch(Path::new(root));
-                }
+                unwatch(&mut watcher, root);
+            }
+            drop(watcher);
+            let mut state = self.lock();
+            for root in &roots {
                 if let Some(entry) = state.roots.get_mut(root) {
                     entry.watch = FolderWatch::Polling;
                     entry.reason = Some(reason.clone());
                 }
             }
+            drop(state);
             (self.notify)(SyncNotification::FoldersChanged);
         }
         roots
             .into_iter()
             .map(|root| Change::Rescan(Some(PathBuf::from(root))))
             .collect()
+    }
+}
+
+fn unwatch(watcher: &mut Option<Watcher>, root: &str) {
+    if let Some(watcher) = watcher {
+        watcher.unwatch(Path::new(root));
     }
 }

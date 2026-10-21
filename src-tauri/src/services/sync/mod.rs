@@ -128,13 +128,14 @@ struct Inner<T> {
     requests: mpsc::UnboundedSender<Request>,
     receiver: Mutex<Option<mpsc::UnboundedReceiver<Request>>>,
     state: Mutex<State>,
+    /// Kept apart from `state`, so adding a watch over a large tree never holds up the statuses. Only the loop uses
+    /// it; created when watching is first needed.
+    watcher: Mutex<Option<Watcher>>,
 }
 
 struct State {
     enabled: bool,
     roots: BTreeMap<String, Root>,
-    /// Created when watching is first needed.
-    watcher: Option<Watcher>,
 }
 
 struct Root {
@@ -166,8 +167,8 @@ impl<T: MediaToolkit + 'static> LibrarySync<T> {
                 state: Mutex::new(State {
                     enabled,
                     roots: BTreeMap::new(),
-                    watcher: None,
                 }),
+                watcher: Mutex::new(None),
             }),
         }
     }
@@ -259,6 +260,10 @@ impl<T: MediaToolkit + 'static> LibrarySync<T> {
 impl<T: MediaToolkit + 'static> Inner<T> {
     fn lock(&self) -> MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn watcher(&self) -> MutexGuard<'_, Option<Watcher>> {
+        self.watcher.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     async fn run(self: Arc<Self>, mut receiver: mpsc::UnboundedReceiver<Request>) {

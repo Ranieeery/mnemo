@@ -63,4 +63,5 @@ dos dados) estão no `CLAUDE.md`.
 - Disponibilidade: as raízes são conferidas a cada 10 s. O status de cada pasta (`FolderWatch`: `watching`, `polling`,
   `off`, `unavailable`, com motivo) sai em `get_library_folder_statuses`. Uma pasta que não pode ser monitorada (limite
   do inotify no Linux, alguns compartilhamentos de rede) passa a ser comparada a cada 10 min. Com o setting
-  `watch_folders` desligado, só há a comparação ao iniciar e no "Sync".
+  `watch_folders` desligado, só há a comparação ao iniciar e no "Sync"; ao religá-lo, as pastas são comparadas na hora
+  (o que mudou enquanto estava desligado). Uma falha do watcher sem caminho afeta só as pastas monitoradas.

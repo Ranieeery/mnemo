@@ -311,12 +311,83 @@ async fn with_watching_off_changes_wait_for_a_sync() {
 
     fixture.sync.reconcile_now(vec![fixture.path("Library")]).await.unwrap();
     assert_eq!(fixture.missing("Library/Ep 1.mkv").await, Some(true));
+}
+
+#[tokio::test]
+async fn turning_watching_on_compares_what_changed_while_off() {
+    // Regression: what changed while watching was off was only found at the next start or "Sync".
+    let fixture = Fixture::new(&["Library/Ep 1.mkv"], false).await;
+    fixture.store_legacy("Library/Ep 1.mkv").await;
+    fixture.sync.start();
+    eventually("the folder is listed", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Off)
+    })
+    .await;
+    std::fs::remove_file(fixture.path("Library/Ep 1.mkv")).unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(fixture.missing("Library/Ep 1.mkv").await, Some(false));
 
     fixture.sync.set_enabled(true);
+    eventually("what changed while off is found", || async {
+        fixture.missing("Library/Ep 1.mkv").await == Some(true)
+    })
+    .await;
+    assert_eq!(fixture.watch_of("Library"), Some(FolderWatch::Watching));
+}
+
+#[tokio::test]
+async fn a_folder_past_the_watch_limit_is_compared_periodically() {
+    let fixture = Fixture::new(&["Library/Ep 1.mkv"], true).await;
+    fixture.store_legacy("Library/Ep 1.mkv").await;
+    let unplugged = fixture.text("Unplugged");
+    fixture
+        .harness
+        .db
+        .call(move |connection| folders::add(connection, &unplugged))
+        .await
+        .unwrap();
+    fixture.sync.start();
     eventually("the folder is watched", || async {
         fixture.watch_of("Library") == Some(FolderWatch::Watching)
     })
     .await;
+    assert_eq!(fixture.watch_of("Unplugged"), Some(FolderWatch::Unavailable));
+
+    // A failure naming no path, as some platforms report the limit.
+    fixture
+        .sync
+        .inner
+        .requests
+        .send(Request::WatchFailed {
+            paths: Vec::new(),
+            reason: "limit reached".to_owned(),
+            limit: true,
+        })
+        .unwrap();
+    eventually("the folder is compared periodically", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Polling)
+    })
+    .await;
+    // Regression: the failure also turned folders that were not watched into periodically compared ones.
+    assert_eq!(fixture.watch_of("Unplugged"), Some(FolderWatch::Unavailable));
+    let status = fixture
+        .sync
+        .statuses()
+        .into_iter()
+        .find(|status| status.path == fixture.text("Library"));
+    assert_eq!(
+        status.and_then(|status| status.reason).as_deref(),
+        Some("limit reached")
+    );
+
+    // Nothing watches the folder anymore: only the periodic comparison can find this.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    std::fs::remove_file(fixture.path("Library/Ep 1.mkv")).unwrap();
+    eventually("the periodic comparison finds the change", || async {
+        fixture.missing("Library/Ep 1.mkv").await == Some(true)
+    })
+    .await;
+    assert_eq!(fixture.watch_of("Library"), Some(FolderWatch::Polling));
 }
 
 #[tokio::test]
