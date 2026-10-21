@@ -1,6 +1,8 @@
 //! The watch history: one row each time a video becomes watched.
 
-use rusqlite::{Connection, params};
+use std::collections::HashSet;
+
+use rusqlite::{Connection, named_params, params};
 
 use super::hidden::VISIBLE;
 use super::videos::{COLUMNS, map_row};
@@ -16,33 +18,50 @@ pub fn record(connection: &Connection, video_id: i64, watched_seconds: f64) -> A
     Ok(())
 }
 
+/// Rows before a history cursor (`:until`, `:until_id`), or every row when `:until` is NULL. The first comparison
+/// is a plain range on `watched_at`, so SQLite reads only that part of its index.
+const BEFORE_CURSOR: &str = "h.watched_at <= COALESCE(:until, '9999-12-31')
+                             AND (:until IS NULL OR (h.watched_at, h.video_id) < (:until, :until_id))";
+
 /// History entries: one per video per local day, at its first time that day. Mnemo 1.x wrote a row on every
-/// progress tick past the threshold, so its rows are grouped here rather than deleted. `?1` is an SQLite time
-/// modifier ("-15 days") that limits the scan to recent rows, or `NULL` for all of them.
-const ENTRIES: &str = "SELECT video_id, date(watched_at, 'localtime') AS day, MIN(watched_at) AS watched_at
-                       FROM watch_history
-                       WHERE watched_at IS NOT NULL AND (?1 IS NULL OR watched_at >= datetime('now', ?1))
-                       GROUP BY video_id, day";
+/// progress tick past the threshold, so its rows are grouped here rather than deleted, and the scan is limited:
+/// to rows from `datetime(:from, :shift)` on (all of them when `:from` is NULL) and to rows before the cursor. An
+/// entry with a row before the cursor keeps its first time, and one without comes at or after the cursor.
+fn entries() -> String {
+    format!(
+        "SELECT h.video_id, date(h.watched_at, 'localtime') AS day, MIN(h.watched_at) AS watched_at
+         FROM watch_history h
+         WHERE h.watched_at >= COALESCE(datetime(:from, :shift), '') AND {BEFORE_CURSOR}
+         GROUP BY h.video_id, day"
+    )
+}
 
 /// A page of the history, newest first, starting after `cursor`. Videos in hidden folders are left out.
 pub fn list_page(connection: &Connection, cursor: Option<&HistoryCursor>, limit: usize) -> AppResult<HistoryPage> {
+    let until = cursor.map(|cursor| cursor.watched_at.as_str());
+    let until_id = cursor.map(|cursor| cursor.video_id);
+    // One extra entry tells whether an older page exists.
+    let count = limit + 1;
+    let oldest_day = oldest_day_of_page(connection, until, until_id, count)?;
     let sql = format!(
         "SELECT {COLUMNS}, e.day, strftime('%Y-%m-%dT%H:%M:%SZ', e.watched_at), e.watched_at
-         FROM ({ENTRIES}) e JOIN videos v ON v.id = e.video_id
-         WHERE {VISIBLE} AND (?2 IS NULL OR (e.watched_at, e.video_id) < (?2, ?3))
+         FROM ({entries}) e JOIN videos v ON v.id = e.video_id
+         WHERE {VISIBLE}
          ORDER BY e.watched_at DESC, e.video_id DESC
-         LIMIT ?4"
+         LIMIT :limit",
+        entries = entries()
     );
     let mut statement = connection.prepare_cached(&sql)?;
     let rows = statement
         .query_map(
-            params![
-                None::<String>,
-                cursor.map(|cursor| cursor.watched_at.as_str()),
-                cursor.map(|cursor| cursor.video_id),
-                // One extra row tells whether an older page exists.
-                (limit + 1) as i64
-            ],
+            named_params! {
+                // A day starts within a day of its UTC date in every time zone.
+                ":from": oldest_day,
+                ":shift": "-1 day",
+                ":until": until,
+                ":until_id": until_id,
+                ":limit": count as i64,
+            },
             |row| {
                 let entry = HistoryEntry {
                     video: map_row(row)?,
@@ -67,28 +86,66 @@ pub fn list_page(connection: &Connection, cursor: Option<&HistoryCursor>, limit:
     Ok(HistoryPage { entries, next_cursor })
 }
 
+/// The video and local day of each visible row before the cursor, newest first.
+fn rows_before_cursor() -> String {
+    format!(
+        "SELECT h.video_id, date(h.watched_at, 'localtime')
+         FROM watch_history h JOIN videos v ON v.id = h.video_id
+         WHERE h.watched_at IS NOT NULL AND {BEFORE_CURSOR} AND {VISIBLE}
+         ORDER BY h.watched_at DESC"
+    )
+}
+
+/// The local day of the `count`-th visible entry before the cursor, or `None` when there are fewer. Rows are read
+/// newest first, and the entries of a day all come before those of older days, so the page needs no older rows.
+fn oldest_day_of_page(
+    connection: &Connection,
+    until: Option<&str>,
+    until_id: Option<i64>,
+    count: usize,
+) -> AppResult<Option<String>> {
+    let mut statement = connection.prepare_cached(&rows_before_cursor())?;
+    let mut rows = statement.query(named_params! { ":until": until, ":until_id": until_id })?;
+    let mut seen = HashSet::new();
+    while let Some(row) = rows.next()? {
+        let day: String = row.get(1)?;
+        if seen.insert((row.get::<_, i64>(0)?, day.clone())) && seen.len() == count {
+            return Ok(Some(day));
+        }
+    }
+    Ok(None)
+}
+
 /// Totals for the last `days` local days including today, oldest first, without videos in hidden folders. Days
 /// without history are left out. Each video counts once per day, with its full length.
 pub fn daily_totals(connection: &Connection, days: u32) -> AppResult<Vec<DailyWatchTotal>> {
     let sql = format!(
         "SELECT e.day, COUNT(*), COALESCE(SUM(v.duration_seconds), 0)
-         FROM ({ENTRIES}) e JOIN videos v ON v.id = e.video_id
-         WHERE e.day >= date('now', 'localtime', ?2) AND {VISIBLE}
+         FROM ({entries}) e JOIN videos v ON v.id = e.video_id
+         WHERE e.day >= date('now', 'localtime', :first_day) AND {VISIBLE}
          GROUP BY e.day
-         ORDER BY e.day"
+         ORDER BY e.day",
+        entries = entries()
     );
-    // The scan starts a day earlier than the first local day, which covers every time zone.
-    let scan_from = format!("-{} days", days.saturating_add(1));
-    let first_day = format!("-{} days", days.saturating_sub(1));
     let mut statement = connection.prepare_cached(&sql)?;
     let totals = statement
-        .query_map(params![scan_from, first_day], |row| {
-            Ok(DailyWatchTotal {
-                day: row.get(0)?,
-                videos: row.get(1)?,
-                seconds: row.get(2)?,
-            })
-        })?
+        .query_map(
+            named_params! {
+                // The scan starts a day earlier than the first local day, which covers every time zone.
+                ":from": "now",
+                ":shift": format!("-{} days", days.saturating_add(1)),
+                ":until": None::<String>,
+                ":until_id": None::<i64>,
+                ":first_day": format!("-{} days", days.saturating_sub(1)),
+            },
+            |row| {
+                Ok(DailyWatchTotal {
+                    day: row.get(0)?,
+                    videos: row.get(1)?,
+                    seconds: row.get(2)?,
+                })
+            },
+        )?
         .collect::<Result<_, _>>()?;
     Ok(totals)
 }
@@ -216,5 +273,83 @@ mod tests {
 
     fn history_row_now(connection: &Connection, video_id: i64) {
         record(connection, video_id, 0.0).unwrap();
+    }
+
+    /// Every page, from the newest, with `limit` entries each.
+    fn all_pages(connection: &Connection, limit: usize) -> Vec<(i64, String)> {
+        let mut seen = Vec::new();
+        let mut cursor = None;
+        loop {
+            let page = list_page(connection, cursor.as_ref(), limit).unwrap();
+            seen.extend(page.entries.into_iter().map(|entry| (entry.video.id, entry.watched_at)));
+            match page.next_cursor {
+                Some(next) => cursor = Some(next),
+                None => return seen,
+            }
+        }
+    }
+
+    #[test]
+    fn pages_keep_the_first_time_of_entries_whose_rows_cross_the_cursor() {
+        let connection = test_support::connection();
+        let early = add_video(&connection, &path(&["D:", "early.mkv"]), 60.0);
+        let late = add_video(&connection, &path(&["D:", "late.mkv"]), 60.0);
+        // 1.x ticks of both videos, interleaved on the same day.
+        for minute in [10, 20, 30] {
+            watched_at(&connection, early.id, &format!("2026-03-10 12:{minute}:00"));
+            watched_at(&connection, late.id, &format!("2026-03-10 12:{}:00", minute + 5));
+        }
+        watched_at(&connection, early.id, "2026-03-09 12:00:00");
+
+        let expected = [
+            (late.id, "2026-03-10T12:15:00Z".to_owned()),
+            (early.id, "2026-03-10T12:10:00Z".to_owned()),
+            (early.id, "2026-03-09T12:00:00Z".to_owned()),
+        ];
+        assert_eq!(all_pages(&connection, 10), expected);
+        assert_eq!(all_pages(&connection, 1), expected);
+    }
+
+    #[test]
+    fn hidden_videos_do_not_shorten_a_page() {
+        let connection = test_support::connection();
+        let shown = add_video(&connection, &path(&["D:", "shown.mkv"]), 60.0);
+        for day in 1..=3 {
+            watched_at(&connection, shown.id, &format!("2026-03-{day:02} 12:00:00"));
+        }
+        // Newer entries, all hidden: they must not count towards the page.
+        for day in 10..=19 {
+            let hidden = add_video(&connection, &path(&["D:", "Hidden", &format!("{day}.mkv")]), 60.0);
+            watched_at(&connection, hidden.id, &format!("2026-03-{day:02} 12:00:00"));
+        }
+        crate::db::hidden::hide(&connection, &path(&["D:", "Hidden"])).unwrap();
+
+        let page = list_page(&connection, None, 2).unwrap();
+        assert_eq!(
+            days_and_ids(&page),
+            [("2026-03-03", shown.id), ("2026-03-02", shown.id)]
+        );
+        let rest = list_page(&connection, page.next_cursor.as_ref(), 2).unwrap();
+        assert_eq!(days_and_ids(&rest), [("2026-03-01", shown.id)]);
+        assert_eq!(rest.next_cursor, None);
+    }
+
+    /// The plan SQLite picks for `sql`, without binding its parameters.
+    fn plan(connection: &Connection, sql: &str) -> String {
+        let mut statement = connection.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
+        let mut rows = statement.raw_query();
+        let mut steps = Vec::new();
+        while let Some(row) = rows.next().unwrap() {
+            steps.push(row.get::<_, String>(3).unwrap());
+        }
+        steps.join("\n")
+    }
+
+    #[test]
+    fn reads_only_the_rows_a_page_needs() {
+        let connection = test_support::connection();
+        let range = "USING INDEX idx_watch_history_watched_at (watched_at>? AND watched_at<?)";
+        assert!(plan(&connection, &entries()).contains(range));
+        assert!(plan(&connection, &rows_before_cursor()).contains(range));
     }
 }

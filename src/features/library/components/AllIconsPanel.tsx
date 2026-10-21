@@ -19,8 +19,7 @@ export function AllIconsPanel({ selected, onSelect, color }: AllIconsPanelProps)
     const icons = use(loadAllIcons());
     const [query, setQuery] = useState("");
     const names = useMemo(() => [...icons.keys()], [icons]);
-    const matches = filterIconNames(names, query);
-    const rows = useMemo(() => chunk(matches, COLUMNS), [matches]);
+    const rows = useMemo(() => chunk(filterIconNames(names, query), COLUMNS), [names, query]);
 
     return (
         <div className="flex flex-col gap-3">

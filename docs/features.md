@@ -219,7 +219,7 @@ teclado e mouse (ver `CLAUDE.md`).
     (50 por página, "Show older"). Clicar abre o player; o botão direito mostra o menu de vídeo.
   - **Statistics**: tempo assistido por dia (14 dias) ou por semana (12 semanas, de segunda a domingo).
 - Uma entrada por vídeo por dia: as linhas duplicadas que a 1.x gravava a cada tick são agrupadas na consulta, nunca
-  apagadas. "Tempo assistido" é a soma da duração dos vídeos que viraram assistidos no dia (cada vídeo uma vez).
+  apagadas; cada página lê só as linhas dos dias que ela mostra (pelo índice de `watched_at`). "Tempo assistido" é a soma da duração dos vídeos que viraram assistidos no dia (cada vídeo uma vez).
 
 ## Tags
 - Tags por vídeo no diálogo de detalhes, onde também se edita título e descrição.
