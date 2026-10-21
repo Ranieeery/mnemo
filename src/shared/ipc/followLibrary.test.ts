@@ -28,13 +28,27 @@ describe("followLibrary", () => {
         await emit("library-changed", null);
         await emit("library-changed", null);
         expect(invalidate).toHaveBeenCalledTimes(1);
-        expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.library });
+        expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: queryKeys.library }));
 
         // The changes that arrived meanwhile are picked up once the interval ends.
         await vi.advanceTimersByTimeAsync(1000);
         expect(invalidate).toHaveBeenCalledTimes(2);
         await vi.advanceTimersByTimeAsync(1000);
         expect(invalidate).toHaveBeenCalledTimes(2);
+    });
+
+    it("lets a disk search finish while files keep changing", async () => {
+        mockCommands({});
+        const folder = queryKeys.folder("D:\\Videos");
+        const search = queryKeys.folderSearch("D:\\Videos", "ep");
+        queryClient.setQueryData(folder, []);
+        queryClient.setQueryData(search, []);
+        stop = followLibrary();
+        await listening();
+
+        await emit("library-changed", null);
+        expect(queryClient.getQueryState(folder)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(search)?.isInvalidated).toBe(false);
     });
 
     it("refreshes the folder statuses when a folder is connected or unplugged", async () => {

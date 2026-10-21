@@ -17,6 +17,8 @@ export const queryKeys = {
     folder: (path: string) => ["library", "folder", path] as const,
     folderSummary: (path: string) => ["library", "folder-summary", path] as const,
     librarySearch: (query: string) => ["library", "search", query] as const,
+    /** Every disk search. File changes don't restart them (see `followLibrary`). */
+    folderSearches: () => ["library", "folder-search"] as const,
     folderSearch: (path: string, query: string) => ["library", "folder-search", path, query] as const,
     video: (path: string) => ["library", "video", path] as const,
     playlist: (path: string) => ["library", "playlist", path] as const,

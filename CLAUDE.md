@@ -214,7 +214,7 @@ src/
   - a raiz é conferida de novo logo antes de gravar;
   - arquivos novos que ainda crescem ou estão travados (em cópia) são adiados e conferidos de novo depois.
 - O frontend recebe os eventos `libraryChanged` (invalida `["library"]`, no máximo uma vez por segundo, em
-  `shared/ipc/followLibrary.ts`) e `libraryFoldersChanged` (invalida os status).
+  `shared/ipc/followLibrary.ts`, menos a busca em disco, que nunca terminaria com arquivos mudando) e `libraryFoldersChanged` (invalida os status).
 - Realocação, watcher, disponibilidade e o resto do fluxo: `docs/media-and-sync.md`.
 
 ## Segurança

@@ -1,3 +1,4 @@
+import { partialMatchKey } from "@tanstack/react-query";
 import { events } from "./bindings";
 import { queryClient } from "./queryClient";
 import { queryKeys } from "./queryKeys";
@@ -19,7 +20,12 @@ export function followLibrary(): () => void {
             pending = true;
             return;
         }
-        void queryClient.invalidateQueries({ queryKey: queryKeys.library });
+        // A disk search restarted on every change would never finish while files keep changing (processing, a large
+        // copy). It stays under `library` so that actions on its videos still update it.
+        void queryClient.invalidateQueries({
+            queryKey: queryKeys.library,
+            predicate: (query) => !partialMatchKey(query.queryKey, queryKeys.folderSearches()),
+        });
         timer = setTimeout(() => {
             timer = null;
             if (pending && active) {
