@@ -1,6 +1,7 @@
 //! Brings the library up to date with what changed below some paths: renames first, then a comparison with the disk.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::disk::{outermost, root_of};
 use super::reconcile::reconcile;
@@ -10,13 +11,13 @@ use crate::db::{folders, hidden, presence};
 use crate::domain::media::is_video_path;
 use crate::domain::paths::is_within;
 use crate::error::AppResult;
-use crate::services::media::MediaToolkit;
 use crate::services::media::processing::Priority;
+use crate::services::media::{MediaToolkit, thumbnails};
 
 impl<T: MediaToolkit + 'static> Inner<T> {
     /// Applies the renames the watcher paired (so videos never fingerprinted keep their record too) and returns
     /// every path to compare.
-    pub(super) async fn follow_renames(&self, changes: Vec<Change>) -> Vec<PathBuf> {
+    pub(super) async fn follow_renames(self: &Arc<Self>, changes: Vec<Change>) -> Vec<PathBuf> {
         let reachable = self.reachable_roots();
         let mut paths = Vec::new();
         let mut renames = Vec::new();
@@ -36,25 +37,37 @@ impl<T: MediaToolkit + 'static> Inner<T> {
                 .call(move |connection| {
                     let library = folders::paths(connection)?;
                     let transaction = connection.transaction()?;
+                    // Records left where a renamed file or folder now is are stale: what was there is gone.
+                    let mut replaced = Vec::new();
+                    let mut moved_library_folders = 0;
                     for (from, to) in renames {
                         if root_of(&from, &library).is_none() || root_of(&to, &library).is_none() {
                             continue;
                         }
                         let (from, to) = (from.to_string_lossy(), to.to_string_lossy());
                         if Path::new(to.as_ref()).is_dir() {
+                            replaced.extend(presence::clear_move_target(&transaction, &from, &to)?);
                             presence::move_folder(&transaction, &from, &to)?;
                             folders::move_view_modes(&transaction, &from, &to)?;
                             hidden::move_within(&transaction, &from, &to)?;
+                            // A library folder nested in another one moves with it.
+                            moved_library_folders += folders::move_within(&transaction, &from, &to)?;
                         } else if is_video_path(Path::new(to.as_ref())) {
-                            presence::rename_file(&transaction, &from, &to)?;
+                            replaced.extend(presence::rename_file(&transaction, &from, &to)?.1);
                         }
                     }
                     transaction.commit()?;
-                    Ok(())
+                    Ok((replaced, moved_library_folders))
                 })
                 .await;
-            if let Err(error) = followed {
-                tracing::warn!(%error, "failed to follow renamed files");
+            match followed {
+                Ok((replaced, moved_library_folders)) => {
+                    thumbnails::discard(&self.thumbnails_dir, replaced).await;
+                    if moved_library_folders > 0 {
+                        self.refresh_roots().await;
+                    }
+                }
+                Err(error) => tracing::warn!(%error, "failed to follow renamed files"),
             }
         }
         paths

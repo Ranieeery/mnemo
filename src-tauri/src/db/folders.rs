@@ -184,12 +184,14 @@ pub fn clear_view_modes_within(connection: &Connection, path: &str, kept: &[Stri
     Ok(())
 }
 
-/// Keeps the view mode settings of a folder and of everything inside it when the folder is renamed or moved.
+/// Keeps the view mode settings of a folder and of everything inside it when the folder is renamed or moved. Settings
+/// left at `to` (a folder that no longer existed) are replaced.
 pub fn move_view_modes(connection: &Connection, from: &str, to: &str) -> AppResult<()> {
     let source = FolderBounds::new(from);
     let target = FolderBounds::new(to);
+    clear_view_modes_within(connection, to, &[])?;
     connection.execute(
-        "UPDATE OR IGNORE folder_settings
+        "UPDATE folder_settings
          SET path = CASE WHEN path = ?1 THEN ?4 ELSE ?5 || substr(path, ?6) END
          WHERE path = ?1 OR (path >= ?2 AND path < ?3)",
         params![
@@ -206,9 +208,18 @@ pub fn move_view_modes(connection: &Connection, from: &str, to: &str) -> AppResu
 
 /// Points a library folder, and any library folder inside it, at a new location, keeping their ids and icons.
 pub fn relocate(connection: &Connection, from: &str, to: &str) -> AppResult<()> {
+    if move_within(connection, from, to)? == 0 {
+        return Err(AppError::NotFound(format!("library folder {from}")));
+    }
+    Ok(())
+}
+
+/// Follows the library folders at or inside `from` to `to` (a folder renamed on disk), keeping their ids and icons.
+/// Returns how many moved.
+pub fn move_within(connection: &Connection, from: &str, to: &str) -> AppResult<usize> {
     let source = FolderBounds::new(from);
     let target = FolderBounds::new(to);
-    let changed = connection.execute(
+    Ok(connection.execute(
         "UPDATE library_folders
          SET path = CASE WHEN path = ?1 THEN ?4 ELSE ?5 || substr(path, ?6) END
          WHERE path = ?1 OR (path >= ?2 AND path < ?3)",
@@ -220,11 +231,7 @@ pub fn relocate(connection: &Connection, from: &str, to: &str) -> AppResult<()> 
             target.lower,
             source.prefix_chars() as i64 + 1
         ],
-    )?;
-    if changed == 0 {
-        return Err(AppError::NotFound(format!("library folder {from}")));
-    }
-    Ok(())
+    )?)
 }
 
 #[cfg(test)]
@@ -492,5 +499,52 @@ mod tests {
         set_view_mode(&connection, &sibling, None).unwrap();
         clear_view_modes_within(&connection, &courses, &[]).unwrap();
         assert!(view_modes(&connection).unwrap().is_empty());
+    }
+
+    #[test]
+    fn moving_view_modes_over_stale_ones_replaces_them() {
+        // Regression: `UPDATE OR IGNORE` left the moved folder's setting behind when the target had one.
+        let connection = test_support::connection();
+        let (from, to) = (path(&["Lib", "Show"]), path(&["Lib", "Series"]));
+        set_view_mode(&connection, &from, Some(FolderViewMode::Continuous)).unwrap();
+        set_view_mode(&connection, &to, Some(FolderViewMode::Folders)).unwrap();
+        set_view_mode(
+            &connection,
+            &path(&["Lib", "Series", "Old"]),
+            Some(FolderViewMode::Continuous),
+        )
+        .unwrap();
+
+        move_view_modes(&connection, &from, &to).unwrap();
+
+        assert_eq!(view_modes(&connection).unwrap(), [(to, FolderViewMode::Continuous)]);
+    }
+
+    #[test]
+    fn library_folders_inside_a_renamed_folder_follow_it() {
+        let connection = test_support::connection();
+        let outer = add(&connection, &path(&["D:", "Videos"])).unwrap();
+        let nested = add(&connection, &path(&["D:", "Videos", "Anime"])).unwrap();
+
+        let moved = move_within(
+            &connection,
+            &path(&["D:", "Videos", "Anime"]),
+            &path(&["D:", "Videos", "Shows"]),
+        );
+
+        assert_eq!(moved.unwrap(), 1);
+        let folders = list(&connection).unwrap();
+        let path_of = |id: i64| {
+            folders
+                .iter()
+                .find(|folder| folder.id == id)
+                .map(|folder| folder.path.clone())
+        };
+        assert_eq!(path_of(nested.id), Some(path(&["D:", "Videos", "Shows"])));
+        assert_eq!(path_of(outer.id), Some(outer.path));
+        assert_eq!(
+            move_within(&connection, &path(&["D:", "Elsewhere"]), &path(&["D:", "Other"])).unwrap(),
+            0
+        );
     }
 }

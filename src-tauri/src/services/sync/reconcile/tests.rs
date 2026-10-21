@@ -363,3 +363,49 @@ async fn a_library_folder_unplugged_while_new_files_settle_loses_nothing() {
     unplug.await.unwrap();
     assert!(!library.video(video.id).await.unwrap().1);
 }
+
+#[tokio::test]
+async fn a_video_whose_new_path_was_taken_meanwhile_is_marked_missing() {
+    // Regression: the relocation was skipped and the video stayed present at a path that no longer existed.
+    let library = Library::new().await;
+    let original = library.write("Library/Ep 1.mkv", &content(3));
+    let video = library.store(&original, true).await;
+    let renamed = library.path("Library/Pilot.mkv");
+    std::fs::rename(&original, &renamed).unwrap();
+    let identity = identify(&renamed).unwrap();
+    // Read at its new path by the pipeline between the plan and its application.
+    let taken_path = renamed.to_string_lossy().into_owned();
+    let taken = library
+        .db
+        .call(move |connection| {
+            videos::insert(
+                connection,
+                &NewVideo {
+                    file_path: &taken_path,
+                    title: "Read meanwhile",
+                    duration_seconds: 600.0,
+                    thumbnail_path: None,
+                    identity: None,
+                },
+            )
+        })
+        .await
+        .unwrap();
+    let plan = Plan {
+        relocate: vec![(video.id, renamed.to_string_lossy().into_owned(), identity)],
+        ..Plan::default()
+    };
+
+    assert!(
+        library
+            .db
+            .call(move |connection| apply(connection, &plan))
+            .await
+            .unwrap()
+    );
+
+    assert!(library.video(video.id).await.unwrap().1);
+    let (kept, missing, _) = library.video(taken.id).await.unwrap();
+    assert_eq!(PathBuf::from(kept.file_path), renamed);
+    assert!(!missing);
+}

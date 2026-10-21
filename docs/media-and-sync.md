@@ -53,7 +53,12 @@ dos dados) estão no `CLAUDE.md`.
   - `notify-debouncer-full`, recursivo por raiz, debounce de 2 s;
   - renomeações viram pares (o Linux já os entrega; o Windows manda o nome antigo logo antes do novo; no macOS o
     cache de ids de arquivo do debouncer faz o par, e só lá esse cache existe), e pastas renomeadas levam junto o
-    modo de exibição e o estado de escondida;
+    modo de exibição, o estado de escondida e as pastas da biblioteca aninhadas nelas (as raízes são atualizadas na
+    hora);
+  - um registro que ainda ocupe o destino é obsoleto (o arquivo foi sobrescrito, ou a pasta não existia mais) e dá
+    lugar ao vídeo renomeado, com a thumbnail apagada; nenhum conflito é ignorado em silêncio;
+  - se, ao aplicar a comparação, outro vídeo já foi gravado no caminho novo de um vídeo reconhecido, o reconhecido
+    fica sumido em vez de "presente" num caminho que não existe;
   - eventos perdidos (`Rescan`) comparam a área inteira.
 - Disponibilidade: as raízes são conferidas a cada 10 s. O status de cada pasta (`FolderWatch`: `watching`, `polling`,
   `off`, `unavailable`, com motivo) sai em `get_library_folder_statuses`. Uma pasta que não pode ser monitorada (limite

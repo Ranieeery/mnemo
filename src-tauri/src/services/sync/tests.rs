@@ -621,3 +621,40 @@ async fn a_new_file_is_read_without_its_siblings_still_being_copied() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn a_renamed_library_folder_inside_another_one_follows_it() {
+    // Regression: the videos moved with the folder, but the library kept the old path, now "not connected".
+    let fixture = Fixture::new(&["Library/Anime/Ep 1.mkv"], true).await;
+    let video = fixture.store_legacy("Library/Anime/Ep 1.mkv").await;
+    let nested = fixture.text("Library/Anime");
+    fixture
+        .harness
+        .db
+        .call(move |connection| folders::add(connection, &nested))
+        .await
+        .unwrap();
+    fixture.sync.start();
+    eventually("both folders are watched", || async {
+        fixture.watch_of("Library") == Some(FolderWatch::Watching)
+            && fixture.watch_of("Library/Anime") == Some(FolderWatch::Watching)
+    })
+    .await;
+
+    std::fs::rename(fixture.path("Library/Anime"), fixture.path("Library/Shows")).unwrap();
+    let moved = fixture.text("Library/Shows/Ep 1.mkv");
+    eventually("the rename is followed", || async {
+        fixture.video_path(video).await.as_deref() == Some(moved.as_str())
+            && fixture.watch_of("Library/Shows") == Some(FolderWatch::Watching)
+    })
+    .await;
+    let library = fixture
+        .harness
+        .db
+        .call(|connection| folders::paths(connection))
+        .await
+        .unwrap();
+    assert!(library.contains(&fixture.text("Library/Shows")));
+    assert!(!library.contains(&fixture.text("Library/Anime")));
+    assert_eq!(fixture.watch_of("Library/Anime"), None);
+}

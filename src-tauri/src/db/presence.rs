@@ -81,24 +81,33 @@ pub fn relocate(connection: &Connection, id: i64, path: &str, identity: &FileIde
     Ok(changed == 1)
 }
 
-/// Follows a file renamed or moved while it was watched. Returns whether a video was stored at `from`.
-pub fn rename_file(connection: &Connection, from: &str, to: &str) -> AppResult<bool> {
+/// Follows a file renamed or moved while it was watched. A record still stored at `to` is replaced: the file there
+/// was overwritten by this one. Returns whether a video was stored at `from`, and the thumbnail of the record
+/// replaced.
+pub fn rename_file(connection: &Connection, from: &str, to: &str) -> AppResult<(bool, Vec<String>)> {
+    let mut statement = connection.prepare(
+        "DELETE FROM videos WHERE file_path = ?2 AND EXISTS (SELECT 1 FROM videos WHERE file_path = ?1)
+         RETURNING thumbnail_path",
+    )?;
+    let replaced = statement
+        .query_map(params![from, to], |row| row.get::<_, Option<String>>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
     let changed = connection.execute(
-        "UPDATE OR IGNORE videos SET file_path = ?2, missing_since = NULL, updated_at = CURRENT_TIMESTAMP
-         WHERE file_path = ?1",
+        "UPDATE videos SET file_path = ?2, missing_since = NULL, updated_at = CURRENT_TIMESTAMP WHERE file_path = ?1",
         params![from, to],
     )?;
-    Ok(changed == 1)
+    Ok((changed == 1, replaced.into_iter().flatten().collect()))
 }
 
-/// Follows a folder renamed or moved while it was watched: every video inside it keeps its record. Returns how many
-/// videos moved.
+/// Follows a folder renamed or moved: every video inside it keeps its record. Call [`clear_move_target`] first, so
+/// no path is taken. Videos that were missing stay so; the comparison that follows restores those found. Returns how
+/// many videos moved.
 pub fn move_folder(connection: &Connection, from: &str, to: &str) -> AppResult<usize> {
     let source = FolderBounds::new(from);
     let target = FolderBounds::new(to);
     // `substr` counts characters, like `prefix_chars`.
     Ok(connection.execute(
-        "UPDATE OR IGNORE videos SET file_path = ?3 || substr(file_path, ?4), updated_at = CURRENT_TIMESTAMP
+        "UPDATE videos SET file_path = ?3 || substr(file_path, ?4), updated_at = CURRENT_TIMESTAMP
          WHERE file_path >= ?1 AND file_path < ?2",
         params![
             source.lower,
@@ -110,8 +119,9 @@ pub fn move_folder(connection: &Connection, from: &str, to: &str) -> AppResult<u
 }
 
 /// Before the videos of `from` move to `to`: deletes the records already stored in `to` at a path one of them is
-/// about to take, so the move keeps every video of `from`. Those records lie outside every library folder (the
-/// target never overlaps one), like the orphans Maintenance cleans. Returns their thumbnails.
+/// about to take, so the move keeps every video of `from`. Those records are stale: a relocation target lies outside
+/// every library folder, and a folder renamed on disk took the place of one that no longer existed. Returns their
+/// thumbnails.
 pub fn clear_move_target(connection: &Connection, from: &str, to: &str) -> AppResult<Vec<String>> {
     let source = FolderBounds::new(from);
     let target = FolderBounds::new(to);
@@ -321,12 +331,44 @@ mod tests {
             sibling.file_path
         );
 
-        assert!(rename_file(&connection, &moved, &path(&["D:", "Pilot.mkv"])).unwrap());
-        assert!(!rename_file(&connection, &moved, &path(&["D:", "Other.mkv"])).unwrap());
+        assert!(rename_file(&connection, &moved, &path(&["D:", "Pilot.mkv"])).unwrap().0);
+        assert!(!rename_file(&connection, &moved, &path(&["D:", "Other.mkv"])).unwrap().0);
         assert_eq!(
             videos::get(&connection, episode.id).unwrap().file_path,
             path(&["D:", "Pilot.mkv"])
         );
+    }
+
+    #[test]
+    fn a_file_renamed_over_another_one_keeps_the_renamed_video() {
+        // Regression: `UPDATE OR IGNORE` kept the overwritten file's record and left the renamed video behind, to be
+        // marked missing with its progress and tags.
+        let connection = test_support::connection();
+        let renamed = add_video(&connection, &path(&["D:", "Show", "Ep 1 (new).mkv"]), 60.0);
+        let overwritten = add_video(&connection, &path(&["D:", "Show", "Ep 1.mkv"]), 60.0);
+        mark_missing(&connection, renamed.id).unwrap();
+
+        let (moved, replaced) = rename_file(&connection, &renamed.file_path, &overwritten.file_path).unwrap();
+
+        assert!(moved);
+        assert_eq!(replaced, ["thumb.jpg"]);
+        assert!(videos::find_by_id(&connection, overwritten.id).unwrap().is_none());
+        assert_eq!(
+            videos::get(&connection, renamed.id).unwrap().file_path,
+            overwritten.file_path
+        );
+        assert_eq!(is_missing(&connection, &overwritten.file_path).unwrap(), Some(false));
+    }
+
+    #[test]
+    fn renaming_a_file_nothing_was_stored_for_keeps_what_is_at_the_target() {
+        let connection = test_support::connection();
+        let stored = add_video(&connection, &path(&["D:", "Ep 1.mkv"]), 60.0);
+
+        let (moved, replaced) = rename_file(&connection, &path(&["D:", "unknown.mkv"]), &stored.file_path).unwrap();
+
+        assert!(!moved && replaced.is_empty());
+        assert!(videos::find_by_id(&connection, stored.id).unwrap().is_some());
     }
 
     #[test]

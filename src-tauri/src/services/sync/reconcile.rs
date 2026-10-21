@@ -170,17 +170,17 @@ pub fn apply(connection: &mut Connection, plan: &Plan) -> AppResult<bool> {
     for video in &plan.mark_missing {
         presence::mark_missing(&transaction, video.id)?;
     }
-    let mut relocated = 0;
     for (id, path, identity) in &plan.relocate {
-        if presence::relocate(&transaction, *id, path, identity)? {
-            relocated += 1;
+        if !presence::relocate(&transaction, *id, path, identity)? {
+            // Another video was stored at that path meanwhile; this one's file is gone from where it was.
+            presence::mark_missing(&transaction, *id)?;
         }
     }
     for (id, size) in &plan.sizes {
         presence::set_size(&transaction, *id, *size)?;
     }
     transaction.commit()?;
-    Ok(!plan.restore.is_empty() || !plan.mark_missing.is_empty() || relocated > 0)
+    Ok(!plan.restore.is_empty() || !plan.mark_missing.is_empty() || !plan.relocate.is_empty())
 }
 
 /// Identifies each file, returning the identities and the files that could not be read.
