@@ -6,10 +6,10 @@ teclado e mouse (ver `CLAUDE.md`).
 ## Navegação, player e sidebar (implementação)
 
 - Navegação (`app/navigation/useHistoryNavigation`): voltar/avançar, `Alt+←/→` e botões laterais do mouse em todas
-  as telas; no player, voltar fecha e avançar reabre o último vídeo. As entradas do histórico são acompanhadas por
-  um rastreador único por `RouterHistory` (a barra superior desmonta no player); entradas `/watch` de um vídeo de
-  pasta escondida são puladas quando a tela atual não está dentro dela (`isConcealed`), e uma direção sem outra
-  entrada fica desabilitada.
+  as telas, menos com um diálogo ou menu aberto; no player, voltar fecha e avançar reabre o último vídeo. As entradas
+  do histórico são acompanhadas por um rastreador único por `RouterHistory` (a barra superior desmonta no player);
+  entradas `/watch` de um vídeo de pasta escondida são puladas quando a tela atual não está dentro dela
+  (`isConcealed`), e uma direção sem outra entrada fica desabilitada.
 - Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências
   entre sessões (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e
   salvas 400 ms após a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada
@@ -227,6 +227,8 @@ teclado e mouse (ver `CLAUDE.md`).
 ## Busca
 - Na home: no banco, por título, descrição e tags.
 - Dentro de uma pasta: nos nomes de arquivo em disco, recursiva, com progresso, incluindo vídeos ainda não processados.
+  Mantém a ordem e o filtro da pasta (`sort`, `status`).
+- O texto roda 300 ms depois da última tecla, na tela onde foi digitado: sair dela antes disso descarta a busca.
 
 ## Atalhos de teclado
 - Configuráveis em Settings → Shortcuts (`/settings?tab=shortcuts`): as ações do player e voltar/avançar do

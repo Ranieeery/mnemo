@@ -1,5 +1,5 @@
 import { emit } from "@tauri-apps/api/event";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ProcessingOutcome, ProcessingStatus } from "../ipc/bindings";
 import { callsOf, commandError, mockCommands } from "../test/ipc";
@@ -10,6 +10,7 @@ const idle: ProcessingStatus = { jobs: [], inFlight: [], cancelling: false, erro
 
 function outcome(folder: string, overrides: Partial<ProcessingOutcome> = {}): ProcessingOutcome {
     return {
+        job: 1,
         folder,
         summary: { processed: 0, skipped: 0, failed: 0 },
         cancelled: false,
@@ -29,7 +30,7 @@ describe("processing store", () => {
     let stopFollowing: () => void = () => {};
 
     async function follow(extra: Record<string, unknown> = {}) {
-        const calls = mockCommands({ get_processing_status: idle, process_folders: null, ...extra });
+        const calls = mockCommands({ get_processing_status: idle, process_folders: [1], ...extra });
         stopFollowing = followProcessing();
         // Toasts need a place to show up.
         renderWithUi(<p>screen</p>);
@@ -117,16 +118,69 @@ describe("processing store", () => {
     });
 
     it("syncs several folders and adds up their results once all ended", async () => {
-        await follow();
+        // Job 7 was already reading the whole series, so it answers for the show and its season.
+        await follow({ process_folders: [3, 7, 7] });
         let summary: Awaited<ReturnType<typeof syncFolders>> | undefined;
-        const sync = syncFolders(["D:\\Movies", "D:\\Series\\Show"]).then((result) => {
+        const sync = syncFolders(["D:\\Movies", "D:\\Series\\Show", "D:\\Series\\Show\\S2"]).then((result) => {
             summary = result;
         });
-        await finish(outcome("D:\\Movies", { summary: { processed: 2, skipped: 1, failed: 0 } }));
+        await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+        await finish(outcome("D:\\Movies", { job: 3, summary: { processed: 2, skipped: 1, failed: 0 } }));
         expect(summary).toBeUndefined();
-        // The show was covered by a job already reading the whole series.
-        await finish(outcome("D:\\Series", { summary: { processed: 1, skipped: 0, failed: 1 } }));
+        await finish(outcome("D:\\Series", { job: 7, summary: { processed: 1, skipped: 0, failed: 1 } }));
         await sync;
-        await waitFor(() => expect(summary).toEqual({ processed: 3, skipped: 1, failed: 1 }));
+        expect(summary).toEqual({ processed: 3, skipped: 1, failed: 1 });
+    });
+
+    it("waits for the jobs started by the sync, not for an older job ending meanwhile", async () => {
+        let answer: (jobs: number[]) => void = () => {};
+        await follow({ process_folders: () => new Promise<number[]>((resolve) => (answer = resolve)) });
+        let summary: Awaited<ReturnType<typeof syncFolders>> | undefined;
+        const sync = syncFolders(["D:\\Movies"]).then((result) => {
+            summary = result;
+        });
+        // An older job of the same folder ends while the folder is still being compared.
+        await finish(outcome("D:\\Movies", { job: 1, summary: { processed: 5, skipped: 0, failed: 0 } }));
+        // The new job is quick: it ends before the request even returns.
+        await finish(outcome("D:\\Movies", { job: 2, summary: { processed: 1, skipped: 0, failed: 0 } }));
+        expect(summary).toBeUndefined();
+        await act(async () => answer([2]));
+        await sync;
+        expect(summary).toEqual({ processed: 1, skipped: 0, failed: 0 });
+    });
+
+    it("leaves other syncs waiting when one request fails", async () => {
+        let attempts = 0;
+        await follow({
+            process_folders: () => {
+                attempts += 1;
+                if (attempts === 2) {
+                    throw commandError("invalidInput", "not in the library");
+                }
+                return [4];
+            },
+        });
+        let summary: Awaited<ReturnType<typeof syncFolders>> | undefined;
+        const first = syncFolders(["D:\\Movies"]).then((result) => {
+            summary = result;
+        });
+        await expect(syncFolders(["D:\\Movies"])).rejects.toMatchObject({ message: "not in the library" });
+        await finish(outcome("D:\\Movies", { job: 4, summary: { processed: 2, skipped: 0, failed: 0 } }));
+        await first;
+        expect(summary).toEqual({ processed: 2, skipped: 0, failed: 0 });
+    });
+
+    it("keeps a status sent by the backend over the one asked for at the start", async () => {
+        const running: ProcessingStatus = {
+            jobs: [{ folder: "D:\\Videos", scanning: false, total: 4, done: 1, failed: 0 }],
+            inFlight: [],
+            cancelling: false,
+            errors: [],
+        };
+        let answer: (status: ProcessingStatus) => void = () => {};
+        await follow({ get_processing_status: () => new Promise<ProcessingStatus>((resolve) => (answer = resolve)) });
+        await act(() => emit("processing-status-changed", running));
+        await act(async () => answer(idle));
+        expect(useProcessingStore.getState().status).toEqual(running);
     });
 });

@@ -139,10 +139,11 @@ export const commands = {
 	/**
 	 *  Brings each folder up to date with the disk (renamed, moved and vanished files), then queues its new videos to be
 	 *  read in the background. Progress and the end of each job arrive as events; `report` asks for the job's summary to
-	 *  be shown. Folders already queued (or inside one) add nothing. Fails, queuing nothing, if any folder is outside the
-	 *  library or the comparison fails.
+	 *  be shown. Folders already queued (or inside one) add nothing. Returns the ids of the jobs reading the folders,
+	 *  matching the events of their ends. Fails, queuing nothing, if any folder is outside the library or the comparison
+	 *  fails.
 	 */
-	processFolders: (paths: string[], report: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("process_folders", { paths, report })),
+	processFolders: (paths: string[], report: boolean) => typedError<number[], IpcError>(__TAURI_INVOKE("process_folders", { paths, report })),
 	/**  Cancels reading the videos of one folder, or of every folder when `null`; running ffmpeg processes are killed. */
 	cancelProcessing: (folder: string | null) => __TAURI_INVOKE<void>("cancel_processing", { folder }),
 	/**  What the processing pipeline is doing now, for screens that open while it runs. */
@@ -536,6 +537,8 @@ export type ProcessingJob = {
 
 /**  How a job ended, sent once per job. */
 export type ProcessingOutcome = {
+	/**  The job's id, as returned by `process_folders`. */
+	job: number,
 	folder: string,
 	summary: ProcessingSummary,
 	cancelled: boolean,

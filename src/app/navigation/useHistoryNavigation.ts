@@ -3,7 +3,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { HiddenFolder } from "../../shared/ipc/bindings";
 import { useHiddenFolders, useKeyboardShortcuts } from "../../shared/ipc/queries";
-import { comboFromEvent, hasCommandModifier, isTextEntry } from "../../shared/lib/keyboard";
+import { comboFromEvent, hasCommandModifier, isOverlayOpen, isTextEntry } from "../../shared/lib/keyboard";
 import { isWithin } from "../../shared/lib/paths";
 import { nearestHiddenFolder } from "../../shared/video";
 
@@ -132,8 +132,8 @@ export function useHistoryShortcuts() {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const combo = comboFromEvent(event);
-            // A plain key typed in a field is text, not navigation.
-            if (combo === null || (isTextEntry(event.target) && !hasCommandModifier(combo))) {
+            // A plain key typed in a field is text, not navigation; an open dialog or menu stays over its screen.
+            if (combo === null || (isTextEntry(event.target) && !hasCommandModifier(combo)) || isOverlayOpen()) {
                 return;
             }
             if (historyBack.includes(combo)) {
@@ -152,6 +152,9 @@ export function useHistoryShortcuts() {
         };
         const handleMouseUp = (event: MouseEvent) => {
             cancelSideButton(event);
+            if (isOverlayOpen()) {
+                return;
+            }
             if (event.button === MOUSE_BACK) {
                 back();
             } else if (event.button === MOUSE_FORWARD) {

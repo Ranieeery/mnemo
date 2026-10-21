@@ -77,4 +77,20 @@ describe("ProcessingBar", () => {
         await user.click(within(dialog).getByRole("button", { name: "Show Ep 03.mkv in file manager" }));
         expect(callsOf(calls, "reveal_in_file_manager")).toEqual([{ path: "D:\\Series\\Show\\Ep 03.mkv" }]);
     });
+
+    it("keeps the details open with what could not be read after the last job ends", async () => {
+        mockCommands({ list_library_folders: libraryFolders });
+        const { user } = await renderBar();
+        await user.click(screen.getByRole("button", { name: "1 file couldn't be read" }));
+        const dialog = await screen.findByRole("dialog", { name: "Reading new videos" });
+
+        showStatus({ ...running, jobs: [], inFlight: [] });
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(dialog).toBeInTheDocument();
+        expect(within(dialog).getByText("Nothing left to read.")).toBeInTheDocument();
+        expect(within(dialog).getByText("ffprobe failed: invalid data")).toBeInTheDocument();
+
+        await user.click(within(dialog).getByText("Close", { selector: "button" }));
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
 });

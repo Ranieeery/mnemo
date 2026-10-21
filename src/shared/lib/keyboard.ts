@@ -77,6 +77,11 @@ export function isTextEntry(target: EventTarget | null): boolean {
     );
 }
 
+/** Whether a dialog or menu is open: it owns the keyboard (Escape closes it) and screen shortcuts wait. */
+export function isOverlayOpen(): boolean {
+    return document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]') !== null;
+}
+
 /** Whether a combination uses Ctrl, Alt or Meta, and so cannot be typing. */
 export function hasCommandModifier(combo: string): boolean {
     const modifiers = combo.split("+").slice(0, -1);

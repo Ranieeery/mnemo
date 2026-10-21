@@ -38,7 +38,7 @@ function mockFolder(folderContents: FolderContents, extra: Record<string, unknow
         browse_folder: folderContents,
         get_folder_summary: { totalVideos: 19, watchedVideos: 12, taggedVideos: 3 },
         media_tools_status: { ffmpeg: true, ffprobe: true },
-        process_folders: null,
+        process_folders: [],
         ...extra,
     });
 }

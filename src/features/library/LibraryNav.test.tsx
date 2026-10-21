@@ -79,7 +79,7 @@ describe("LibraryNav", () => {
     it("reads the videos of a folder added back to the library", async () => {
         const calls = mockCommands({
             ...libraryCommandsFixture([]),
-            process_folders: null,
+            process_folders: [],
             add_library_folder: series,
             "plugin:dialog|open": series.path,
         });
@@ -94,7 +94,7 @@ describe("LibraryNav", () => {
     it("syncs a folder, shows it is being read and reports what was found", async () => {
         const calls = mockCommands({
             ...libraryCommandsFixture([series]),
-            process_folders: null,
+            process_folders: [],
             get_processing_status: { jobs: [], inFlight: [], cancelling: false, errors: [] },
         });
         const stop = followProcessing();

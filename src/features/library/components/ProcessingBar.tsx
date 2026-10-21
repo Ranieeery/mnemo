@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ProcessingJob, ProcessingStatus } from "../../../shared/ipc/bindings";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
 import { folderName } from "../../../shared/lib/folderName";
 import { baseName } from "../../../shared/lib/paths";
@@ -11,12 +12,33 @@ import { ProcessingDetailsDialog } from "./ProcessingDetailsDialog";
 export function ProcessingBar() {
     const status = useProcessingStore((state) => state.status);
     const [detailsOpen, setDetailsOpen] = useState(false);
-    const libraryFolders = useLibraryFolders().data;
     const [first, ...others] = status.jobs;
-    if (!first) {
-        return null;
-    }
 
+    return (
+        <>
+            {first && (
+                <ReadingSummary
+                    status={status}
+                    first={first}
+                    others={others}
+                    onShowDetails={() => setDetailsOpen(true)}
+                />
+            )}
+            {/* The details stay open after the last job ends: the files that could not be read are still listed. */}
+            {detailsOpen && <ProcessingDetailsDialog onClose={() => setDetailsOpen(false)} />}
+        </>
+    );
+}
+
+type ReadingSummaryProps = {
+    status: ProcessingStatus;
+    first: ProcessingJob;
+    others: ProcessingJob[];
+    onShowDetails: () => void;
+};
+
+function ReadingSummary({ status, first, others, onShowDetails }: ReadingSummaryProps) {
+    const libraryFolders = useLibraryFolders().data;
     const total = status.jobs.reduce((sum, job) => sum + job.total, 0);
     const done = status.jobs.reduce((sum, job) => sum + job.done, 0);
     const failed = status.jobs.reduce((sum, job) => sum + job.failed, 0);
@@ -40,11 +62,11 @@ export function ProcessingBar() {
                         {total === 0 && listing ? "Looking for videos…" : `${done} of ${total}`}
                     </span>
                     {failed > 0 && (
-                        <Button variant="ghost" size="sm" className="text-warning" onClick={() => setDetailsOpen(true)}>
+                        <Button variant="ghost" size="sm" className="text-warning" onClick={onShowDetails}>
                             {plural(failed, "file")} couldn't be read
                         </Button>
                     )}
-                    <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)}>
+                    <Button variant="ghost" size="sm" onClick={onShowDetails}>
                         Details
                     </Button>
                     <Button size="sm" disabled={status.cancelling} onClick={() => cancelProcessing()}>
@@ -53,7 +75,6 @@ export function ProcessingBar() {
                 </div>
             </div>
             <Progress label="Reading new videos" value={done} max={Math.max(total, 1)} size="thin" />
-            {detailsOpen && <ProcessingDetailsDialog onClose={() => setDetailsOpen(false)} />}
         </div>
     );
 }

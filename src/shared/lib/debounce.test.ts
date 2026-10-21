@@ -30,4 +30,18 @@ describe("debounce", () => {
         vi.advanceTimersByTime(1000);
         expect(run).toHaveBeenCalledOnce();
     });
+
+    it("drops what is waiting when cancelled", () => {
+        const run = vi.fn();
+        const saver = debounce(run, 400);
+        saver.schedule("a");
+        saver.cancel();
+        saver.flush();
+        vi.advanceTimersByTime(1000);
+        expect(run).not.toHaveBeenCalled();
+
+        saver.schedule("b");
+        vi.advanceTimersByTime(400);
+        expect(run).toHaveBeenCalledExactlyOnceWith("b");
+    });
 });

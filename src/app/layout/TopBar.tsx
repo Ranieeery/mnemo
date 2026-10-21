@@ -1,7 +1,8 @@
 import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Keyboard } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFolderName, useKeyboardShortcuts } from "../../shared/ipc/queries";
+import { debounce } from "../../shared/lib/debounce";
 import { shortcutHint } from "../../shared/lib/keyboard";
 import { openShortcutsHelp } from "../../shared/stores/dialogs";
 import { IconButton, SearchInput } from "../../shared/ui";
@@ -13,6 +14,9 @@ const SEARCH_DEBOUNCE_MS = 300;
 export function TopBar() {
     const { canGoBack, canGoForward, back, forward } = useHistoryNavigation();
     const shortcuts = useKeyboardShortcuts();
+    const pathname = useRouterState({ select: (state) => state.location.pathname });
+    const search = useSearch({ strict: false });
+    const folderPath = pathname === "/folder" ? search.path : undefined;
 
     return (
         <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
@@ -32,7 +36,8 @@ export function TopBar() {
                     onClick={forward}
                 />
             </div>
-            <SearchField />
+            {/* Each screen has its own field: a search typed on the screen being left, and not run yet, is dropped. */}
+            <SearchField key={folderPath ?? pathname} folderPath={folderPath} urlQuery={search.q ?? ""} />
             <IconButton label="Keyboard shortcuts" shortcut="?" icon={<Keyboard />} onClick={openShortcutsHelp} />
         </div>
     );
@@ -41,39 +46,48 @@ export function TopBar() {
 /**
  * Search of the current screen, kept in the URL (`q`): the library on the home page, files on disk inside a folder.
  */
-function SearchField() {
+function SearchField({ folderPath, urlQuery }: { folderPath: string | undefined; urlQuery: string }) {
     const navigate = useNavigate();
-    const pathname = useRouterState({ select: (state) => state.location.pathname });
-    const search = useSearch({ strict: false });
-    const folderPath = pathname === "/folder" ? search.path : undefined;
     const folderLabel = useFolderName(folderPath ?? "");
-    const urlQuery = search.q ?? "";
     const [value, setValue] = useState(urlQuery);
+    const pendingSearch = useMemo(
+        () =>
+            debounce((text: string) => {
+                const q = text.trim() ? text : undefined;
+                // Inside a folder the search keeps its order and filter.
+                void (folderPath
+                    ? navigate({
+                          from: "/folder",
+                          to: "/folder",
+                          search: (previous) => ({ ...previous, q }),
+                          replace: true,
+                      })
+                    : navigate({ to: "/", search: { q }, replace: true }));
+            }, SEARCH_DEBOUNCE_MS),
+        [folderPath, navigate]
+    );
 
-    // Follow the URL when it changes on its own (back/forward, opening another folder).
+    // Follow the URL when it changes on its own (back/forward, the logo clearing the search).
     useEffect(() => {
         setValue(urlQuery);
-    }, [urlQuery]);
+        return () => pendingSearch.cancel();
+    }, [pendingSearch, urlQuery]);
 
-    useEffect(() => {
-        if (value === urlQuery) {
-            return;
+    const changeValue = (next: string) => {
+        setValue(next);
+        if (next === urlQuery) {
+            pendingSearch.cancel();
+        } else {
+            pendingSearch.schedule(next);
         }
-        const timer = window.setTimeout(() => {
-            const q = value.trim() ? value : undefined;
-            void (folderPath
-                ? navigate({ to: "/folder", search: { path: folderPath, q }, replace: true })
-                : navigate({ to: "/", search: { q }, replace: true }));
-        }, SEARCH_DEBOUNCE_MS);
-        return () => window.clearTimeout(timer);
-    }, [value, urlQuery, folderPath, navigate]);
+    };
 
     return (
         <SearchInput
             label={folderPath ? `Search in ${folderLabel}` : "Search the library"}
             placeholder={folderPath ? `Search in ${folderLabel}` : "Search titles, descriptions and tags"}
             value={value}
-            onValueChange={setValue}
+            onValueChange={changeValue}
             className="ml-auto w-full max-w-md"
         />
     );

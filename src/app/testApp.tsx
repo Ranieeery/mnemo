@@ -16,7 +16,7 @@ export function renderApp(path = "/", extraCommands: Record<string, unknown> = {
         get_library_folder_sort: "custom",
         get_home: emptyHome,
         media_tools_status: { ffmpeg: true, ffprobe: true },
-        process_folders: null,
+        process_folders: [],
         get_processing_status: { jobs: [], inFlight: [], cancelling: false, errors: [] },
         get_library_folder_statuses: [],
         list_hidden_folders: [],

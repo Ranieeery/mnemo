@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { followLibrary } from "../shared/ipc/followLibrary";
 import { queryClient } from "../shared/ipc/queryClient";
-import { comboFromEvent, isTextEntry } from "../shared/lib/keyboard";
+import { comboFromEvent, isOverlayOpen, isTextEntry } from "../shared/lib/keyboard";
 import { openShortcutsHelp } from "../shared/stores/dialogs";
 import { followProcessing } from "../shared/stores/processing";
 import { Toaster, TooltipProvider } from "../shared/ui";
@@ -35,10 +35,12 @@ function GlobalShortcuts() {
     // "?" shows every shortcut, except while typing (where it is just a character) or over another dialog.
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.defaultPrevented || comboFromEvent(event) !== "?" || isTextEntry(event.target)) {
-                return;
-            }
-            if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) {
+            if (
+                event.defaultPrevented ||
+                comboFromEvent(event) !== "?" ||
+                isTextEntry(event.target) ||
+                isOverlayOpen()
+            ) {
                 return;
             }
             event.preventDefault();

@@ -134,10 +134,59 @@ describe("app shell", () => {
         expect(await screen.findByRole("button", { name: "Show watched" })).toBeInTheDocument();
     });
 
-    it("searches inside the folder being browsed", async () => {
-        const { user } = renderApp("/");
+    it("searches inside the folder being browsed, keeping its order and filter", async () => {
+        const pilot = videoFixture({ id: 1, title: "Pilot", filePath: "D:\\Series\\Pilot.mkv" });
+        const { user, router } = renderApp("/", {
+            search_folder: [],
+            browse_folder: folderContentsFixture({
+                path: "D:\\Series",
+                groups: [{ folderPath: "D:\\Series", relativePath: "", entries: [entryFixture(pilot)] }],
+            }),
+        });
         await openSeries(user);
-        expect(screen.getByRole("searchbox", { name: "Search in Series" })).toBeInTheDocument();
+        await user.click(await screen.findByRole("button", { name: "Show all videos" }));
+        await user.click(await screen.findByRole("menuitemradio", { name: "Watched" }));
+        await waitFor(() => expect(router.state.location.search).toEqual({ path: "D:\\Series", status: "watched" }));
+
+        await user.type(screen.getByRole("searchbox", { name: "Search in Series" }), "pil");
+        await waitFor(() =>
+            expect(router.state.location.search).toEqual({ path: "D:\\Series", status: "watched", q: "pil" })
+        );
+    });
+
+    it("drops a search typed on a screen left before it runs", async () => {
+        const { user, router, calls } = renderApp("/", {
+            search_library: [],
+            list_watch_history: { entries: [], nextCursor: null },
+            get_watch_totals: [],
+        });
+        const search = await screen.findByRole("searchbox", { name: "Search the library" });
+        await user.type(search, "pil");
+        await user.click(screen.getByRole("link", { name: "History" }));
+        expect(await screen.findByRole("heading", { name: "History", level: 1 })).toBeInTheDocument();
+
+        await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+        expect(router.state.location.pathname).toBe("/history");
+        expect(screen.getByRole("searchbox", { name: "Search the library" })).toHaveValue("");
+        expect(callsOf(calls, "search_library")).toEqual([]);
+    });
+
+    it("stays on the screen under an open dialog with Alt+← or the mouse side buttons", async () => {
+        const { user, router } = renderApp("/");
+        await openSeries(user);
+        await user.keyboard("?");
+        const help = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+
+        await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+        fireEvent.mouseUp(window, { button: 3 });
+        await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+        expect(help).toBeInTheDocument();
+        expect(router.state.location.search).toEqual({ path: "D:\\Series" });
+
+        await user.click(within(help).getByText("Close", { selector: "button" }));
+        await waitFor(() => expect(help).not.toBeInTheDocument());
+        await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+        expect(await screen.findByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument();
     });
 });
 

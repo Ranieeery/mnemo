@@ -6,8 +6,10 @@ dos dados) estão no `CLAUDE.md`.
 ## Pipeline de mídia
 
 - Pipeline (`services/media/processing`): serviço de longa duração no `AppState`. Cada pasta pedida
-  (`process_folders`, que retorna na hora) vira um job; pedir uma pasta já na fila, ou dentro de uma, não cria job, e
-  um arquivo reivindicado por um job nunca é lido por outro. Um pool fixo de workers lê no máximo
+  (`process_folders`, que compara a pasta e retorna sem esperar a leitura) vira um job; pedir uma pasta já na fila, ou
+  dentro de uma, não cria job, e um arquivo reivindicado por um job nunca é lido por outro. O comando devolve o id do
+  job de cada pasta (o existente, quando ela já está na fila), e o evento do fim do job traz o mesmo id: é assim que
+  o "Sync all" espera os seus jobs, e não um mais antigo da mesma pasta que termine no meio. Um pool fixo de workers lê no máximo
   `processing_concurrency` arquivos por vez (metade dos núcleos, de 1 a 4) e um único escritor grava em lote
   (`videos::insert_batch`, transação a cada 25 itens ou 1 s, `ON CONFLICT DO NOTHING`). Prioridades `Normal` e `Low`
   (a baixa é para trabalho futuro como prévias). `cancel_processing` cancela um job ou todos com `CancellationToken`:

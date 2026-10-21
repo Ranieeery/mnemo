@@ -123,14 +123,15 @@ impl Harness {
         .unwrap()
     }
 
-    /// Adds `folder` to the library, as the app always does before reading one, and asks to read it.
-    pub async fn enqueue(&self, folder: PathBuf, priority: Priority, report: bool) {
+    /// Adds `folder` to the library, as the app always does before reading one, and asks to read it. Returns the
+    /// id of the job reading it.
+    pub async fn enqueue(&self, folder: PathBuf, priority: Priority, report: bool) -> u64 {
         let path = folder.to_string_lossy().into_owned();
         self.db
             .call(move |connection| crate::db::folders::add(connection, &path))
             .await
             .unwrap();
-        self.processor.enqueue(folder, priority, report);
+        self.processor.enqueue(folder, priority, report)
     }
 
     pub fn toolkit(&self) -> &FakeToolkit {
@@ -222,11 +223,19 @@ async fn reads_each_file_once_whatever_is_asked() {
     let show = dir.path().join("Show");
 
     // The subfolder first, then the folder around it (twice), then the same subfolder again.
-    harness.enqueue(show.join("Season 2"), Priority::Normal, false).await;
-    harness.enqueue(show.clone(), Priority::Normal, false).await;
-    harness.enqueue(show.clone(), Priority::Normal, true).await;
-    harness.enqueue(show.join("Season 2"), Priority::Normal, false).await;
+    let season = harness.enqueue(show.join("Season 2"), Priority::Normal, false).await;
+    let whole = harness.enqueue(show.clone(), Priority::Normal, false).await;
+    let again = harness.enqueue(show.clone(), Priority::Normal, true).await;
+    let season_again = harness.enqueue(show.join("Season 2"), Priority::Normal, false).await;
     let outcomes = harness.outcomes(2).await;
+
+    // Each request answers with the job that reads its folder, and that job's end carries the same id.
+    assert_ne!(season, whole);
+    assert_eq!(again, whole);
+    assert!([season, whole].contains(&season_again));
+    let mut ended: Vec<u64> = outcomes.iter().map(|outcome| outcome.job).collect();
+    ended.sort_unstable();
+    assert_eq!(ended, [season, whole]);
 
     let mut probed = harness.toolkit().probed.lock().unwrap().clone();
     probed.sort();

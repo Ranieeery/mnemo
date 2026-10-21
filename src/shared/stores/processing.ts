@@ -23,8 +23,11 @@ export const useProcessingStore = create<{ status: ProcessingStatus }>(() => ({ 
 /** Folders already read in this session; opening them (or a subfolder) again does not walk the disk again. */
 const processedThisSession = new Set<string>();
 
-/** Callers waiting for the end of the jobs covering their folders (see `syncFolders`). */
-let waiters: { folder: string; resolve: (outcome: ProcessingOutcome) => void }[] = [];
+/** Callers waiting for the end of a job, by its id (see `syncFolders`). */
+let waiters: { job: number; resolve: (outcome: ProcessingOutcome) => void }[] = [];
+/** Jobs that ended while a sync was still waiting for its job ids: a job may end before the request returns. */
+const endedDuringSync = new Map<number, ProcessingOutcome>();
+let syncsStarting = 0;
 
 /**
  * Follows the pipeline: its status and the end of each job. Call once at the app root; returns the cleanup. Jobs run
@@ -32,14 +35,19 @@ let waiters: { folder: string; resolve: (outcome: ProcessingOutcome) => void }[]
  */
 export function followProcessing(): () => void {
     let active = true;
+    // The status sent by an event is newer than the one asked for at the start, whichever arrives last.
+    let heard = false;
     const subscriptions = [
-        events.processingStatusChanged.listen((event) => useProcessingStore.setState({ status: event.payload })),
+        events.processingStatusChanged.listen((event) => {
+            heard = true;
+            useProcessingStore.setState({ status: event.payload });
+        }),
         events.processingFinished.listen((event) => void finished(event.payload)),
     ];
     commands
         .getProcessingStatus()
         .then((status) => {
-            if (active) {
+            if (active && !heard) {
                 useProcessingStore.setState({ status });
             }
         })
@@ -102,7 +110,10 @@ async function finished(outcome: ProcessingOutcome) {
     if (processed > 0) {
         await queryClient.invalidateQueries({ queryKey: queryKeys.library });
     }
-    const [done, waiting] = partition(waiters, (waiter) => isWithin(waiter.folder, outcome.folder));
+    if (syncsStarting > 0) {
+        endedDuringSync.set(outcome.job, outcome);
+    }
+    const [done, waiting] = partition(waiters, (waiter) => waiter.job === outcome.job);
     waiters = waiting;
     for (const waiter of done) {
         waiter.resolve(outcome);
@@ -140,14 +151,22 @@ export async function processFolder(folder: string, { force = false, report = fa
 
 /** Reads every folder now and resolves once all of them ended, with their combined summary. */
 export async function syncFolders(folders: readonly string[]): Promise<ProcessingSummary> {
-    const ends = folders.map(
-        (folder) => new Promise<ProcessingOutcome>((resolve) => waiters.push({ folder, resolve }))
-    );
+    syncsStarting += 1;
+    let ends: Promise<ProcessingOutcome>[];
     try {
-        await call(commands.processFolders([...folders], false));
-    } catch (error) {
-        waiters = waiters.filter((waiter) => !folders.includes(waiter.folder));
-        throw error;
+        // A folder inside one already being read answers with that job, so the same id may cover several folders.
+        const jobs = await call(commands.processFolders([...folders], false));
+        ends = [...new Set(jobs)].map((job) => {
+            const ended = endedDuringSync.get(job);
+            return ended
+                ? Promise.resolve(ended)
+                : new Promise<ProcessingOutcome>((resolve) => waiters.push({ job, resolve }));
+        });
+    } finally {
+        syncsStarting -= 1;
+        if (syncsStarting === 0) {
+            endedDuringSync.clear();
+        }
     }
     for (const folder of folders) {
         processedThisSession.add(folder);
@@ -176,5 +195,7 @@ function partition<T>(items: readonly T[], test: (item: T) => boolean): [T[], T[
 export function resetProcessingSession() {
     processedThisSession.clear();
     waiters = [];
+    endedDuringSync.clear();
+    syncsStarting = 0;
     useProcessingStore.setState({ status: IDLE });
 }

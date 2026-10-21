@@ -54,6 +54,8 @@ pub struct ProcessingStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingOutcome {
+    /// The job's id, as returned by `process_folders`.
+    pub job: u64,
     pub folder: String,
     pub summary: ProcessingSummary,
     pub cancelled: bool,
