@@ -163,7 +163,8 @@ teclado e mouse (ver `CLAUDE.md`).
 ## Player embutido
 - Controles com auto-hide, tela cheia, modo teatro (vídeo na largura da janela, detalhes e playlist abaixo), volume,
   velocidade (0.25×–2×), botões ±10s, feedback visual dos atalhos. Volume, mudo, velocidade, legendas e modo teatro
-  ficam salvos entre sessões e valem para todo vídeo.
+  ficam salvos entre sessões e valem para todo vídeo. O auto-hide esconde os controles após 3 s sem atividade
+  durante a reprodução; foco de teclado dentro do player (`Tab`) os mostra e os mantém visíveis até sair dele.
 - Legendas externas com o mesmo nome do vídeo (`.srt`, `.vtt`, `.sub`, `.ass`) e legendas embutidas no arquivo
   (MKV, MP4): o ffprobe lista as faixas (`list_media_tracks`) e o ffmpeg extrai a escolhida sob demanda
   (`extract_subtitle`; ASS/SSA como ASS, o resto como WebVTT), com cache na sessão. Menu de legendas: Off, arquivo

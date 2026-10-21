@@ -15,7 +15,7 @@ describe("app shell", () => {
     it("navigates back and forward with the buttons and Alt+arrows", async () => {
         const { user } = renderApp("/");
         expect(await screen.findByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Back" })).toHaveAttribute("aria-disabled", "true");
 
         await openSeries(user);
         await user.click(screen.getByRole("button", { name: "Back" }));

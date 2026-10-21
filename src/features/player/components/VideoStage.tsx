@@ -44,7 +44,7 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const playback = usePlayback(videoRef);
-    const { visible, reveal } = useAutoHide(playback.playing);
+    const { visible, reveal, focusHandlers } = useAutoHide(playback.playing);
     const { flash, show } = useFlash();
     const fullscreen = useFullscreen(containerRef);
     const { volume, muted, speed, subtitlesEnabled, theater } = usePlayerStore(
@@ -165,6 +165,7 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
         <div
             ref={containerRef}
             onMouseMove={reveal}
+            {...focusHandlers}
             className={cx(
                 // A size container: subtitles scale with the video.
                 "@container relative flex items-center justify-center overflow-hidden bg-backdrop",
@@ -220,7 +221,7 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
                 audio={audio}
                 isFullscreen={fullscreen.isFullscreen}
                 onToggleFullscreen={fullscreen.toggle}
-                visible={visible || !playback.playing}
+                visible={visible}
                 frameCapture={
                     video
                         ? {

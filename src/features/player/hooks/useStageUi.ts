@@ -1,22 +1,28 @@
-import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { type FocusEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 /** Controls hide after this long without activity while playing. */
 const HIDE_CONTROLS_AFTER_MS = 3000;
 /** How long the center feedback (seek amount, volume, speed) stays on screen. */
 const FLASH_MS = 700;
 
-/** Shows the controls on activity and hides them while the video plays undisturbed. Paused video keeps them. */
+/**
+ * Shows the controls on activity and hides them while the video plays undisturbed. Paused video keeps them, and so
+ * does keyboard focus inside the stage: Tab would otherwise land on invisible buttons. The returned `focusHandlers`
+ * go on the stage.
+ */
 export function useAutoHide(playing: boolean) {
-    const [visible, setVisible] = useState(true);
+    const [shown, setShown] = useState(true);
+    // Only keyboard focus (`:focus-visible`) holds them: a clicked button keeps the focus, and must not.
+    const [keyboardFocus, setKeyboardFocus] = useState(false);
     const timer = useRef<number | undefined>(undefined);
     const playingRef = useRef(playing);
     playingRef.current = playing;
 
     const reveal = useCallback(() => {
-        setVisible(true);
+        setShown(true);
         window.clearTimeout(timer.current);
         if (playingRef.current) {
-            timer.current = window.setTimeout(() => setVisible(false), HIDE_CONTROLS_AFTER_MS);
+            timer.current = window.setTimeout(() => setShown(false), HIDE_CONTROLS_AFTER_MS);
         }
     }, []);
 
@@ -25,12 +31,29 @@ export function useAutoHide(playing: boolean) {
             reveal();
         } else {
             window.clearTimeout(timer.current);
-            setVisible(true);
+            setShown(true);
         }
         return () => window.clearTimeout(timer.current);
     }, [playing, reveal]);
 
-    return { visible, reveal };
+    const focusHandlers = {
+        onFocus: (event: FocusEvent) => {
+            if (event.target instanceof Element && event.target.matches(":focus-visible")) {
+                setKeyboardFocus(true);
+                reveal();
+            }
+        },
+        onBlur: (event: FocusEvent) => {
+            const next = event.relatedTarget;
+            if (keyboardFocus && !(next instanceof Node && event.currentTarget.contains(next))) {
+                setKeyboardFocus(false);
+                // The usual delay starts once focus leaves, so the controls don't vanish under the eyes.
+                reveal();
+            }
+        },
+    };
+
+    return { visible: shown || keyboardFocus || !playing, reveal, focusHandlers };
 }
 
 type Flash = { id: number; label: string };

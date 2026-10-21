@@ -15,7 +15,10 @@ describe("TagManager", () => {
         renderScreen(<TagManager />);
         expect(await screen.findByText("2 tags, 1 unused")).toBeInTheDocument();
         expect(screen.getByText("12 videos")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: 'Remove "old" from all videos' })).toBeDisabled();
+        expect(screen.getByRole("button", { name: 'Remove "old" from all videos' })).toHaveAttribute(
+            "aria-disabled",
+            "true"
+        );
     });
 
     it("deletes unused tags after confirmation", async () => {

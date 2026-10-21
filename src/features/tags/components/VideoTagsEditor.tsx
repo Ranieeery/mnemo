@@ -34,7 +34,7 @@ export function VideoTagsEditor({ videoId }: { videoId: number }) {
             </h3>
             {videoTags.isPending && <Skeleton className="h-6 w-48" />}
             {videoTags.isError && (
-                <p role="alert" className="text-small text-danger">
+                <p role="alert" className="text-small text-danger-text">
                     Could not load the tags: {errorMessage(videoTags.error)}
                 </p>
             )}

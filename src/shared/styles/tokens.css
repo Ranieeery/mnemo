@@ -25,7 +25,8 @@
     --color-border-strong: #353c4a;
     --color-text: #e8ebf1;
     --color-text-muted: #9aa3b2;
-    --color-text-subtle: #6b7383;
+    /* The quietest text that still reads: at least 4.5:1 on every surface up to `surface-hover`. */
+    --color-text-subtle: #8a93a3;
     /* Fills and indicators only: white on it is 5.2:1, but as small text on the background it is too dark. */
     --color-accent: #2563eb;
     --color-accent-hover: #3b74f0;
@@ -37,6 +38,8 @@
     --color-danger: #dc2626;
     --color-danger-hover: #e64545;
     --color-danger-foreground: #ffffff;
+    /* Error text and destructive menu items: `danger` is a fill, too dark for small text on these surfaces. */
+    --color-danger-text: #f87171;
     --color-focus-ring: #60a5fa;
     --color-overlay: rgb(5 6 8 / 0.72);
     /* Behind the video picture, so letterboxing is true black. */
@@ -175,7 +178,7 @@
 /*
  * Library folder icon colors, picked by name at runtime (`var(--color-folder-${color})`), hence `static`. Each one
  * keeps at least 3:1 (WCAG non-text contrast) on every background the icon sits on: `background`, `surface`,
- * `surface-raised` and `surface-hover`. `folderColors.test.ts` checks it for both themes.
+ * `surface-raised` and `surface-hover`. `colors.test.ts` checks it for both themes.
  */
 @theme static {
     --color-folder-red: #f87171;

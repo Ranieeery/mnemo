@@ -35,7 +35,7 @@ export function Input({ label, hideLabel = false, hint, error, id, className, ..
                 {...props}
             />
             {message && (
-                <p id={hintId} className={cx("text-caption", error ? "text-danger" : "text-text-muted")}>
+                <p id={hintId} className={cx("text-caption", error ? "text-danger-text" : "text-text-muted")}>
                     {message}
                 </p>
             )}

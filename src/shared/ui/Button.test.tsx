@@ -3,6 +3,7 @@ import { Play } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithUi } from "../test/render";
 import { Button } from "./Button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./DropdownMenu";
 import { IconButton } from "./IconButton";
 
 describe("Button", () => {
@@ -46,5 +47,37 @@ describe("IconButton", () => {
     it("reports toggle state", () => {
         renderWithUi(<IconButton label="Subtitles" icon={<Play />} pressed />);
         expect(screen.getByRole("button", { name: "Subtitles" })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("explains itself when disabled: focusable, with its tooltip, but does nothing", async () => {
+        const onClick = vi.fn();
+        const { user } = renderWithUi(
+            <IconButton label="No subtitles for this video" icon={<Play />} disabled onClick={onClick} />
+        );
+        const button = screen.getByRole("button", { name: "No subtitles for this video" });
+        expect(button).toHaveAttribute("aria-disabled", "true");
+        await user.tab();
+        expect(button).toHaveFocus();
+        expect(await screen.findByRole("tooltip")).toHaveTextContent("No subtitles for this video");
+        await user.click(button);
+        await user.keyboard("{Enter}");
+        expect(onClick).not.toHaveBeenCalled();
+    });
+
+    it("does not open its menu when disabled", async () => {
+        const { user } = renderWithUi(
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <IconButton label="Sort" icon={<Play />} disabled />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem>By name</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+        const trigger = screen.getByRole("button", { name: "Sort" });
+        await user.click(trigger);
+        await user.keyboard("{Enter}{ArrowDown}");
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     });
 });

@@ -1,15 +1,15 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { cx } from "../lib/cx";
 import { Tooltip } from "./Tooltip";
 
 type IconButtonVariant = "ghost" | "secondary" | "overlay";
 type IconButtonSize = "sm" | "md" | "lg";
 
-const variantClasses: Record<IconButtonVariant, string> = {
-    ghost: "text-text-muted hover:bg-surface-hover hover:text-text",
-    secondary: "border border-border bg-surface-raised text-text hover:bg-surface-hover",
+const variantClasses: Record<IconButtonVariant, { base: string; hover: string }> = {
+    ghost: { base: "text-text-muted", hover: "hover:bg-surface-hover hover:text-text" },
+    secondary: { base: "border border-border bg-surface-raised text-text", hover: "hover:bg-surface-hover" },
     // For controls drawn over video: no fill until hovered.
-    overlay: "text-text hover:bg-surface-hover/60",
+    overlay: { base: "text-text", hover: "hover:bg-surface-hover/60" },
 };
 
 const sizeClasses: Record<IconButtonSize, string> = {
@@ -30,6 +30,15 @@ type IconButtonProps = Omit<ComponentProps<"button">, "children"> & {
     pressed?: boolean;
 };
 
+function preventDefault(event: MouseEvent) {
+    event.preventDefault();
+}
+
+/**
+ * A button with only an icon, named by its tooltip. Disabled, it stays focusable and hoverable (`aria-disabled`), so
+ * the tooltip, often the only place that says why ("No subtitles for this video"), can still be read; it just does
+ * nothing, not even when it opens a menu.
+ */
 export function IconButton({
     label,
     icon,
@@ -38,6 +47,10 @@ export function IconButton({
     size = "md",
     tooltipSide,
     pressed,
+    disabled = false,
+    onClick,
+    onPointerDown,
+    onKeyDown,
     className,
     type = "button",
     ...props
@@ -48,11 +61,17 @@ export function IconButton({
                 type={type}
                 aria-label={label}
                 aria-pressed={pressed}
+                aria-disabled={disabled || undefined}
+                // Menu triggers open on pointer down and on keys, so those are dropped too; preventing the click
+                // also keeps a submit button from sending its form.
+                onClick={disabled ? preventDefault : onClick}
+                onPointerDown={disabled ? undefined : onPointerDown}
+                onKeyDown={disabled ? undefined : onKeyDown}
                 className={cx(
                     "inline-flex shrink-0 items-center justify-center rounded-control",
                     "transition-colors duration-(--duration-fast) ease-standard",
-                    "disabled:pointer-events-none disabled:opacity-40",
-                    variantClasses[variant],
+                    variantClasses[variant].base,
+                    disabled ? "cursor-default opacity-40" : variantClasses[variant].hover,
                     sizeClasses[size],
                     pressed && "text-text",
                     className

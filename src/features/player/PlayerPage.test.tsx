@@ -544,7 +544,7 @@ describe("PlayerPage", () => {
             expect(element.currentTime).toBe(60);
 
             fireEvent.pointerDown(edge, { clientX: 1000 });
-            fireEvent.pointerMove(window, { clientX: 900 });
+            fireEvent.pointerMove(window, { clientX: 900, buttons: 1 });
             fireEvent.pointerUp(window);
             expect(panel).toHaveStyle({ width: "436px" });
             expect(usePlayerStore.getState().upNextWidth).toBe(436);
@@ -557,9 +557,9 @@ describe("PlayerPage", () => {
             const panel = screen.getByRole("complementary", { name: "Up next" });
 
             fireEvent.pointerDown(edge, { clientX: 500 });
-            fireEvent.pointerMove(window, { clientX: 900 });
+            fireEvent.pointerMove(window, { clientX: 900, buttons: 1 });
             expect(panel).toHaveStyle({ width: "240px" });
-            fireEvent.pointerMove(window, { clientX: -2000 });
+            fireEvent.pointerMove(window, { clientX: -2000, buttons: 1 });
             fireEvent.pointerUp(window);
             expect(panel).toHaveStyle({ width: `${Math.min(800, window.innerWidth / 2)}px` });
         });
@@ -629,7 +629,10 @@ describe("PlayerPage", () => {
 
     it("explains that capturing frames needs ffmpeg", async () => {
         renderPlayer({ ffmpeg: false });
-        expect(await screen.findByRole("button", { name: "Needs ffmpeg to capture frames" })).toBeDisabled();
+        expect(await screen.findByRole("button", { name: "Needs ffmpeg to capture frames" })).toHaveAttribute(
+            "aria-disabled",
+            "true"
+        );
     });
 
     it("follows reassigned keys and shows them in the tooltips", async () => {

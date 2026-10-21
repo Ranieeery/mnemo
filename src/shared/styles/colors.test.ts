@@ -28,7 +28,7 @@ function variable(css: string, name: string): string {
 const lightBlock = tokens.slice(tokens.indexOf(':root[data-theme="light"]'));
 const darkBlock = tokens.slice(0, tokens.indexOf(':root[data-theme="light"]'));
 
-/** Everything a library folder icon is drawn on: the home page, the sidebar and Settings, selected and hovered. */
+/** Everything text and folder icons are drawn on: the page, the sidebar, dialogs and menus, selected and hovered. */
 const SURFACES = ["background", "surface", "surface-raised", "surface-hover"];
 const darkSurfaces = SURFACES.map((surface) => variable(darkBlock, `color-${surface}`));
 /**
@@ -36,6 +36,15 @@ const darkSurfaces = SURFACES.map((surface) => variable(darkBlock, `color-${surf
  * by its tokens when it exists.
  */
 const lightSurfaces = ["#ffffff", "#f7f8fa", "#eff1f4", "#e6e9ee"];
+
+describe("text colors", () => {
+    it.each(["text", "text-muted", "text-subtle", "danger-text"])("%s keeps 4.5:1 on every surface", (name) => {
+        const color = variable(darkBlock, `color-${name}`);
+        for (const surface of darkSurfaces) {
+            expect(contrast(color, surface), `${color} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+});
 
 describe("library folder colors", () => {
     it.each(FOLDER_COLORS)("%s keeps 3:1 on every surface in both themes", (color) => {

@@ -235,9 +235,11 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 (estilos globais e `prefers-reduced-motion`). Nunca use valores soltos (hex, px arbitrários, durações avulsas).
 
 - Cores: `background`, `surface`, `surface-raised`, `surface-hover`, `border`, `border-strong`, `text`, `text-muted`,
-  `text-subtle`, `accent`, `accent-hover`, `success`, `warning`, `danger`, `focus-ring`, `overlay`, `scrim`,
-  `backdrop` e `*-foreground` para texto sobre cores sólidas. O `accent` é para preenchimentos e indicadores, nunca
-  para texto pequeno sobre o `background`.
+  `text-subtle`, `accent`, `accent-hover`, `success`, `warning`, `danger`, `danger-text`, `focus-ring`, `overlay`,
+  `scrim`, `backdrop` e `*-foreground` para texto sobre cores sólidas. O `accent` e o `danger` são para
+  preenchimentos e indicadores, nunca para texto pequeno (texto de erro usa `danger-text`). `text`, `text-muted`,
+  `text-subtle` e `danger-text` têm pelo menos 4,5:1 sobre `background`, `surface`, `surface-raised` e
+  `surface-hover` (`shared/styles/colors.test.ts`).
 - Tipografia (Inter Variable): `text-caption` 12/16 · `text-small` 13/20 · `text-body` 14/20 · `text-lead` 16/24 ·
   `text-title` 18/26 · `text-heading` 22/28 · `text-display` 28/34.
 - Raio: `rounded-badge` 4 · `rounded-control` 6 · `rounded-card` 10 · `rounded-dialog` 14. Sombras: `shadow-raised`,
@@ -252,7 +254,7 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 - Cores de ícone de pasta da biblioteca: `folder-red|orange|amber|lime|green|teal|cyan|blue|violet|pink`
   (`@theme static`, valores do tema claro em `:root[data-theme="light"]`; a lista vem de `FOLDER_COLORS` nos
   bindings). Cada uma tem pelo menos 3:1 sobre `background`, `surface`, `surface-raised` e `surface-hover` nos dois
-  temas; `shared/styles/folderColors.test.ts` confere (o tema claro ainda não existe: o teste usa fundos de
+  temas; `shared/styles/colors.test.ts` confere (o tema claro ainda não existe: o teste usa fundos de
   referência, a trocar pelos tokens dele).
 
 ### Componentes
@@ -268,8 +270,9 @@ duplo clique para o padrão; com `collapsed`, anima a largura entre os estados e
 `ColorSwatches` (amostras de cor como radiogroup: uma parada de `Tab`, setas e `Home`/`End`, nome acessível e
 tooltip por amostra, a escolhida com anel e ✓; usado nas legendas e nas pastas), `sidebarItemClasses` (estados dos
 itens da sidebar: a atual tem fundo elevado, barra `accent` à esquerda e, expandida, nome mais forte).
-`toast()` pode ser chamado fora do React. `Tooltip` aceita `disabled` (fica fechado sem mudar o gatilho, ex.: só mostrar
-o texto completo quando `useIsTruncated` indica corte). Features compõem esses primitivos; não recriam botões, modais
+`toast()` pode ser chamado fora do React. `IconButton` desabilitado usa `aria-disabled`: continua focável e com
+tooltip (muitas vezes o único lugar que diz por quê) e não age, nem como gatilho de menu. `Tooltip` aceita
+`disabled` (fica fechado sem mudar o gatilho, ex.: só mostrar o texto completo quando `useIsTruncated` indica corte). Features compõem esses primitivos; não recriam botões, modais
 ou menus.
 
 Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` alterna entre ele e o app, ou abra

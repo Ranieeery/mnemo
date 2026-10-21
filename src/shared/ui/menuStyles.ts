@@ -12,7 +12,7 @@ export const menuItemClasses = cx(
     "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-text-muted"
 );
 
-export const menuDangerItemClasses = "text-danger [&_svg]:text-danger data-[highlighted]:bg-danger/15";
+export const menuDangerItemClasses = "text-danger-text [&_svg]:text-danger-text data-[highlighted]:bg-danger/15";
 
 export const menuSeparatorClasses = "my-1 h-px bg-border";
 
