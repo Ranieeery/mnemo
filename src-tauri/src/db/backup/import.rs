@@ -1,23 +1,27 @@
 //! Replacing the library with a file's contents, one table at a time.
 
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use rusqlite::{Connection, params};
 
 use super::format::{
-    FolderSettingRecord, LibraryFile, LibraryFolderRecord, LibraryGroupRecord, TagRecord, VideoRecord, VideoTagRecord,
-    WatchHistoryRecord,
+    FolderSettingRecord, LibraryFile, LibraryFolderRecord, LibraryGroupRecord, SettingsRecord, TagRecord, VideoRecord,
+    VideoTagRecord, WatchHistoryRecord,
 };
 use crate::db::{hidden, layout, settings};
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_name::{normalize_custom_name, normalize_group_name};
+use crate::domain::folder_view::FolderViewMode;
 use crate::domain::media::display_name;
 use crate::domain::models::ImportSummary;
 use crate::domain::paths::is_within;
+use crate::domain::tags::normalize_tag_name;
 use crate::error::AppResult;
 
 /// Replaces the whole library with the file's contents in a single transaction: any failure leaves the current
-/// library untouched. Settings are only replaced when the file carries them.
+/// library untouched. Settings are only replaced when the file carries them. Records the app would refuse (a file
+/// edited by hand, or written by a newer version) are left out instead of failing the import.
 pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<ImportSummary> {
     file.validate()?;
     let transaction = connection.transaction()?;
@@ -33,12 +37,12 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
     layout::compact(&transaction)?;
     import_folder_settings(&transaction, &file.folder_settings)?;
     import_hidden_folders(&transaction, &file.hidden_folders, &file.library_folders)?;
-    import_tags(&transaction, &file.tags)?;
-    import_videos(&transaction, &file.videos)?;
-    import_video_tags(&transaction, &file.video_tags)?;
-    import_watch_history(&transaction, &file.watch_history)?;
+    let tags = import_tags(&transaction, &file.tags)?;
+    let videos = import_videos(&transaction, &file.videos)?;
+    import_video_tags(&transaction, &file.video_tags, &videos, &tags)?;
+    import_watch_history(&transaction, &file.watch_history, &videos)?;
     if let Some(settings) = &file.settings {
-        settings::save(&transaction, settings)?;
+        import_settings(&transaction, settings)?;
     }
     if let Some(sort) = file.library_folder_sort {
         settings::set::<settings::FolderSort>(&transaction, sort)?;
@@ -47,9 +51,15 @@ pub fn import(connection: &mut Connection, file: &LibraryFile) -> AppResult<Impo
 
     Ok(ImportSummary {
         folders: file.library_folders.len() as i64,
-        videos: file.videos.len() as i64,
-        tags: file.tags.len() as i64,
+        videos: videos.len() as i64,
+        tags: tags.values().collect::<HashSet<_>>().len() as i64,
     })
+}
+
+fn import_settings(connection: &Connection, record: &SettingsRecord) -> AppResult<()> {
+    settings::set_or_default::<settings::WatchedThreshold>(connection, record.watched_threshold)?;
+    settings::set_or_default::<settings::WatchFolders>(connection, record.watch_folders)?;
+    Ok(())
 }
 
 /// A group whose name the app would refuse is left out, and its folders imported without a group. Returns the ids
@@ -106,13 +116,20 @@ fn import_folders(connection: &Connection, folders: &[LibraryFolderRecord], impo
     Ok(())
 }
 
+/// A view mode this version does not know is left out: the folder uses the default mode.
 fn import_folder_settings(connection: &Connection, folder_settings: &[FolderSettingRecord]) -> AppResult<()> {
+    let mut skipped = 0;
     for setting in folder_settings {
-        connection.execute(
-            "INSERT INTO folder_settings (path, view_mode) VALUES (?1, ?2)",
-            params![setting.path, setting.view_mode],
+        let Some(mode) = FolderViewMode::parse(&setting.view_mode) else {
+            skipped += 1;
+            continue;
+        };
+        skipped += 1 - connection.execute(
+            "INSERT INTO folder_settings (path, view_mode) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
+            params![setting.path, mode.as_str()],
         )?;
     }
+    log_skipped("folder settings", skipped);
     Ok(())
 }
 
@@ -129,23 +146,43 @@ fn import_hidden_folders(connection: &Connection, hidden: &[String], folders: &[
     Ok(())
 }
 
-fn import_tags(connection: &Connection, tags: &[TagRecord]) -> AppResult<()> {
+/// Names are stored the way the app stores them, so a file edited by hand cannot create a blank tag or two tags
+/// that differ only in case: same-named tags become one. Returns where each file tag id ended up.
+fn import_tags(connection: &Connection, tags: &[TagRecord]) -> AppResult<HashMap<i64, i64>> {
+    let mut stored_ids = HashMap::new();
+    let mut by_name = HashMap::new();
     for tag in tags {
-        connection.execute(
-            "INSERT INTO tags (id, name, created_at) VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP))",
-            params![tag.id, tag.name, tag.created_at],
+        let Ok(name) = normalize_tag_name(&tag.name) else {
+            continue;
+        };
+        if let Some(&stored) = by_name.get(&name) {
+            stored_ids.insert(tag.id, stored);
+            continue;
+        }
+        let inserted = connection.execute(
+            "INSERT INTO tags (id, name, created_at) VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP))
+             ON CONFLICT DO NOTHING",
+            params![tag.id, name, tag.created_at],
         )?;
+        if inserted == 1 {
+            stored_ids.insert(tag.id, tag.id);
+            by_name.insert(name, tag.id);
+        }
     }
-    Ok(())
+    log_skipped("tags", tags.len() - stored_ids.len());
+    Ok(stored_ids)
 }
 
-fn import_videos(connection: &Connection, videos: &[VideoRecord]) -> AppResult<()> {
+/// A video whose id or path repeats an earlier one is left out. Returns the ids of the videos imported.
+fn import_videos(connection: &Connection, videos: &[VideoRecord]) -> AppResult<HashSet<i64>> {
+    let mut imported = HashSet::new();
     for video in videos {
-        connection.execute(
+        let inserted = connection.execute(
             "INSERT INTO videos (id, file_path, title, description, duration_seconds, thumbnail_path, is_watched,
                                  watch_progress_seconds, last_watched_at, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, COALESCE(?10, CURRENT_TIMESTAMP),
-                     COALESCE(?11, CURRENT_TIMESTAMP))",
+                     COALESCE(?11, CURRENT_TIMESTAMP))
+             ON CONFLICT DO NOTHING",
             params![
                 video.id,
                 video.file_path,
@@ -154,32 +191,69 @@ fn import_videos(connection: &Connection, videos: &[VideoRecord]) -> AppResult<(
                 video.duration_seconds,
                 video.thumbnail_path,
                 video.is_watched,
-                video.watch_progress_seconds.unwrap_or(0.0),
+                video
+                    .watch_progress_seconds
+                    .filter(|seconds| seconds.is_finite())
+                    .unwrap_or(0.0)
+                    .max(0.0),
                 video.last_watched_at,
                 video.created_at,
                 video.updated_at
             ],
         )?;
+        if inserted == 1 {
+            imported.insert(video.id);
+        }
     }
-    Ok(())
+    log_skipped("videos", videos.len() - imported.len());
+    Ok(imported)
 }
 
-fn import_video_tags(connection: &Connection, video_tags: &[VideoTagRecord]) -> AppResult<()> {
+/// Links to a video or tag the file does not have, and repeated links, are left out.
+fn import_video_tags(
+    connection: &Connection,
+    video_tags: &[VideoTagRecord],
+    videos: &HashSet<i64>,
+    tags: &HashMap<i64, i64>,
+) -> AppResult<()> {
+    let mut skipped = 0;
     for video_tag in video_tags {
-        connection.execute(
+        let Some(tag_id) = tags
+            .get(&video_tag.tag_id)
+            .filter(|_| videos.contains(&video_tag.video_id))
+        else {
+            skipped += 1;
+            continue;
+        };
+        skipped += 1 - connection.execute(
             "INSERT INTO video_tags (id, video_id, tag_id, created_at)
-             VALUES (?1, ?2, ?3, COALESCE(?4, CURRENT_TIMESTAMP))",
-            params![video_tag.id, video_tag.video_id, video_tag.tag_id, video_tag.created_at],
+             VALUES (?1, ?2, ?3, COALESCE(?4, CURRENT_TIMESTAMP))
+             ON CONFLICT DO NOTHING",
+            params![video_tag.id, video_tag.video_id, tag_id, video_tag.created_at],
         )?;
     }
+    log_skipped("video tags", skipped);
     Ok(())
 }
 
-fn import_watch_history(connection: &Connection, history: &[WatchHistoryRecord]) -> AppResult<()> {
+/// Entries of a video the file does not have, or with a time SQLite cannot read (it would break every history
+/// page), are left out. Times are stored in the form the app writes them.
+fn import_watch_history(
+    connection: &Connection,
+    history: &[WatchHistoryRecord],
+    videos: &HashSet<i64>,
+) -> AppResult<()> {
+    let mut skipped = 0;
     for entry in history {
-        connection.execute(
+        if !videos.contains(&entry.video_id) {
+            skipped += 1;
+            continue;
+        }
+        skipped += 1 - connection.execute(
             "INSERT INTO watch_history (id, video_id, watched_at, watch_duration_seconds)
-             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4)",
+             SELECT ?1, ?2, COALESCE(datetime(?3), CURRENT_TIMESTAMP), ?4
+             WHERE ?3 IS NULL OR datetime(?3) IS NOT NULL
+             ON CONFLICT DO NOTHING",
             params![
                 entry.id,
                 entry.video_id,
@@ -188,5 +262,12 @@ fn import_watch_history(connection: &Connection, history: &[WatchHistoryRecord])
             ],
         )?;
     }
+    log_skipped("watch history entries", skipped);
     Ok(())
+}
+
+fn log_skipped(records: &str, count: usize) {
+    if count > 0 {
+        tracing::warn!(count, "left out {records} the library would not accept");
+    }
 }

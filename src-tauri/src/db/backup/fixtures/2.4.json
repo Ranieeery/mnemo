@@ -1,0 +1,51 @@
+{
+  "format": "mnemo-library",
+  "formatVersion": 2,
+  "appVersion": "2.4.0",
+  "exportedAt": "2025-09-01T12:00:00Z",
+  "settings": { "watchedThreshold": 0.8, "watchFolders": false },
+  "libraryFolderSort": "nameDescending",
+  "libraryFolders": [
+    {
+      "id": 1,
+      "path": "D:\\Videos",
+      "created_at": "2025-01-01 09:00:00",
+      "custom_icon": "tv",
+      "icon_color": "violet",
+      "sort_order": 0
+    }
+  ],
+  "folderSettings": [{ "path": "D:\\Videos", "view_mode": "continuous" }],
+  "hiddenFolders": ["D:\\Videos\\Private"],
+  "videos": [
+    {
+      "id": 1,
+      "file_path": "D:\\Videos\\a.mkv",
+      "title": "A",
+      "description": null,
+      "duration_seconds": 1200,
+      "thumbnail_path": null,
+      "is_watched": true,
+      "watch_progress_seconds": 1100,
+      "last_watched_at": "2025-08-01 10:00:00",
+      "created_at": "2025-01-01 10:00:00",
+      "updated_at": "2025-08-01 10:00:00"
+    },
+    {
+      "id": 2,
+      "file_path": "D:\\Videos\\b.mkv",
+      "title": "B",
+      "description": "notes",
+      "duration_seconds": 600,
+      "thumbnail_path": null,
+      "is_watched": false,
+      "watch_progress_seconds": 0,
+      "last_watched_at": null,
+      "created_at": "2025-01-02 10:00:00",
+      "updated_at": "2025-01-02 10:00:00"
+    }
+  ],
+  "tags": [{ "id": 7, "name": "anime", "created_at": "2025-01-01 10:00:00" }],
+  "videoTags": [{ "id": 1, "video_id": 1, "tag_id": 7, "created_at": "2025-01-01 10:00:00" }],
+  "watchHistory": [{ "id": 1, "video_id": 1, "watched_at": "2025-08-01 10:00:00", "watch_duration_seconds": 1200 }]
+}

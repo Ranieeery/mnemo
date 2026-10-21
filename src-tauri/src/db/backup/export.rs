@@ -29,7 +29,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
         version: None,
         app_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         exported_at: Some(exported_at),
-        settings: Some(settings::load(connection)?),
+        settings: Some(settings::load(connection)?.into()),
         library_folder_sort: Some(settings::get::<settings::FolderSort>(connection)?),
         library_folders: select_all(
             connection,

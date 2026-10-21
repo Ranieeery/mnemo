@@ -49,3 +49,10 @@ no `CLAUDE.md`.
   app recusaria é descartado e uma pasta com `group_id` que o arquivo não tem fica sem grupo. O `sort_order` segue a
   lista única (ver `db/layout.rs`), e o import renumera tudo (`layout::compact`), resolvendo posições repetidas pela
   data de adição.
+- O import descarta (com log) o que o app recusaria, em vez de falhar inteiro: em `settings`, cada campo ausente
+  (`watchFolders` só existe desde a 2.3) ou inválido importa o padrão; `view_mode` desconhecido; tags com nome em
+  branco (os nomes são normalizados como no app, e tags que viram o mesmo nome se fundem); vídeos com id ou caminho
+  repetido (progresso negativo vira 0); `video_tags` e `watch_history` de vídeo ou tag que o arquivo não tem, ou
+  repetidos; entradas de histórico com `watched_at` ilegível (as legíveis são gravadas no formato do app). Pastas da
+  biblioteca repetidas ainda fazem o import falhar sem mudar nada. Exports de cada versão 2.x ficam em
+  `db/backup/fixtures/` e são importados nos testes.

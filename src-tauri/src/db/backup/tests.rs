@@ -3,10 +3,11 @@ use rusqlite::Connection;
 use super::format::{FORMAT_VERSION, LibraryFolderRecord};
 use super::*;
 use crate::db::videos::tests::path;
-use crate::db::{folders, groups, hidden, layout, settings, tags, test_support, videos, watch};
+use crate::db::{folders, groups, hidden, history, layout, settings, tags, test_support, videos, watch};
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_order::{LibraryFolderSort, flatten, library_entries};
 use crate::domain::models::{AppSettings, ImportSummary, LayoutEntry};
+use crate::domain::watch::DEFAULT_WATCHED_THRESHOLD;
 use crate::error::AppError;
 
 /// Shape of a real export produced by the legacy frontend (`exportLibraryData` with `SELECT *`).
@@ -293,13 +294,131 @@ fn hidden_folders_round_trip_and_older_exports_hide_nothing() {
     assert!(hidden::list(&target).unwrap().is_empty());
 }
 
+/// Exports written by each 2.x minor before this one (2.0–2.2 share a shape; 2.5 is what `export` writes now), with
+/// the `watchFolders` each should import: files from before 2.3 have none and import the default.
+const EXPORTS_BY_VERSION: &[(&str, &str, bool)] = &[
+    ("2.2", include_str!("fixtures/2.2.json"), true),
+    ("2.3", include_str!("fixtures/2.3.json"), false),
+    ("2.4", include_str!("fixtures/2.4.json"), false),
+];
+
+#[test]
+fn imports_exports_from_every_2_x_minor() {
+    // Regression: `watchFolders` (2.3) had no default, so exports from 2.0–2.2 failed with "missing field".
+    let mut current = test_support::connection();
+    import(&mut current, &parse(EXPORTS_BY_VERSION[2].1)).unwrap();
+    let current = serde_json::to_string(&export(&current).unwrap()).unwrap();
+    let all = EXPORTS_BY_VERSION
+        .iter()
+        .copied()
+        .chain([("2.5", current.as_str(), false)]);
+
+    for (version, json, watch_folders) in all {
+        let mut connection = test_support::connection();
+        let summary = import(&mut connection, &parse(json)).unwrap_or_else(|error| panic!("{version}: {error}"));
+        assert_eq!(
+            summary,
+            ImportSummary {
+                folders: 1,
+                videos: 2,
+                tags: 1
+            },
+            "{version}"
+        );
+        let settings = settings::load(&connection).unwrap();
+        assert_eq!(settings.watched_threshold, 0.8, "{version}");
+        assert_eq!(settings.watch_folders, watch_folders, "{version}");
+        assert!(videos::get(&connection, 1).unwrap().is_watched, "{version}");
+        assert_eq!(tags::for_video(&connection, 1).unwrap()[0].name, "anime", "{version}");
+        assert_eq!(folders::view_modes(&connection).unwrap().len(), 1, "{version}");
+        assert_eq!(
+            history::list_page(&connection, None, 10).unwrap().entries.len(),
+            1,
+            "{version}"
+        );
+    }
+}
+
+#[test]
+fn invalid_settings_import_as_the_default() {
+    let mut connection = test_support::connection();
+    let json = EXPORTS_BY_VERSION[1].1.replace(
+        r#""watchedThreshold": 0.8, "watchFolders": false"#,
+        r#""watchedThreshold": 0.3, "watchFolders": "no""#,
+    );
+    import(&mut connection, &parse(&json)).unwrap();
+    assert_eq!(
+        settings::load(&connection).unwrap(),
+        AppSettings {
+            watched_threshold: DEFAULT_WATCHED_THRESHOLD,
+            watch_folders: true,
+        }
+    );
+}
+
+#[test]
+fn records_the_app_would_refuse_are_left_out() {
+    // Regression: one bad record (a hand-edited file) failed the whole import, and an unreadable `watched_at` was
+    // stored and then broke every history page.
+    let mut file = parse(EXPORTS_BY_VERSION[1].1);
+    file.folder_settings[0].view_mode = "grid".into();
+    let mut duplicate = file.videos[1].clone();
+    duplicate.id = 3;
+    duplicate.watch_progress_seconds = Some(-5.0);
+    file.videos.push(duplicate);
+    file.videos[1].watch_progress_seconds = Some(-5.0);
+    for (id, name) in [(8, " Anime "), (9, "   ")] {
+        file.tags.push(super::format::TagRecord {
+            id,
+            name: name.into(),
+            created_at: None,
+        });
+    }
+    for (video_id, tag_id) in [(1, 8), (2, 8), (2, 9), (999, 7), (1, 999)] {
+        file.video_tags.push(super::format::VideoTagRecord {
+            id: None,
+            video_id,
+            tag_id,
+            created_at: None,
+        });
+    }
+    let entry = file.watch_history[0].clone();
+    for (id, video_id, watched_at) in [
+        (2, 1, "yesterday"),
+        (3, 999, "2025-08-02 10:00:00"),
+        (4, 2, "2025-08-03T10:00:00Z"),
+    ] {
+        file.watch_history.push(super::format::WatchHistoryRecord {
+            id,
+            video_id,
+            watched_at: Some(watched_at.into()),
+            ..entry.clone()
+        });
+    }
+
+    let mut connection = test_support::connection();
+    let summary = import(&mut connection, &file).unwrap();
+
+    assert_eq!((summary.videos, summary.tags), (2, 1));
+    assert!(folders::view_modes(&connection).unwrap().is_empty());
+    assert_eq!(videos::get(&connection, 2).unwrap().watch_progress_seconds, 0.0);
+    // " Anime " is the same tag as "anime": both links point at it, once each.
+    assert_eq!(tags::for_video(&connection, 1).unwrap().len(), 1);
+    assert_eq!(tags::for_video(&connection, 2).unwrap()[0].name, "anime");
+    let page = history::list_page(&connection, None, 10).unwrap();
+    let watched: Vec<&str> = page.entries.iter().map(|entry| entry.watched_at.as_str()).collect();
+    assert_eq!(watched, ["2025-08-03T10:00:00Z", "2025-08-01T10:00:00Z"]);
+    assert_eq!(history::daily_totals(&connection, 36500).unwrap().len(), 2);
+}
+
 #[test]
 fn failed_import_keeps_the_current_library() {
     // Regression (B6): the legacy import deleted everything before inserting, so a failure lost the library.
     let mut connection = test_support::connection();
     import(&mut connection, &parse(LEGACY_EXPORT)).unwrap();
     let mut broken = parse(LEGACY_EXPORT);
-    broken.video_tags[0].tag_id = 999;
+    let folder = broken.library_folders[0].clone();
+    broken.library_folders.push(folder);
 
     assert!(import(&mut connection, &broken).is_err());
     assert_eq!(export(&connection).unwrap().videos.len(), 3);

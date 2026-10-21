@@ -271,6 +271,20 @@ pub fn save(connection: &Connection, settings: &AppSettings) -> AppResult<()> {
     Ok(())
 }
 
+/// Stores a value read from an import file, or the default when the file has none or one this version refuses.
+pub fn set_or_default<S: Setting>(connection: &Connection, value: Option<S::Value>) -> AppResult<()> {
+    let value = match value.map(S::validate) {
+        Some(Ok(value)) => value,
+        Some(Err(error)) => {
+            tracing::warn!(key = S::KEY, %error, "importing the default instead of an invalid setting");
+            S::default_value()
+        }
+        None => S::default_value(),
+    };
+    set::<S>(connection, value)?;
+    Ok(())
+}
+
 /// Moves `icon` to the front of the recent folder icons, keeping the list short and free of duplicates.
 pub fn remember_folder_icon(connection: &Connection, icon: &str) -> AppResult<()> {
     let mut recent = get::<RecentFolderIcons>(connection)?;

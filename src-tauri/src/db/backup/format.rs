@@ -26,7 +26,7 @@ pub struct LibraryFile {
     #[serde(default, alias = "exportDate")]
     pub exported_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub settings: Option<AppSettings>,
+    pub settings: Option<SettingsRecord>,
     /// Added in 2.4. Files without it (or with a mode this version does not know) keep the current mode.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "known_or_none")]
     pub library_folder_sort: Option<LibraryFolderSort>,
@@ -45,6 +45,26 @@ pub struct LibraryFile {
     pub video_tags: Vec<VideoTagRecord>,
     #[serde(default)]
     pub watch_history: Vec<WatchHistoryRecord>,
+}
+
+/// The settings in a file. Each one is optional: a file from before it existed (`watchFolders` came in 2.3), or with
+/// a value this version would refuse, imports it as the default.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "known_or_none")]
+    pub watched_threshold: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "known_or_none")]
+    pub watch_folders: Option<bool>,
+}
+
+impl From<AppSettings> for SettingsRecord {
+    fn from(settings: AppSettings) -> Self {
+        Self {
+            watched_threshold: Some(settings.watched_threshold),
+            watch_folders: Some(settings.watch_folders),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
