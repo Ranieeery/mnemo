@@ -8,9 +8,9 @@ use std::time::Duration;
 
 use super::identity::is_settled;
 use crate::db::presence::KnownFile;
-use crate::domain::media::is_video_path;
 use crate::domain::paths::is_within;
 use crate::error::AppResult;
+use crate::services::scanner::is_video_file;
 
 /// A video file found on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,7 +35,7 @@ pub fn scan_path(path: &Path, into: &mut DiskScan) {
         Err(_) => into.unreadable.push(path.to_path_buf()),
         Ok(metadata) if metadata.is_dir() => walk(path, into),
         Ok(metadata) => {
-            if is_video_path(path) {
+            if is_video_file(path) {
                 into.files.push(DiskFile {
                     path: path.to_string_lossy().into_owned(),
                     size: metadata.len() as i64,
@@ -60,7 +60,7 @@ fn walk(root: &Path, into: &mut DiskScan) {
             let path = entry.path();
             if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
                 pending.push(path);
-            } else if is_video_path(&path) {
+            } else if is_video_file(&path) {
                 match fs::metadata(&path) {
                     Ok(metadata) if metadata.is_file() => into.files.push(DiskFile {
                         path: path.to_string_lossy().into_owned(),

@@ -5,6 +5,12 @@ dos dados) estão no `CLAUDE.md`.
 
 ## Pipeline de mídia
 
+- O que é vídeo: a extensão (`domain::media::VIDEO_EXTENSIONS`) e, só para `.ts` (também extensão de TypeScript), o
+  início do arquivo: um MPEG-TS tem o byte de sincronia `0x47` no byte 0 e no 188 (`scanner::is_video_file`, usado na
+  listagem das pastas e na comparação com o disco). Arquivo vazio ou que não abre (travado em cópia) conta como vídeo,
+  para nunca virar sumido por engano. No `ffprobe`, um stream de vídeo marcado `attached_pic` (capa de um áudio) não
+  conta; sem outro stream de vídeo, o arquivo é recusado. A thumbnail é gravada com `-update 1`, porque o nome vem do
+  vídeo e um `%d` nele seria lido como padrão de sequência.
 - Pipeline (`services/media/processing`): serviço de longa duração no `AppState`. Cada pasta pedida
   (`process_folders`, que compara a pasta e retorna sem esperar a leitura) vira um job; pedir uma pasta já na fila, ou
   dentro de uma, não cria job, e um arquivo reivindicado por um job nunca é lido por outro. O comando devolve o id do

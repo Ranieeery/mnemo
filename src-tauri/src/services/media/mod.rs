@@ -79,6 +79,9 @@ impl MediaToolkit for Ffmpeg {
                 OsStr::new("1"),
                 OsStr::new("-vf"),
                 OsStr::new("scale=320:240:force_original_aspect_ratio=decrease,pad=320:240:(ow-iw)/2:(oh-ih)/2"),
+                // The name comes from the video's and may hold `%d`: write it as is, not as a sequence pattern.
+                OsStr::new("-update"),
+                OsStr::new("1"),
                 OsStr::new("-y"),
                 output.as_os_str(),
             ],
@@ -199,7 +202,8 @@ mod tests {
         let duration = Ffmpeg.probe(&video, &CancellationToken::new()).await.unwrap();
         assert!((duration - 3.0).abs() < 0.2, "{duration}");
 
-        let thumbnail = dir.path().join("sample.jpg");
+        // Regression (B7): without `-update 1`, ffmpeg read `%d` in the name as an image sequence pattern.
+        let thumbnail = dir.path().join("Ep %d.mkv_1_0.jpg");
         Ffmpeg
             .thumbnail(
                 &video,

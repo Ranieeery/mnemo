@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::path::Path;
 
 /// Orders strings the way people expect file names to be ordered: runs of digits compare by numeric value
 /// ("Ep 2" before "Ep 10") and letters compare case-insensitively. Ties fall back to a plain comparison so the
@@ -13,6 +14,26 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
             (Some(_), None) => return Ordering::Greater,
             (Some(x), Some(y)) => {
                 let ordering = compare_chunks(x, y);
+                if ordering != Ordering::Equal {
+                    return ordering;
+                }
+            }
+        }
+    }
+}
+
+/// Orders paths folder by folder with [`natural_cmp`], the way a tree lists them: `Course`, `Course\Module 1`,
+/// `Course 2`. Comparing whole strings would put `Course 2` first, because a space sorts before the separator.
+pub fn natural_path_cmp(a: &Path, b: &Path) -> Ordering {
+    let mut left = a.components();
+    let mut right = b.components();
+    loop {
+        match (left.next(), right.next()) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(x), Some(y)) => {
+                let ordering = natural_cmp(&x.as_os_str().to_string_lossy(), &y.as_os_str().to_string_lossy());
                 if ordering != Ordering::Equal {
                     return ordering;
                 }
@@ -66,6 +87,8 @@ impl<'a> Iterator for Chunks<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
 
     fn sorted(mut values: Vec<&str>) -> Vec<&str> {
@@ -107,6 +130,19 @@ mod tests {
         assert_eq!(natural_cmp("Ep", "Ep 1"), Ordering::Less);
         assert_eq!(natural_cmp("a", "A"), "a".cmp("A"));
         assert_eq!(natural_cmp("same", "same"), Ordering::Equal);
+    }
+
+    #[test]
+    fn orders_paths_folder_by_folder() {
+        // Regression (B7): comparing whole strings put `Course 2` between `Course` and its subfolders.
+        let paths = |list: &[&str]| -> Vec<PathBuf> { list.iter().map(|path| path.split('/').collect()).collect() };
+        let mut sorted = paths(&["Course 10", "Course 2", "Course/Module 10", "Course/Module 2", "Course"]);
+        sorted.sort_by(|a, b| natural_path_cmp(a, b));
+        assert_eq!(
+            sorted,
+            paths(&["Course", "Course/Module 2", "Course/Module 10", "Course 2", "Course 10"])
+        );
+        assert_eq!(natural_path_cmp(Path::new(""), Path::new("a")), Ordering::Less);
     }
 
     #[test]

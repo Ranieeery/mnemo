@@ -37,7 +37,9 @@ teclado e mouse (ver `CLAUDE.md`).
   onde o modo foi definido.
 - Histórico estilo navegador: voltar/avançar, `Alt+←/→` e botões laterais do mouse (botão 3 fecha o player, botão 4
   reabre o último vídeo).
-- Ordenação natural (`Ep 2` antes de `Ep 10`), definida no backend e usada em tudo.
+- Ordenação natural (`Ep 2` antes de `Ep 10`), definida no backend e usada em tudo. Caminhos são comparados pasta a
+  pasta, como numa árvore: cada pasta vem logo seguida das suas subpastas (`Course`, `Course\Module 1`, `Course 2`) nos
+  grupos do modo contínuo, na ordem de leitura e na busca por arquivo.
 - Sidebar redimensionável e recolhível:
   - a borda direita pode ser arrastada, ou focada e movida com `←`/`→` (16 px por tecla), entre 200 e 400 px, nunca
     mais de ⅓ da janela; uma janela estreita só a encolhe, sem mudar a largura salva; duplo clique volta a 240 px;

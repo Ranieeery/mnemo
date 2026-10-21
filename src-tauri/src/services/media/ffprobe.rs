@@ -21,6 +21,15 @@ struct ProbeOutput {
 #[derive(Deserialize)]
 struct ProbeStream {
     codec_type: Option<String>,
+    #[serde(default)]
+    disposition: Disposition,
+}
+
+impl ProbeStream {
+    /// A real video stream: cover art embedded in audio files is reported as a single-frame video stream too.
+    fn is_video(&self) -> bool {
+        self.codec_type.as_deref() == Some("video") && self.disposition.attached_pic == 0
+    }
 }
 
 #[derive(Deserialize)]
@@ -32,11 +41,7 @@ struct ProbeFormat {
 /// stream are rejected; a missing or unparsable duration counts as unknown (0).
 pub fn parse_duration(json: &[u8]) -> AppResult<f64> {
     let output: ProbeOutput = parse_json(json)?;
-    if !output
-        .streams
-        .iter()
-        .any(|stream| stream.codec_type.as_deref() == Some("video"))
-    {
+    if !output.streams.iter().any(ProbeStream::is_video) {
         return Err(AppError::MediaProcessFailed {
             tool: "ffprobe".into(),
             message: "no video stream found".into(),
@@ -79,6 +84,8 @@ struct Disposition {
     default: u8,
     #[serde(default)]
     forced: u8,
+    #[serde(default)]
+    attached_pic: u8,
 }
 
 /// Subtitle codecs ffmpeg can turn into WebVTT. Everything else (PGS, VobSub, DVB...) is a picture.
@@ -222,8 +229,33 @@ mod tests {
     }
 
     #[test]
+    fn infinite_negative_or_zero_durations_are_unknown() {
+        for duration in ["inf", "-inf", "nan", "-12.5", "0"] {
+            let json = format!(
+                r#"{{ "streams": [ {{ "codec_type": "video" }} ], "format": {{ "duration": "{duration}" }} }}"#
+            );
+            assert_eq!(parse_duration(json.as_bytes()).unwrap(), 0.0, "{duration}");
+        }
+    }
+
+    #[test]
     fn rejects_files_without_video_and_invalid_output() {
         assert!(parse_duration(br#"{ "streams": [ { "codec_type": "audio" } ], "format": {} }"#).is_err());
         assert!(parse_duration(b"not json").is_err());
+    }
+
+    #[test]
+    fn cover_art_is_not_a_video_stream() {
+        // Regression (B7): an audio file with embedded cover art was taken for a video.
+        let song = br#"{ "streams": [
+            { "codec_type": "audio" },
+            { "codec_type": "video", "disposition": { "default": 0, "attached_pic": 1 } }
+        ], "format": { "duration": "215.4" } }"#;
+        assert!(parse_duration(song).is_err());
+        let movie_with_cover = br#"{ "streams": [
+            { "codec_type": "video", "disposition": { "attached_pic": 0 } },
+            { "codec_type": "video", "disposition": { "attached_pic": 1 } }
+        ], "format": { "duration": "5400" } }"#;
+        assert_eq!(parse_duration(movie_with_cover).unwrap(), 5400.0);
     }
 }

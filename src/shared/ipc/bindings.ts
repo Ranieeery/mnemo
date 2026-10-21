@@ -305,7 +305,8 @@ export type FolderColor = "red" | "orange" | "amber" | "lime" | "green" | "teal"
 
 /**
  *  Everything the folder screen shows. In `folders` mode there is at most one group (the folder's own videos);
- *  in `continuous` mode there is one group per folder of the tree that has videos, in natural path order.
+ *  in `continuous` mode there is one group per folder of the tree that has videos, in natural path order (each folder
+ *  right before its subfolders).
  */
 export type FolderContents = {
 	path: string,

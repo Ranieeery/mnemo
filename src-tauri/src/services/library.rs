@@ -13,7 +13,7 @@ use crate::domain::models::{
     FileEntry, FolderContents, FolderPreview, FolderSummary, HomeData, LibraryFolder, SubfolderEntry, Video,
     VideoEntry, VideoGroup,
 };
-use crate::domain::natural_order::natural_cmp;
+use crate::domain::natural_order::natural_path_cmp;
 use crate::domain::paths::{is_within, relative_to};
 use crate::error::{AppError, AppResult};
 use crate::services::folder_order;
@@ -312,7 +312,7 @@ fn group_by_folder(root: &Path, files: Vec<PathBuf>, mut records: HashMap<String
             }
         })
         .collect();
-    groups.sort_by(|a, b| natural_cmp(&a.relative_path, &b.relative_path));
+    groups.sort_by(|a, b| natural_path_cmp(Path::new(&a.relative_path), Path::new(&b.relative_path)));
     groups
 }
 
@@ -489,6 +489,27 @@ mod tests {
             Some("Episode 2")
         );
         assert_eq!(season_two.entries[1].video, None);
+    }
+
+    #[tokio::test]
+    async fn continuous_mode_lists_subfolders_right_after_their_folder() {
+        // Regression (B7): whole-path comparison put `Season 10` before `Season 2\Part 1`.
+        let fixture = Fixture::new().await;
+        let part = std::path::PathBuf::from(fixture.path(&["Season 2", "Part 1"]));
+        std::fs::create_dir_all(&part).unwrap();
+        std::fs::write(part.join("p1.mkv"), b"").unwrap();
+        set_view_mode(&fixture.db, fixture.path(&[]), Some(FolderViewMode::Continuous))
+            .await
+            .unwrap();
+        let contents = browse_folder(&fixture.db, fixture.path(&[])).await.unwrap();
+
+        let groups: Vec<_> = contents
+            .groups
+            .iter()
+            .map(|group| group.relative_path.as_str())
+            .collect();
+        let part_one = Path::new("Season 2").join("Part 1");
+        assert_eq!(groups, vec!["", "Season 2", &part_one.to_string_lossy(), "Season 10"]);
     }
 
     #[tokio::test]

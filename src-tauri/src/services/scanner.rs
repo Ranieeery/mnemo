@@ -1,10 +1,13 @@
 //! File system listing. Synchronous on purpose: callers run it on the blocking thread pool.
 
-use std::fs;
+use std::fs::{self, File};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use crate::domain::media::{display_name, is_video_path};
-use crate::domain::natural_order::natural_cmp;
+use crate::domain::media::{
+    TRANSPORT_STREAM_HEAD_LENGTH, display_name, is_transport_stream_head, is_video_path, needs_content_check,
+};
+use crate::domain::natural_order::{natural_cmp, natural_path_cmp};
 use crate::error::{AppError, AppResult};
 
 /// Direct children of a folder, split by kind and in natural name order.
@@ -28,7 +31,7 @@ pub fn list_directory(path: &Path) -> AppResult<DirectoryListing> {
         };
         if entry_path.is_dir() {
             listing.folders.push(entry_path);
-        } else if is_video_path(&entry_path) {
+        } else if is_video_file(&entry_path) {
             listing.videos.push(entry_path);
         } else {
             listing.other_files.push(entry_path);
@@ -40,12 +43,29 @@ pub fn list_directory(path: &Path) -> AppResult<DirectoryListing> {
     Ok(listing)
 }
 
+/// Returns whether `path` is a video file: a video extension and, for `.ts`, a head that can be a transport stream
+/// rather than TypeScript. A file that cannot be read (locked mid-copy) counts, so it is never taken for a removed
+/// video. Synchronous: it may read the file.
+pub fn is_video_file(path: &Path) -> bool {
+    if !is_video_path(path) {
+        return false;
+    }
+    if !needs_content_check(path) {
+        return true;
+    }
+    let mut head = Vec::with_capacity(TRANSPORT_STREAM_HEAD_LENGTH);
+    match File::open(path).and_then(|file| file.take(TRANSPORT_STREAM_HEAD_LENGTH as u64).read_to_end(&mut head)) {
+        Ok(_) => is_transport_stream_head(&head),
+        Err(_) => true,
+    }
+}
+
 pub fn sort_by_name(paths: &mut [PathBuf]) {
     paths.sort_by(|a, b| natural_cmp(&display_name(a), &display_name(b)));
 }
 
 pub fn sort_by_path(paths: &mut [PathBuf]) {
-    paths.sort_by(|a, b| natural_cmp(&a.to_string_lossy(), &b.to_string_lossy()));
+    paths.sort_by(|a, b| natural_path_cmp(a, b));
 }
 
 /// Every video below `root`, recursively, except inside the subfolders `skip` returns true for. `on_folder` is called
@@ -78,7 +98,7 @@ pub fn walk_videos(
                 }
             } else {
                 files_seen += 1;
-                if is_video_path(&path) {
+                if is_video_file(&path) {
                     videos.push(path);
                 }
             }
@@ -140,6 +160,23 @@ pub(crate) mod tests {
         let mut videos = names(&walk_videos(dir.path(), |_| false, |_, _| Ok(())).unwrap());
         videos.sort();
         assert_eq!(videos, vec!["a.mkv", "b.mp4", "c.ts"]);
+    }
+
+    #[test]
+    fn typescript_files_are_not_videos() {
+        // Regression (B7): `.ts` alone made source files videos, which then failed in ffprobe.
+        let dir = tree(&[]);
+        let mut packets = vec![0u8; 2 * 188];
+        packets[0] = 0x47;
+        packets[188] = 0x47;
+        fs::write(dir.path().join("recording.ts"), packets).unwrap();
+        fs::write(dir.path().join("index.ts"), "export const answer = 42;\n").unwrap();
+
+        let listing = list_directory(dir.path()).unwrap();
+        assert_eq!(names(&listing.videos), vec!["recording.ts"]);
+        assert_eq!(names(&listing.other_files), vec!["index.ts"]);
+        let videos = walk_videos(dir.path(), |_| false, |_, _| Ok(())).unwrap();
+        assert_eq!(names(&videos), vec!["recording.ts"]);
     }
 
     #[test]

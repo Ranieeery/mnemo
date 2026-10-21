@@ -129,7 +129,8 @@ pub struct VideoGroup {
 }
 
 /// Everything the folder screen shows. In `folders` mode there is at most one group (the folder's own videos);
-/// in `continuous` mode there is one group per folder of the tree that has videos, in natural path order.
+/// in `continuous` mode there is one group per folder of the tree that has videos, in natural path order (each folder
+/// right before its subfolders).
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderContents {
