@@ -27,12 +27,18 @@ pub struct LibraryChanged;
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct LibraryFoldersChanged;
 
+/// Comparing the library folders with the disk at startup failed, with the reason: changes made while the app was
+/// closed are not in the library yet.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct StartupSyncFailed(pub String);
+
 /// Sends the folder sync's notifications as events to the app's windows.
 pub fn sync_notifier(app: AppHandle) -> SyncNotifier {
     Arc::new(move |notification| {
         let sent = match notification {
             SyncNotification::LibraryChanged => LibraryChanged.emit(&app),
             SyncNotification::FoldersChanged => LibraryFoldersChanged.emit(&app),
+            SyncNotification::StartupCompareFailed(reason) => StartupSyncFailed(reason).emit(&app),
         };
         if let Err(error) = sent {
             tracing::warn!(%error, "failed to send a library event");

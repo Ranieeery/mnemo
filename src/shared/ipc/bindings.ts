@@ -202,6 +202,7 @@ export const events = {
 	libraryFoldersChanged: makeEvent<LibraryFoldersChanged>("library-folders-changed"),
 	processingFinished: makeEvent<ProcessingFinished>("processing-finished"),
 	processingStatusChanged: makeEvent<ProcessingStatusChanged>("processing-status-changed"),
+	startupSyncFailed: makeEvent<StartupSyncFailed>("startup-sync-failed"),
 };
 
 /* Constants */
@@ -631,6 +632,12 @@ export type SidebarPreferences = {
 	/**  Width in pixels when expanded, set by dragging its edge. */
 	width: number,
 };
+
+/**
+ *  Comparing the library folders with the disk at startup failed, with the reason: changes made while the app was
+ *  closed are not in the library yet.
+ */
+export type StartupSyncFailed = string;
 
 export type SubfolderEntry = {
 	name: string,

@@ -17,6 +17,8 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
 - **Compatibilidade de dados:** quem atualiza o app abre o `mnemo.db` atual sem perder nada (inclusive bancos criados
   pelas versões 1.x), e exports JSON antigos continuam importáveis.
 - **Git:** não faça commit, push, nem crie branches. Apenas altere os arquivos; a revisão e os commits são feitos por mim.
+  Ao fim de um trabalho, passe os comandos `git add` e a mensagem de commit sugerida. **Nunca** commite sem permissão
+  explícita para aquele commit, e nunca com linha de autoria (`Co-Authored-By` ou similar).
 - Para mudanças grandes ou que alterem arquitetura, apresente um plano e aguarde aprovação antes de codar.
 - **Testes sempre que possível.** Todo bug corrigido ganha um teste de regressão.
 - Não crie arquivos desnecessários, não deixe código morto, não duplique lógica. Antes de criar um utilitário, procure
@@ -102,7 +104,8 @@ ativos (permitidos em testes via `clippy.toml`).
 
 ```
 src-tauri/src/
-├── lib.rs              # setup: tracing, estado, escopo de assets, registro de comandos
+├── lib.rs              # setup: tracing (console e `mnemo.log` no app_log_dir, recriado a cada início), estado,
+│                       # escopo de assets, registro de comandos; falha no setup vira diálogo nativo e encerra
 ├── state.rs            # AppState (banco, caminhos, processador em segundo plano, busca em andamento)
 ├── error.rs            # AppError (thiserror), serializado como { kind, message }
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
@@ -214,7 +217,9 @@ src/
   - a raiz é conferida de novo logo antes de gravar;
   - arquivos novos que ainda crescem ou estão travados (em cópia) são adiados e conferidos de novo depois.
 - O frontend recebe os eventos `libraryChanged` (invalida `["library"]`, no máximo uma vez por segundo, em
-  `shared/ipc/followLibrary.ts`, menos a busca em disco, que nunca terminaria com arquivos mudando) e `libraryFoldersChanged` (invalida os status).
+  `shared/ipc/followLibrary.ts`, menos a busca em disco, que nunca terminaria com arquivos mudando),
+  `libraryFoldersChanged` (invalida os status) e `startupSyncFailed` (toast: a comparação ao iniciar falhou; as
+  outras falhas do loop ficam só no log).
 - Realocação, watcher, disponibilidade e o resto do fluxo: `docs/media-and-sync.md`.
 
 ## Segurança

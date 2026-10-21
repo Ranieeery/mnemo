@@ -38,10 +38,10 @@ pub async fn library_file(db: &Db, path: String) -> AppResult<PathBuf> {
     db.call(move |connection| ensure_in_library(checked.as_ref(), &folders::paths(connection)?))
         .await?;
     let path = PathBuf::from(path);
-    if tokio::fs::try_exists(&path).await.unwrap_or(false) {
-        Ok(path)
-    } else {
-        Err(AppError::NotFound(path.to_string_lossy().into_owned()))
+    match tokio::fs::try_exists(&path).await {
+        Ok(true) => Ok(path),
+        Ok(false) => Err(AppError::NotFound(path.to_string_lossy().into_owned())),
+        Err(error) => Err(AppError::io(&path, error)),
     }
 }
 
@@ -79,8 +79,7 @@ pub async fn remove_folder(db: &Db, thumbnails_dir: &Path, path: String) -> AppR
             Ok(removed)
         })
         .await?;
-    let thumbnails_dir = thumbnails_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &removed_thumbnails)).await?;
+    thumbnails::discard(thumbnails_dir, removed_thumbnails).await;
     Ok(count as i64)
 }
 

@@ -73,28 +73,31 @@ impl<T: MediaToolkit + 'static> Inner<T> {
         paths
     }
 
-    /// Compares `paths` with the disk and sends the new files to the pipeline, logging a failure. The app is told the
-    /// library changed: new files show in their folders before they are read.
+    /// Like [`Self::compare_and_read`], logging a failure.
     pub(super) async fn compare(&self, paths: Vec<PathBuf>) {
+        if let Err(error) = self.compare_and_read(paths).await {
+            tracing::warn!(%error, "failed to compare library folders with the disk");
+        }
+    }
+
+    /// Compares `paths` with the disk and sends the new files to the pipeline. The app is told the library changed:
+    /// new files show in their folders before they are read.
+    pub(super) async fn compare_and_read(&self, paths: Vec<PathBuf>) -> AppResult<()> {
         if paths.is_empty() {
-            return;
+            return Ok(());
         }
-        match self.compare_only(paths).await {
-            Ok(reconciled) => {
-                let new_files = reconciled.new_files;
-                let parents = new_files.iter().filter_map(|file| file.parent().map(Path::to_path_buf));
-                for folder in outermost(parents.collect()) {
-                    let files = new_files
-                        .iter()
-                        .filter(|file| is_within(file, &folder))
-                        .cloned()
-                        .collect();
-                    self.processor.enqueue(folder, files, Priority::Normal, false);
-                }
-                (self.notify)(SyncNotification::LibraryChanged);
-            }
-            Err(error) => tracing::warn!(%error, "failed to compare library folders with the disk"),
+        let new_files = self.compare_only(paths).await?.new_files;
+        let parents = new_files.iter().filter_map(|file| file.parent().map(Path::to_path_buf));
+        for folder in outermost(parents.collect()) {
+            let files = new_files
+                .iter()
+                .filter(|file| is_within(file, &folder))
+                .cloned()
+                .collect();
+            self.processor.enqueue(folder, files, Priority::Normal, false);
         }
+        (self.notify)(SyncNotification::LibraryChanged);
+        Ok(())
     }
 
     /// Compares `paths` with the disk; the new files it returns can be read now. Files still being written are

@@ -1,6 +1,8 @@
 import { emit } from "@tauri-apps/api/event";
+import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockCommands } from "../test/ipc";
+import { renderWithUi } from "../test/render";
 import { followLibrary } from "./followLibrary";
 import { queryClient } from "./queryClient";
 import { queryKeys } from "./queryKeys";
@@ -59,5 +61,16 @@ describe("followLibrary", () => {
 
         await emit("library-folders-changed", null);
         expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryFolderStatuses() });
+    });
+
+    it("says when looking for changes made while the app was closed failed", async () => {
+        mockCommands({});
+        renderWithUi(<div />);
+        stop = followLibrary();
+        await listening();
+
+        await emit("startup-sync-failed", "database is locked");
+        expect(await screen.findByText("database is locked")).toBeInTheDocument();
+        expect(screen.getByText("Couldn't look for changes made while Mnemo was closed")).toBeInTheDocument();
     });
 });

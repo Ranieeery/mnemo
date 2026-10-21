@@ -20,3 +20,16 @@ where
 {
     directories.into_iter().try_for_each(|directory| allow(app, directory))
 }
+
+/// Serves folders that just joined the library. The change that added them is already saved, so a failure is logged
+/// rather than returned (retrying would fail as "already in the library"); every library folder is allowed again at
+/// the next start.
+pub fn allow_added<I, P>(app: &AppHandle, directories: I)
+where
+    I: IntoIterator<Item = P>,
+    P: AsRef<Path>,
+{
+    if let Err(error) = allow_all(app, directories) {
+        tracing::warn!(%error, "could not serve library folders until the next start");
+    }
+}

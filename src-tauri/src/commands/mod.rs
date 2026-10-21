@@ -33,7 +33,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             events::ProcessingStatusChanged,
             events::ProcessingFinished,
             events::LibraryChanged,
-            events::LibraryFoldersChanged
+            events::LibraryFoldersChanged,
+            events::StartupSyncFailed
         ])
         .commands(collect_commands![
             library::list_library_folders,

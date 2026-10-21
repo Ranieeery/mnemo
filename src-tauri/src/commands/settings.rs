@@ -109,11 +109,10 @@ pub async fn export_library(state: State<'_, AppState>, path: String) -> AppResu
 pub async fn import_library(app: AppHandle, state: State<'_, AppState>, path: String) -> AppResult<ImportSummary> {
     let file = backup::read_file(PathBuf::from(path)).await?;
     let summary = state.sync.import(file).await?;
-    let folders = state
-        .db
-        .call(|connection| crate::db::folders::paths(connection))
-        .await?;
-    asset_scope::allow_all(&app, folders)?;
+    match state.db.call(|connection| crate::db::folders::paths(connection)).await {
+        Ok(folders) => asset_scope::allow_added(&app, folders),
+        Err(error) => tracing::warn!(%error, "could not serve the imported library folders until the next start"),
+    }
     Ok(summary)
 }
 

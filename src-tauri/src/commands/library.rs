@@ -65,7 +65,7 @@ pub fn get_library_folder_statuses(state: State<'_, AppState>) -> Vec<LibraryFol
 #[specta::specta]
 pub async fn add_library_folder(app: AppHandle, state: State<'_, AppState>, path: String) -> AppResult<LibraryFolder> {
     let folder = library::add_folder(&state.db, path).await?;
-    asset_scope::allow(&app, &folder.path)?;
+    asset_scope::allow_added(&app, [&folder.path]);
     state.sync.refresh();
     Ok(folder)
 }
@@ -75,17 +75,19 @@ pub async fn add_library_folder(app: AppHandle, state: State<'_, AppState>, path
 #[specta::specta]
 pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> AppResult<i64> {
     let removed = library::remove_folder(&state.db, &state.paths.thumbnails, path).await?;
-    forget_removed_folders(&state).await?;
+    forget_removed_folders(&state).await;
     state.sync.refresh();
     Ok(removed)
 }
 
 /// Stops reading folders that left the library. Done after the change succeeded, so a refused one cancels nothing;
-/// videos read meanwhile are not stored, as the writer only keeps videos inside library folders.
-async fn forget_removed_folders(state: &AppState) -> AppResult<()> {
-    let library = state.db.call(|connection| folders::paths(connection)).await?;
-    state.processor.forget_outside(&library);
-    Ok(())
+/// videos read meanwhile are not stored, as the writer only keeps videos inside library folders. A failure is only
+/// logged, since the change is saved: the jobs left end without storing anything, for that same reason.
+async fn forget_removed_folders(state: &AppState) {
+    match state.db.call(|connection| folders::paths(connection)).await {
+        Ok(library) => state.processor.forget_outside(&library),
+        Err(error) => tracing::warn!(%error, "could not stop reading the folders that left the library"),
+    }
 }
 
 /// Compares the videos of an unreachable library folder with the files at `to`, without changing anything. Fails
@@ -111,8 +113,8 @@ pub async fn relocate_library_folder(
     to: String,
 ) -> AppResult<RelocationResult> {
     let result = state.sync.relocate(from, to).await?;
-    forget_removed_folders(&state).await?;
-    asset_scope::allow(&app, &result.folder.path)?;
+    forget_removed_folders(&state).await;
+    asset_scope::allow_added(&app, [&result.folder.path]);
     Ok(result)
 }
 

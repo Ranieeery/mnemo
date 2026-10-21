@@ -12,8 +12,7 @@ use crate::services::relocation;
 impl<T: MediaToolkit + 'static> Inner<T> {
     pub(super) async fn relocate(self: &Arc<Self>, from: String, to: String) -> AppResult<RelocationResult> {
         let removed_thumbnails = relocation::apply(&self.db, from, to.clone()).await?;
-        let thumbnails_dir = self.thumbnails_dir.clone();
-        tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &removed_thumbnails)).await?;
+        thumbnails::discard(&self.thumbnails_dir, removed_thumbnails).await;
 
         // The old path leaves the watched folders and the new one joins them, due for a comparison like any folder
         // that came back; folders due for other reasons are compared too, so none of them waits a turn.

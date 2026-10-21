@@ -57,8 +57,7 @@ pub async fn clean_missing_videos(db: &Db, thumbnails_dir: &Path) -> AppResult<i
     let (count, thumbnails) = db
         .call(|connection| presence::delete_missing(connection, &folders::paths(connection)?, None))
         .await?;
-    let thumbnails_dir = thumbnails_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || thumbnails::delete(&thumbnails_dir, &thumbnails)).await?;
+    thumbnails::discard(thumbnails_dir, thumbnails).await;
     Ok(count as i64)
 }
 

@@ -89,9 +89,14 @@ pub fn walk_videos(
                 continue;
             }
         };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else { continue };
-            let path = entry.path();
+        for entry in entries {
+            let (path, file_type) = match entry.and_then(|entry| Ok((entry.path(), entry.file_type()?))) {
+                Ok(found) => found,
+                Err(error) => {
+                    tracing::warn!(folder = %folder.display(), %error, "skipping an unreadable entry");
+                    continue;
+                }
+            };
             if file_type.is_dir() {
                 if !skip(&path) {
                     pending.push(path);

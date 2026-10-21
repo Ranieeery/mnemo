@@ -75,6 +75,8 @@ pub enum SyncNotification {
     LibraryChanged,
     /// A library folder became reachable or unreachable, or its watching changed.
     FoldersChanged,
+    /// The comparison of the library folders with the disk at startup failed, with the reason.
+    StartupCompareFailed(String),
 }
 
 pub type SyncNotifier = Arc<dyn Fn(SyncNotification) + Send + Sync>;
@@ -269,7 +271,12 @@ impl<T: MediaToolkit + 'static> Inner<T> {
     async fn run(self: Arc<Self>, mut receiver: mpsc::UnboundedReceiver<Request>) {
         tokio::time::sleep(self.timing.start_delay).await;
         let reachable = self.refresh_roots().await;
-        self.compare(reachable).await;
+        // The only look at what changed while the app was closed, and nothing the user did triggered it: its failure
+        // is shown. Later comparisons follow the watcher or a request that reports its own failure.
+        if let Err(error) = self.compare_and_read(reachable).await {
+            tracing::warn!(%error, "failed to compare library folders with the disk at startup");
+            (self.notify)(SyncNotification::StartupCompareFailed(error.to_string()));
+        }
         self.delete_old_missing().await;
         let backfill = Arc::clone(&self);
         tokio::spawn(async move {

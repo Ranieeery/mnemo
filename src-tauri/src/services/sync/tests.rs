@@ -26,6 +26,7 @@ struct Fixture {
     sync: LibrarySync<FakeToolkit>,
     dir: tempfile::TempDir,
     library_changed: Arc<AtomicUsize>,
+    startup_failures: Arc<Mutex<Vec<String>>>,
 }
 
 impl Fixture {
@@ -38,12 +39,16 @@ impl Fixture {
         let dir = tempfile::tempdir().unwrap();
         let harness = Harness::new(toolkit, 2);
         let library_changed = Arc::new(AtomicUsize::new(0));
+        let startup_failures = Arc::new(Mutex::new(Vec::new()));
         let notify: SyncNotifier = {
             let library_changed = Arc::clone(&library_changed);
-            Arc::new(move |notification| {
-                if let SyncNotification::LibraryChanged = notification {
+            let startup_failures = Arc::clone(&startup_failures);
+            Arc::new(move |notification| match notification {
+                SyncNotification::LibraryChanged => {
                     library_changed.fetch_add(1, Ordering::SeqCst);
                 }
+                SyncNotification::StartupCompareFailed(reason) => startup_failures.lock().unwrap().push(reason),
+                SyncNotification::FoldersChanged => {}
             })
         };
         let sync = LibrarySync::new(
@@ -59,6 +64,7 @@ impl Fixture {
             sync,
             dir,
             library_changed,
+            startup_failures,
         };
         let root = fixture.path("Library");
         std::fs::create_dir_all(&root).unwrap();
@@ -198,6 +204,25 @@ async fn startup_reads_new_files_and_fingerprints_old_videos() {
     })
     .await;
     assert!(fixture.library_changed.load(Ordering::SeqCst) > 0);
+    assert!(fixture.startup_failures.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_failed_startup_comparison_is_reported() {
+    let fixture = Fixture::new(&["Library/Ep 1.mkv"], true).await;
+    // The library folders still list, but the videos can't be compared.
+    fixture
+        .harness
+        .db
+        .call(|connection| Ok(connection.execute_batch("ALTER TABLE videos RENAME TO videos_gone")?))
+        .await
+        .unwrap();
+    fixture.sync.start();
+
+    eventually("the failure is reported", || async {
+        !fixture.startup_failures.lock().unwrap().is_empty()
+    })
+    .await;
 }
 
 #[tokio::test]

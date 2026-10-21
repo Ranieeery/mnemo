@@ -30,8 +30,12 @@ pub fn file_for(thumbnails_dir: &Path, video: &Path) -> PathBuf {
 /// than `older_than` ago, so thumbnails of videos still being read (stored a moment later) are left alone. Returns
 /// how many were deleted.
 pub fn delete_unused(thumbnails_dir: &Path, used: &HashSet<String>, older_than: Duration) -> usize {
-    let Ok(entries) = std::fs::read_dir(thumbnails_dir) else {
-        return 0;
+    let entries = match std::fs::read_dir(thumbnails_dir) {
+        Ok(entries) => entries,
+        Err(error) => {
+            tracing::warn!(dir = %thumbnails_dir.display(), %error, "could not list the thumbnails to clean up");
+            return 0;
+        }
     };
     let cutoff = SystemTime::now().checked_sub(older_than).unwrap_or(UNIX_EPOCH);
     let unused: Vec<String> = entries

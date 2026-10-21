@@ -1,4 +1,5 @@
 import { partialMatchKey } from "@tanstack/react-query";
+import { toast } from "../ui/Toast";
 import { events } from "./bindings";
 import { queryClient } from "./queryClient";
 import { queryKeys } from "./queryKeys";
@@ -8,7 +9,8 @@ const REFRESH_INTERVAL_MS = 1000;
 
 /**
  * Keeps the screens in step with the disk: the backend says when files in the library folders changed and when a
- * folder became reachable or not. Call once at the app root; returns the cleanup.
+ * folder became reachable or not, and whether looking for changes made while the app was closed failed. Call once at
+ * the app root; returns the cleanup.
  */
 export function followLibrary(): () => void {
     let active = true;
@@ -39,6 +41,13 @@ export function followLibrary(): () => void {
         events.libraryChanged.listen(refreshLibrary),
         events.libraryFoldersChanged.listen(
             () => void queryClient.invalidateQueries({ queryKey: queryKeys.libraryFolderStatuses() })
+        ),
+        events.startupSyncFailed.listen(({ payload }) =>
+            toast({
+                title: "Couldn't look for changes made while Mnemo was closed",
+                description: payload,
+                tone: "danger",
+            })
         ),
     ];
     return () => {

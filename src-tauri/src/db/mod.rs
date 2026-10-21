@@ -18,11 +18,11 @@ pub mod videos;
 pub mod watch;
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use rusqlite::Connection;
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 
 #[derive(Clone)]
 pub struct Db {
@@ -47,7 +47,8 @@ impl Db {
         })
     }
 
-    /// Runs `operation` with exclusive access to the connection on the blocking thread pool.
+    /// Runs `operation` with exclusive access to the connection on the blocking thread pool. An operation that
+    /// panicked leaves the connection usable (its open transaction rolled back as it unwound), so later calls go on.
     pub async fn call<T, F>(&self, operation: F) -> AppResult<T>
     where
         T: Send + 'static,
@@ -55,9 +56,7 @@ impl Db {
     {
         let connection = Arc::clone(&self.connection);
         tokio::task::spawn_blocking(move || {
-            let mut guard = connection
-                .lock()
-                .map_err(|_| AppError::Internal("database connection lock poisoned".into()))?;
+            let mut guard = connection.lock().unwrap_or_else(PoisonError::into_inner);
             operation(&mut guard)
         })
         .await?
@@ -108,6 +107,25 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_panicking_operation_leaves_the_database_usable() {
+        let db = Db::open_in_memory().unwrap();
+        let panicked = db
+            .call(|connection| -> AppResult<()> {
+                let transaction = connection.transaction()?;
+                transaction.execute("INSERT INTO tags (name) VALUES ('half done')", [])?;
+                panic!("an operation failed halfway");
+            })
+            .await;
+        assert!(panicked.is_err());
+
+        let tags: i64 = db
+            .call(|connection| Ok(connection.query_row("SELECT COUNT(*) FROM tags", [], |row| row.get(0))?))
+            .await
+            .unwrap();
+        assert_eq!(tags, 0);
+    }
 
     #[test]
     fn like_pattern_escapes_wildcards() {
