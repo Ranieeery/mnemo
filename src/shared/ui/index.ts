@@ -50,4 +50,5 @@ export { Tooltip, TooltipProvider } from "./Tooltip";
 export { useColumns } from "./useColumns";
 export { elementNear, useFocusAfterRemoval } from "./useFocusAfterRemoval";
 export { useIsTruncated } from "./useIsTruncated";
+export { type RovingItemProps, useRovingFocus } from "./useRovingFocus";
 export { VirtualList } from "./VirtualList";

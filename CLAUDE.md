@@ -125,7 +125,7 @@ src/
 │   └── <feature>/      # components/, hooks/, lib/, queries.ts, index.ts e testes ao lado (*.test.ts[x])
 └── shared/
     ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns, useIsTruncated,
-    │                   # useFocusAfterRemoval
+    │                   # useFocusAfterRemoval, useRovingFocus
     ├── video/          # UI e ações de vídeo usadas por várias features (card, thumbnail, grade, menu de contexto,
     │                   # visibilidade de pastas escondidas)
     ├── ipc/            # bindings gerados, client (`call()` → CommandError), queryKeys, queryClient, queries comuns

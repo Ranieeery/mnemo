@@ -16,6 +16,11 @@ teclado e mouse (ver `CLAUDE.md`).
   `Dialog` sem campo com `autoFocus` foca o próprio painel ao abrir, para o primeiro `Esc` fechá-lo (focar o X abriria
   o tooltip, que ficaria com o `Esc`). Controles que somem com o foco (tag removida, tecla de atalho removida ou
   gravada, tag excluída) passam o foco ao vizinho ou ao campo da lista (`shared/ui/useFocusAfterRemoval`).
+- Grupos de itens (amostras de cor, grades de ícones, colunas do gráfico do histórico) são uma parada de `Tab`
+  (`shared/ui/useRovingFocus`): as setas movem (e, nas amostras e ícones, escolhem), `Home`/`End` vão às pontas; nas
+  grades de ícones, `↑`/`↓` mudam de linha e `Home`/`End` ficam na linha. A parada é o item escolhido (o primeiro, sem
+  escolha) ou, no gráfico, a coluna mais recente. Em "All icons" a linha do ícone escolhido fica sempre renderizada
+  (`VirtualList` `keepMounted`), para o `Tab` chegar a ela.
 - Anúncios para leitor de tela: o player anuncia o que um atalho fez (o mesmo texto do flash, numa região `status`);
   a barra de leitura de vídeos anuncia só o início (o fim e as falhas chegam pelos toasts), nunca cada arquivo.
 - Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências

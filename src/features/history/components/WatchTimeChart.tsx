@@ -1,4 +1,5 @@
-import { Tooltip } from "../../../shared/ui";
+import { useState } from "react";
+import { Tooltip, useRovingFocus } from "../../../shared/ui";
 import { axisTicks, type ChartPeriod, formatWatchTime } from "../lib/history";
 
 type WatchTimeChartProps = {
@@ -10,11 +11,19 @@ type WatchTimeChartProps = {
 
 /**
  * Columns of watched time, one per period, over round gridlines. A single series, so no legend: the heading names
- * it. Each column reveals its exact value on hover or focus.
+ * it. Each column reveals its exact value on hover or focus; the chart is one tab stop, and the arrows move between
+ * columns (starting at the latest).
  */
 export function WatchTimeChart({ periods, label }: WatchTimeChartProps) {
     const ticks = axisTicks(Math.max(0, ...periods.map((period) => period.seconds)));
     const top = ticks.at(-1) ?? 1;
+    const [focused, setFocused] = useState<number | null>(null);
+    const last = periods.length - 1;
+    const { onKeyDown, itemProps } = useRovingFocus({
+        count: periods.length,
+        activeIndex: focused === null ? last : Math.min(focused, last),
+        onMove: setFocused,
+    });
 
     return (
         <div className="flex gap-3">
@@ -40,14 +49,17 @@ export function WatchTimeChart({ periods, label }: WatchTimeChartProps) {
                             style={{ bottom: `${(tick / top) * 100}%` }}
                         />
                     ))}
-                    <ul aria-label={label} className="absolute inset-0 flex items-end gap-0.5">
-                        {periods.map((period) => (
+                    <ul aria-label={label} className="absolute inset-0 flex items-end gap-0.5" onKeyDown={onKeyDown}>
+                        {periods.map((period, index) => (
                             <li key={period.key} className="flex h-full min-w-0 flex-1 items-end justify-center">
                                 <Tooltip content={period.description}>
                                     {/* The whole column is the target, so keyboard focus shows the value like hover. */}
                                     <button
+                                        {...itemProps(index)}
                                         type="button"
                                         aria-label={period.description}
+                                        // A click focuses a column too: the tab stop follows it.
+                                        onFocus={() => setFocused(index)}
                                         className="group flex h-full w-full cursor-default items-end justify-center rounded-badge"
                                     >
                                         {period.seconds > 0 && (

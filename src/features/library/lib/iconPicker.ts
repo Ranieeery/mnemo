@@ -1,6 +1,9 @@
 /** At most this many icons on the picker's first tab, so it stays quick to scan. */
 export const MAIN_TAB_LIMIT = 40;
 
+/** Icons per row of every grid (`grid-cols-8`); Up and Down move by this many. */
+export const ICON_COLUMNS = 8;
+
 /** The first tab: recently used icons, then suggestions they do not repeat, `MAIN_TAB_LIMIT` in all. */
 export function mainTabIcons(recent: readonly string[], suggested: readonly string[]) {
     const shownRecent = recent.slice(0, MAIN_TAB_LIMIT);

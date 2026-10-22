@@ -87,6 +87,28 @@ describe("HistoryPage", () => {
         expect(callsOf(calls, "get_watch_totals")).toEqual([{ days: 80 }]);
     });
 
+    it("makes the chart one tab stop, on the latest column, whose arrows move between columns", async () => {
+        mockHistory();
+        const { user } = renderScreen(<HistoryPage />);
+        await user.click(await screen.findByRole("tab", { name: "Statistics" }));
+        const columns = within(await screen.findByRole("list", { name: "Watched time per day" })).getAllByRole(
+            "button"
+        );
+        const column = (index: number) => columns.at(index);
+        expect(columns.filter((element) => element.tabIndex === 0)).toEqual([column(-1)]);
+
+        column(-1)?.focus();
+        await user.keyboard("{ArrowLeft}");
+        expect(column(-2)).toHaveFocus();
+        await user.keyboard("{Home}");
+        expect(column(0)).toHaveFocus();
+        await user.keyboard("{ArrowLeft}");
+        expect(column(-1)).toHaveFocus();
+        await user.keyboard("{ArrowRight}");
+        expect(column(0)).toHaveFocus();
+        expect(columns.filter((element) => element.tabIndex === 0)).toEqual([column(0)]);
+    });
+
     it("guides the user when nothing was watched yet", async () => {
         mockHistory({ list_watch_history: { entries: [], nextCursor: null }, get_watch_totals: [] });
         const { user } = renderScreen(<HistoryPage />);

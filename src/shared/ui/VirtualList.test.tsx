@@ -3,11 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ScrollContainer } from "./ScrollContainer";
 import { VirtualList } from "./VirtualList";
 
-function renderList(count: number) {
+function renderList(count: number, keepMounted?: number) {
     const items = Array.from({ length: count }, (_, index) => `Episode ${index + 1}`);
     render(
         <ScrollContainer className="h-96">
-            <VirtualList items={items} getKey={(item) => item} estimateSize={() => 40} renderItem={(item) => item} />
+            <VirtualList
+                items={items}
+                getKey={(item) => item}
+                estimateSize={() => 40}
+                renderItem={(item) => item}
+                keepMounted={keepMounted}
+            />
         </ScrollContainer>
     );
 }
@@ -23,15 +29,26 @@ describe("VirtualList", () => {
         expect(screen.getByText("Episode 10")).toBeInTheDocument();
     });
 
-    it("renders only the items near the viewport of long lists", () => {
-        // jsdom has no layout: give every element a 400px tall box so the viewport fits ten 40px rows.
+    // jsdom has no layout: give every element a 400px tall box so the viewport fits ten 40px rows.
+    function mockViewport() {
         vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 800, 400));
         vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(400);
         vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(800);
+    }
 
+    it("renders only the items near the viewport of long lists", () => {
+        mockViewport();
         renderList(1000);
         expect(screen.getByText("Episode 1")).toBeInTheDocument();
         expect(screen.queryByText("Episode 500")).not.toBeInTheDocument();
         expect(screen.queryByText("Episode 1000")).not.toBeInTheDocument();
+    });
+
+    it("keeps one far item mounted", () => {
+        mockViewport();
+        renderList(1000, 499);
+        expect(screen.getByText("Episode 1")).toBeInTheDocument();
+        expect(screen.getByText("Episode 500")).toBeInTheDocument();
+        expect(screen.queryByText("Episode 499")).not.toBeInTheDocument();
     });
 });

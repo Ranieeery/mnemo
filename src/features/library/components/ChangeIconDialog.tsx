@@ -18,7 +18,7 @@ import {
 import { mainTabIcons } from "../lib/iconPicker";
 import { useRecentFolderIcons, useSetFolderAppearance } from "../queries";
 import { AllIconsPanel } from "./AllIconsPanel";
-import { IconOption } from "./IconOption";
+import { IconGrid } from "./IconGrid";
 
 /** The swatch for no color: the icon keeps the text color it has today. */
 const DEFAULT_COLOR = "default";
@@ -48,22 +48,7 @@ export function ChangeIconDialog({ folder, open, onOpenChange }: ChangeIconDialo
     };
 
     const grid = (label: string, names: readonly string[]) => (
-        <section className="flex flex-col gap-2">
-            <h3 className="text-small font-medium text-text-muted">{label}</h3>
-            <div role="radiogroup" aria-label={label} className="grid grid-cols-8 gap-1">
-                {names.map((name) => (
-                    <IconOption
-                        key={name}
-                        name={name}
-                        selected={selected === name}
-                        onSelect={setSelected}
-                        color={color}
-                    >
-                        <FolderIcon name={name} />
-                    </IconOption>
-                ))}
-            </div>
-        </section>
+        <IconGrid label={label} names={names} selected={selected} onSelect={setSelected} color={color} />
     );
 
     return (

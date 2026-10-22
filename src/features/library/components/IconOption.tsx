@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import type { FolderColor } from "../../../shared/ipc/bindings";
 import { cx } from "../../../shared/lib/cx";
-import { folderColorValue } from "../../../shared/ui";
+import { folderColorValue, type RovingItemProps } from "../../../shared/ui";
 import { iconLabel } from "../lib/iconPicker";
 
-type IconOptionProps = {
+type IconOptionProps = RovingItemProps & {
     name: string;
     selected: boolean;
     onSelect: (name: string) => void;
@@ -13,11 +13,12 @@ type IconOptionProps = {
     children: ReactNode;
 };
 
-/** One choice in an icon grid. The grid around it has `role="radiogroup"`. */
-export function IconOption({ name, selected, onSelect, color = null, children }: IconOptionProps) {
+/** One choice in an icon grid. The grid around it has `role="radiogroup"` and moves the tab stop (`useRovingFocus`). */
+export function IconOption({ name, selected, onSelect, color = null, children, ...roving }: IconOptionProps) {
     return (
         // biome-ignore lint/a11y/useSemanticElements: a grid of icon buttons reads better than radio inputs.
         <button
+            {...roving}
             type="button"
             role="radio"
             aria-checked={selected}

@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
-import { type KeyboardEvent, useRef } from "react";
 import { cx } from "../lib/cx";
 import { Tooltip } from "./Tooltip";
+import { useRovingFocus } from "./useRovingFocus";
 
 export type ColorSwatch<T extends string> = {
     value: T;
@@ -21,8 +21,6 @@ type ColorSwatchesProps<T extends string> = {
     ringOffsetClassName?: string;
 };
 
-const NEXT_KEYS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
-
 /**
  * A row of color swatches where exactly one is chosen. It behaves like a radio group: one tab stop (the chosen
  * swatch), arrow keys move and choose, Home and End jump to the ends. The chosen swatch shows a ring and a check, so
@@ -35,7 +33,6 @@ export function ColorSwatches<T extends string>({
     onChange,
     ringOffsetClassName = "ring-offset-surface",
 }: ColorSwatchesProps<T>) {
-    const buttons = useRef<(HTMLButtonElement | null)[]>([]);
     const selectedIndex = Math.max(
         0,
         options.findIndex((option) => option.value === value)
@@ -45,45 +42,27 @@ export function ColorSwatches<T extends string>({
         const option = options[index];
         if (option) {
             onChange(option.value);
-            buttons.current[index]?.focus();
         }
     };
-
-    const handleKey = (event: KeyboardEvent<HTMLDivElement>) => {
-        const step = NEXT_KEYS[event.key];
-        const last = options.length - 1;
-        const target =
-            step !== undefined
-                ? (selectedIndex + step + options.length) % options.length
-                : event.key === "Home"
-                  ? 0
-                  : event.key === "End"
-                    ? last
-                    : null;
-        if (target !== null) {
-            event.preventDefault();
-            // The arrows belong to the group, not to shortcuts around it.
-            event.stopPropagation();
-            choose(target);
-        }
-    };
+    const { onKeyDown, itemProps } = useRovingFocus({
+        count: options.length,
+        activeIndex: selectedIndex,
+        onMove: choose,
+    });
 
     return (
-        <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2" onKeyDown={handleKey}>
+        <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2" onKeyDown={onKeyDown}>
             {options.map((option, index) => {
                 const selected = index === selectedIndex && option.value === value;
                 return (
                     <Tooltip key={option.value} content={option.label}>
                         {/* biome-ignore lint/a11y/useSemanticElements: color swatches read better as buttons than radio inputs. */}
                         <button
-                            ref={(element) => {
-                                buttons.current[index] = element;
-                            }}
+                            {...itemProps(index)}
                             type="button"
                             role="radio"
                             aria-checked={selected}
                             aria-label={option.label}
-                            tabIndex={index === selectedIndex ? 0 : -1}
                             onClick={() => choose(index)}
                             className={cx(
                                 "flex size-7 items-center justify-center rounded-full border border-border-strong",

@@ -1,4 +1,4 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { type Key, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useScrollElement } from "./ScrollContainer";
 
@@ -12,10 +12,19 @@ type VirtualListProps<T> = {
     estimateSize: (item: T) => number;
     renderItem: (item: T) => ReactNode;
     className?: string;
+    /** An item rendered even far from the viewport, e.g. the one holding the tab stop, so `Tab` still reaches it. */
+    keepMounted?: number;
 };
 
 /** A vertical list that only renders the items near the viewport of the enclosing {@link ScrollContainer}. */
-export function VirtualList<T>({ items, getKey, estimateSize, renderItem, className }: VirtualListProps<T>) {
+export function VirtualList<T>({
+    items,
+    getKey,
+    estimateSize,
+    renderItem,
+    className,
+    keepMounted,
+}: VirtualListProps<T>) {
     if (items.length < VIRTUALIZE_FROM) {
         return (
             <div className={className}>
@@ -32,11 +41,12 @@ export function VirtualList<T>({ items, getKey, estimateSize, renderItem, classN
             estimateSize={estimateSize}
             renderItem={renderItem}
             className={className}
+            keepMounted={keepMounted}
         />
     );
 }
 
-function VirtualizedList<T>({ items, getKey, estimateSize, renderItem, className }: VirtualListProps<T>) {
+function VirtualizedList<T>({ items, getKey, estimateSize, renderItem, className, keepMounted }: VirtualListProps<T>) {
     const scrollElement = useScrollElement();
     const listRef = useRef<HTMLDivElement>(null);
     const [scrollMargin, setScrollMargin] = useState(0);
@@ -66,6 +76,12 @@ function VirtualizedList<T>({ items, getKey, estimateSize, renderItem, className
         },
         overscan: 4,
         scrollMargin,
+        rangeExtractor: (range) => {
+            const indexes = defaultRangeExtractor(range);
+            return keepMounted === undefined || keepMounted >= range.count || indexes.includes(keepMounted)
+                ? indexes
+                : [...indexes, keepMounted].sort((a, b) => a - b);
+        },
     });
 
     return (

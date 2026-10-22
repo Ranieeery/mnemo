@@ -252,6 +252,47 @@ describe("LibraryNav", () => {
         );
     });
 
+    it("makes each icon grid one tab stop whose arrows move and choose, a row at a time up and down", async () => {
+        const { user, dialog } = await openIconDialog();
+        const radios = within(within(dialog).getByRole("radiogroup", { name: "Suggested" })).getAllByRole("radio");
+        const radio = (index: number) => radios.at(index);
+        const tabStops = () => radios.filter((element) => element.tabIndex === 0);
+        // Nothing chosen yet: the first icon is the tab stop.
+        expect(tabStops()).toEqual([radio(0)]);
+
+        radio(0)?.focus();
+        await user.keyboard("{ArrowRight}");
+        expect(radio(1)).toHaveFocus();
+        expect(radio(1)).toHaveAttribute("aria-checked", "true");
+        await user.keyboard("{ArrowDown}");
+        expect(radio(9)).toHaveFocus();
+        await user.keyboard("{End}");
+        expect(radio(15)).toHaveFocus();
+        await user.keyboard("{Home}");
+        expect(radio(8)).toHaveFocus();
+        await user.keyboard("{ArrowUp}{ArrowUp}");
+        expect(radio(0)).toHaveFocus();
+        await user.keyboard("{ArrowLeft}");
+        expect(radio(-1)).toHaveFocus();
+        expect(radio(-1)).toHaveAttribute("aria-checked", "true");
+        expect(tabStops()).toEqual([radio(-1)]);
+    });
+
+    it("starts the keyboard on the chosen icon among all icons", async () => {
+        const { user, dialog } = await openIconDialog([], { ...movies, customIcon: "zodiac-leo" });
+        await user.type(await openAllIcons(user, dialog), "zodiac");
+        const radios = within(within(dialog).getByRole("radiogroup", { name: "All icons" })).getAllByRole("radio");
+        const leo = within(dialog).getByRole("radio", { name: "zodiac leo" });
+        expect(radios.filter((element) => element.tabIndex === 0)).toEqual([leo]);
+
+        leo.focus();
+        await user.keyboard("{ArrowRight}");
+        const next = radios[radios.indexOf(leo) + 1];
+        expect(next).toHaveFocus();
+        expect(next).toHaveAttribute("aria-checked", "true");
+        expect(leo).toHaveAttribute("aria-checked", "false");
+    });
+
     it("explains when no icon matches the search", async () => {
         const { user, dialog } = await openIconDialog();
         await user.type(await openAllIcons(user, dialog), "qqqq");
