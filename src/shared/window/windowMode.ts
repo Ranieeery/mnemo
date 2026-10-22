@@ -75,12 +75,14 @@ function windowActions(queryClient: QueryClient) {
                 toast({ title: "Could not open the mini player", description: errorMessage(error), tone: "danger" });
             }
         },
-        /** Gives the window back the size and state it had before the mini player. */
-        exitMini: async () => {
+        /** Gives the window back the size and state it had before the mini player; false when it failed. */
+        exitMini: async (): Promise<boolean> => {
             try {
                 show(await call(commands.exitMiniPlayer()));
+                return true;
             } catch (error) {
                 toast({ title: "Could not restore the window", description: errorMessage(error), tone: "danger" });
+                return false;
             }
         },
         /** Fits the mini player to the video now playing (the next video may have another shape). */

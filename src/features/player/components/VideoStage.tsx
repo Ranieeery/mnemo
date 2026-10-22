@@ -154,7 +154,8 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
                 return show(usePlayerStore.getState().subtitlesEnabled ? "Subtitles on" : "Subtitles off");
             case "fullscreen":
                 if (miniPlayer.mini) {
-                    return void miniPlayer.exit().then(fullscreen.toggle);
+                    // Over a window still in the mini player, full screen would leave both half applied.
+                    return void miniPlayer.exit().then((exited) => exited && fullscreen.toggle());
                 }
                 return fullscreen.toggle();
             case "theater":

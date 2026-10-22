@@ -46,6 +46,8 @@ type Options = {
     onTopSupported?: boolean;
     /** The system refuses to pin the window. */
     pinFails?: boolean;
+    /** Restoring the window after the mini player fails. */
+    exitMiniFails?: boolean;
 };
 
 /** The player as the app's watch route mounts it: a new one for each video. */
@@ -67,6 +69,7 @@ function renderPlayer({
     extractFails = false,
     onTopSupported = true,
     pinFails = false,
+    exitMiniFails = false,
 }: Options = {}) {
     const path = video?.filePath ?? `${SHOW}\\Raw.mkv`;
     const playlist: VideoEntry[] = video ? [entryFixture(video), entryFixture(next)] : [];
@@ -87,7 +90,12 @@ function renderPlayer({
             return changeWindow({ pinned: pinned === true });
         },
         enter_mini_player: () => changeWindow({ mini: true }),
-        exit_mini_player: () => changeWindow({ mini: false }),
+        exit_mini_player: () => {
+            if (exitMiniFails) {
+                throw commandError("internal", "the monitor could not be read");
+            }
+            return changeWindow({ mini: false });
+        },
         set_mini_player_aspect: () => windowMode,
         get_video: () => stored,
         list_playlist: playlist,
@@ -864,6 +872,21 @@ describe("PlayerPage", () => {
             expect(await screen.findByRole("button", { name: "Expand" })).toBeInTheDocument();
             expect(document.exitFullscreen).toHaveBeenCalledOnce();
             expect(enteredWhileFullscreen).toBe(false);
+        });
+
+        it("leaves before going full screen, and stays if leaving fails", async () => {
+            const requestFullscreen = vi.fn().mockResolvedValue(undefined);
+            HTMLElement.prototype.requestFullscreen = requestFullscreen;
+            const { user, calls } = renderPlayer({ exitMiniFails: true });
+            await playingAt(60);
+            await user.keyboard("i");
+            expect(await screen.findByRole("button", { name: "Expand" })).toBeInTheDocument();
+
+            await user.keyboard("f");
+            expect(await screen.findByText("Could not restore the window")).toBeInTheDocument();
+            expect(callsOf(calls, "exit_mini_player")).toHaveLength(1);
+            expect(requestFullscreen).not.toHaveBeenCalled();
+            expect(screen.getByRole("button", { name: "Expand" })).toBeInTheDocument();
         });
 
         it("brings theater mode back afterwards, and T in it says what it will be", async () => {
