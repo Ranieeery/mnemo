@@ -5,7 +5,7 @@ import { call, errorMessage } from "../../../shared/ipc/client";
 import { useMediaTools } from "../../../shared/ipc/queries";
 import { queryKeys } from "../../../shared/ipc/queryKeys";
 import { formatDuration } from "../../../shared/lib/formatDuration";
-import { Button, Dialog, Input, Textarea, toast } from "../../../shared/ui";
+import { Button, ConfirmDialog, Dialog, Input, Textarea, toast } from "../../../shared/ui";
 import { replaceVideo, useSetVideoThumbnail, VideoThumbnail } from "../../../shared/video";
 
 type VideoDetailsDialogProps = {
@@ -53,6 +53,10 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
     const setThumbnail = useSetVideoThumbnail();
     // The dialog keeps the video it was opened with; the thumbnail follows the restore below.
     const [thumbnailPath, setThumbnailPath] = useState(video.thumbnailPath);
+    const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+
+    // Esc, a click outside and both close buttons all land here, so none of them drops unsaved edits silently.
+    const requestClose = () => (changed ? setConfirmingDiscard(true) : onClose());
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -74,12 +78,12 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
     return (
         <Dialog
             open
-            onOpenChange={(open) => !open && onClose()}
+            onOpenChange={(open) => !open && requestClose()}
             title="Video details"
             size="lg"
             footer={
                 <>
-                    <Button variant="ghost" onClick={onClose}>
+                    <Button variant="ghost" onClick={requestClose}>
                         Close
                     </Button>
                     <Button
@@ -139,6 +143,15 @@ export function VideoDetailsDialog({ video, onClose, tagsEditor }: VideoDetailsD
                     </div>
                 </dl>
             </div>
+            <ConfirmDialog
+                open={confirmingDiscard}
+                onOpenChange={setConfirmingDiscard}
+                title="Discard changes?"
+                description="The title and description you edited have not been saved."
+                confirmLabel="Discard changes"
+                tone="danger"
+                onConfirm={onClose}
+            />
         </Dialog>
     );
 }

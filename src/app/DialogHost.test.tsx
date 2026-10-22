@@ -104,6 +104,42 @@ describe("video details dialog", () => {
         );
     });
 
+    it("asks before closing with unsaved edits", async () => {
+        mockCommands({ get_video_tags: [], list_tags: [] });
+        const { user } = renderScreen(<DialogHost />);
+        act(() => openVideoDetails(videoFixture({ title: "Pilot" })));
+
+        const dialog = await screen.findByRole("dialog", { name: "Video details" });
+        await user.type(within(dialog).getByRole("textbox", { name: "Description" }), "First episode");
+        await user.keyboard("{Escape}");
+        const confirm = await screen.findByRole("alertdialog", { name: "Discard changes?" });
+        // Keeping the edits returns to the dialog with the text still there.
+        await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+        expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+        expect(within(dialog).getByRole("textbox", { name: "Description" })).toHaveValue("First episode");
+
+        // Both the header X and the footer button are named "Close"; each one asks too.
+        for (const close of within(dialog).getAllByRole("button", { name: "Close" })) {
+            await user.click(close);
+            const again = await screen.findByRole("alertdialog", { name: "Discard changes?" });
+            await user.click(within(again).getByRole("button", { name: "Cancel" }));
+        }
+        await user.keyboard("{Escape}");
+        await user.click(await screen.findByRole("button", { name: "Discard changes" }));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Video details" })).not.toBeInTheDocument());
+    });
+
+    it("closes at once when nothing was edited", async () => {
+        mockCommands({ get_video_tags: [], list_tags: [] });
+        const { user } = renderScreen(<DialogHost />);
+        act(() => openVideoDetails(videoFixture({ title: "Pilot" })));
+
+        await screen.findByRole("dialog", { name: "Video details" });
+        await user.keyboard("{Escape}");
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Video details" })).not.toBeInTheDocument());
+        expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
     it("does not save an empty title", async () => {
         mockCommands({ get_video_tags: [], list_tags: [] });
         const { user } = renderScreen(<DialogHost />);

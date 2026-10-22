@@ -238,7 +238,8 @@ teclado e mouse (ver `CLAUDE.md`).
   apagadas; cada página lê só as linhas dos dias que ela mostra (pelo índice de `watched_at`). "Tempo assistido" é a soma da duração dos vídeos que viraram assistidos no dia (cada vídeo uma vez).
 
 ## Tags
-- Tags por vídeo no diálogo de detalhes, onde também se edita título e descrição.
+- Tags por vídeo no diálogo de detalhes, onde também se edita título e descrição. Fechar o diálogo (`Esc`, clique
+  fora, "Close" ou X) com título ou descrição alterados e não salvos pede confirmação ("Discard changes?").
 - Operações em massa por pasta: adicionar tag a todos os vídeos, remover todas as tags.
 - Gerenciamento em Settings: criar, listar com uso, excluir tag, remover de todos os vídeos, excluir todas, excluir
   não usadas.
