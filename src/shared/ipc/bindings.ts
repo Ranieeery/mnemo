@@ -204,6 +204,13 @@ export const commands = {
 	openExternally: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("open_externally", { path })),
 	/**  Shows a library file selected in the system file manager. */
 	revealInFileManager: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("reveal_in_file_manager", { path })),
+	/**  Whether updates are checked automatically, when the last check got an answer and the newer version it found. */
+	getUpdateStatus: () => typedError<UpdateStatus, IpcError>(__TAURI_INVOKE("get_update_status")),
+	setAutomaticUpdateChecks: (enabled: boolean) => typedError<UpdateStatus, IpcError>(__TAURI_INVOKE("set_automatic_update_checks", { enabled })),
+	/**  Asks GitHub for the latest published release now. The automatic check runs on its own at startup. */
+	checkForUpdates: () => typedError<UpdateCheck, IpcError>(__TAURI_INVOKE("check_for_updates")),
+	/**  Opens the newer release's page in the default browser. The URL is built in the backend, never passed in. */
+	openReleasePage: () => typedError<null, IpcError>(__TAURI_INVOKE("open_release_page")),
 	getWindowMode: () => typedError<WindowMode, IpcError>(__TAURI_INVOKE("get_window_mode")),
 	/**  Keeps the window above other windows, or stops. Not remembered between sessions. */
 	setWindowPinned: (pinned: boolean) => typedError<WindowMode, IpcError>(__TAURI_INVOKE("set_window_pinned", { pinned })),
@@ -222,6 +229,7 @@ export const events = {
 	processingFinished: makeEvent<ProcessingFinished>("processing-finished"),
 	processingStatusChanged: makeEvent<ProcessingStatusChanged>("processing-status-changed"),
 	startupSyncFailed: makeEvent<StartupSyncFailed>("startup-sync-failed"),
+	updateAvailable: makeEvent<UpdateAvailable>("update-available"),
 	windowModeChanged: makeEvent<WindowModeChanged>("window-mode-changed"),
 };
 
@@ -311,7 +319,7 @@ export type DatabaseInfo = {
 	schemaVersion: number,
 };
 
-export type ErrorKind = "database" | "io" | "notFound" | "invalidInput" | "mediaToolMissing" | "mediaProcessFailed" | "timeout" | "importFormat" | "cancelled" | "internal";
+export type ErrorKind = "database" | "io" | "notFound" | "invalidInput" | "mediaToolMissing" | "mediaProcessFailed" | "timeout" | "importFormat" | "cancelled" | "network" | "invalidResponse" | "internal";
 
 export type FileEntry = {
 	name: string,
@@ -724,6 +732,23 @@ export type TagWithUsage = {
 	id: number,
 	name: string,
 	videoCount: number,
+};
+
+/**  The automatic check found a newer version, with that version; sent once per version. */
+export type UpdateAvailable = string;
+
+/**  What a check found. Versions are written by `semver`, never copied from the response. */
+export type UpdateCheck = { status: "upToDate"; running: string } | { status: "available"; running: string; latest: string };
+
+/**  The update settings and what is known without asking GitHub again. */
+export type UpdateStatus = {
+	/**  Checks once a day, about 10 s after Mnemo starts. */
+	automatic: boolean,
+	/**  Unix time in milliseconds of the last check that got an answer. */
+	lastCheckedMs: number | null,
+	running: string,
+	/**  A newer version found by an earlier check, until the app is updated to it. */
+	available: string | null,
 };
 
 /**  A processed video as stored in the library. */

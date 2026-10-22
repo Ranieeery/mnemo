@@ -15,6 +15,7 @@ import {
     useOrphanedVideos,
 } from "../queries";
 import { SettingRow } from "./SettingRow";
+import { UpdatesCard } from "./UpdatesCard";
 
 /** Videos listed before cleaning up. */
 const CLEANUP_PREVIEW = 20;
@@ -144,6 +145,7 @@ export function MaintenanceTab() {
             <MissingCard />
             <OrphansCard />
             <DatabaseInfoCard />
+            <UpdatesCard />
             <p className="text-small text-text-subtle">Mnemo {version.data ?? ""}</p>
         </div>
     );

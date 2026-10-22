@@ -353,3 +353,18 @@ teclado e mouse (ver `CLAUDE.md`).
 - Pastas escondidas da home e do histórico (lista, abrir e mostrar de novo).
 - Informações do banco, vídeos sumidos e órfãos (lista e limpeza com confirmação; sumidos de pastas escondidas só
   contados), versão do app.
+
+### Atualizações (Settings → Maintenance → Updates)
+- Só avisa: nada é baixado nem instalado. A versão em execução é comparada com a última release publicada no GitHub
+  (`/releases/latest`: nunca draft nem pre-release). Avisa só se a tag (`X.Y.Z`, com ou sem `v`) for estritamente
+  maior; tags pre-release ou inválidas são ignoradas, e um build pre-release é avisado da estável correspondente.
+- "Check for updates automatically" (ligado por padrão): cerca de 10 s depois de abrir, no máximo uma vez a cada
+  24 h (contadas da última verificação que teve resposta), sem bloquear o início. Sem rede ou com erro, nada aparece
+  (só o log) e a próxima abertura tenta de novo. Desligado, nenhuma requisição é feita.
+- Versão nova encontrada: toast "Mnemo X.Y.Z is available" com "View release" (abre a página da release no navegador),
+  uma vez por versão, também depois de reiniciar. Quem já viu a versão em Settings não recebe o toast.
+- "Check now" (com carregamento) mostra numa região `status` (polite): "Checking for updates…", "You're up to date
+  (X.Y.Z)", "Version X.Y.Z is available" ou o erro, com "Retry". Abaixo, "Last checked: …" (data e hora locais) ou
+  "Not checked yet"; "View release" aparece enquanto houver versão mais nova que a em execução. As notas da release
+  não são mostradas no app.
+- Para testar sem publicar: em build de debug, `MNEMO_FAKE_LATEST_RELEASE=2.99.0` (ou `fail`) substitui o GitHub.

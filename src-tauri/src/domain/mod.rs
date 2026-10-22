@@ -15,5 +15,6 @@ pub mod relocation;
 pub mod shortcuts;
 pub mod subtitle_style;
 pub mod tags;
+pub mod updates;
 pub mod watch;
 pub mod window;

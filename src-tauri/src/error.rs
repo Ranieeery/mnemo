@@ -26,6 +26,12 @@ pub enum AppError {
     ImportFormat(String),
     #[error("operation cancelled")]
     Cancelled,
+    /// The update check could not get an answer: no connection, TLS, or an HTTP error status.
+    #[error("could not reach GitHub: {0}")]
+    Network(String),
+    /// The update check got an answer it does not trust (unreadable, too large, not a version tag).
+    #[error("GitHub sent an unexpected answer: {0}")]
+    InvalidResponse(String),
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -50,6 +56,8 @@ impl AppError {
             Self::Timeout(_) => ErrorKind::Timeout,
             Self::ImportFormat(_) => ErrorKind::ImportFormat,
             Self::Cancelled => ErrorKind::Cancelled,
+            Self::Network(_) => ErrorKind::Network,
+            Self::InvalidResponse(_) => ErrorKind::InvalidResponse,
             Self::Internal(_) => ErrorKind::Internal,
         }
     }
@@ -67,6 +75,8 @@ pub enum ErrorKind {
     Timeout,
     ImportFormat,
     Cancelled,
+    Network,
+    InvalidResponse,
     Internal,
 }
 

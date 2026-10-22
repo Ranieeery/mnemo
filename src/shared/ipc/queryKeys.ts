@@ -40,6 +40,7 @@ export const queryKeys = {
     subtitleStyle: () => ["subtitle-style"] as const,
     folderRelocation: (from: string, to: string) => ["folder-relocation", from, to] as const,
     mediaTools: () => ["media-tools"] as const,
+    updateStatus: () => ["update-status"] as const,
     /** Kept by the backend for the session and pushed by its events; never stored. */
     windowMode: () => ["window-mode"] as const,
 };

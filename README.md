@@ -82,6 +82,15 @@ thumbnails, tags and watch progress in a local SQLite database.
 - **Backup:** export the whole library to JSON and import it back (exports from Mnemo 1.x are accepted too).
 - **Maintenance:** library statistics, database details and cleanup of videos that no longer belong to a folder or
   whose file is gone.
+- **Update notices:** Mnemo tells you when a newer version is published on GitHub, with a link to its release page,
+  and Settings → Maintenance can check on demand. It never downloads or installs anything by itself.
+
+## Privacy
+
+Mnemo works offline. Its only network request is the update check: once a day at most, shortly after it starts, it
+asks GitHub's API for the latest published release, sending nothing but the standard request (with `Mnemo/<version>`
+as its user agent; GitHub sees your IP address, as with any request). No telemetry, no account. Turn off "Check for
+updates automatically" in Settings → Maintenance and no request is made unless you click "Check now".
 
 ## Shortcuts
 

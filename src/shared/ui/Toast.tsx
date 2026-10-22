@@ -51,8 +51,9 @@ const toneIcon = {
     danger: <CircleAlert className="text-danger" />,
 } satisfies Record<ToastTone, ReactNode>;
 
-/** Errors stay longer: they usually come with something to read or act on. */
+/** Errors and toasts with an action stay longer: there is something to read or act on. */
 const durationByTone: Record<ToastTone, number> = { info: 4000, success: 4000, danger: 8000 };
+const ACTION_DURATION = 8000;
 
 /** Renders queued toasts. Mount once near the root of the app. */
 export function Toaster() {
@@ -64,7 +65,7 @@ export function Toaster() {
             {toasts.map(({ id, title, description, tone = "info", action }) => (
                 <Primitive.Root
                     key={id}
-                    duration={durationByTone[tone]}
+                    duration={action ? Math.max(ACTION_DURATION, durationByTone[tone]) : durationByTone[tone]}
                     onOpenChange={(open) => !open && dismiss(id)}
                     className={cx(
                         "flex w-full items-start gap-3 rounded-card bg-surface-raised p-4 shadow-overlay",

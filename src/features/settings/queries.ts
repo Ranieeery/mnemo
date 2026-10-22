@@ -143,3 +143,26 @@ export function useSampleFrame() {
         select: firstThumbnail,
     });
 }
+
+export function useUpdateStatus() {
+    return useQuery({ queryKey: queryKeys.updateStatus(), queryFn: () => call(commands.getUpdateStatus()) });
+}
+
+export function useSetAutomaticUpdateChecks() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (enabled: boolean) => call(commands.setAutomaticUpdateChecks(enabled)),
+        onSuccess: (status) => queryClient.setQueryData(queryKeys.updateStatus(), status),
+        onError: (error) =>
+            toast({ title: "Could not save the setting", description: errorMessage(error), tone: "danger" }),
+    });
+}
+
+/** Asks GitHub now. The result is shown next to the button; the status picks up the check time either way. */
+export function useCheckForUpdates() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => call(commands.checkForUpdates()),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.updateStatus() }),
+    });
+}

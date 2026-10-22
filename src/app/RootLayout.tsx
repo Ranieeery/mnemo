@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { followUpdates } from "../features/settings";
 import { followLibrary } from "../shared/ipc/followLibrary";
 import { useKeyboardShortcuts } from "../shared/ipc/queries";
 import { queryClient } from "../shared/ipc/queryClient";
@@ -33,9 +34,10 @@ export function RootLayout() {
 function GlobalShortcuts() {
     useHistoryShortcuts();
     usePinWindowShortcut();
-    // Background jobs, changes on disk and the window's modes report here, whatever screen is open.
+    // Background jobs, changes on disk, the window's modes and newer releases report here, whatever screen is open.
     useEffect(() => followProcessing(), []);
     useEffect(() => followLibrary(), []);
+    useEffect(() => followUpdates(), []);
     useEffect(() => followWindowMode(queryClient), []);
 
     // "?" shows every shortcut, except while typing (where it is just a character) or over another dialog.

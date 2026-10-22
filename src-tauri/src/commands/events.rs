@@ -33,6 +33,19 @@ pub struct LibraryFoldersChanged;
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct StartupSyncFailed(pub String);
 
+/// The automatic check found a newer version, with that version; sent once per version.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct UpdateAvailable(pub String);
+
+/// Announces a newer version found by the automatic check.
+pub fn announce_update(app: AppHandle) -> impl FnOnce(String) + Send + 'static {
+    move |latest| {
+        if let Err(error) = UpdateAvailable(latest).emit(&app) {
+            tracing::warn!(%error, "failed to send the update event");
+        }
+    }
+}
+
 /// The window was pinned or unpinned, or entered or left the mini player (also on its own: maximizing the mini
 /// player expands it).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]

@@ -72,6 +72,12 @@ fn start(app: &AppHandle) -> AppResult<()> {
     tracing::info!(database = %state.paths.database.display(), "database ready");
     let sync = state.sync.clone();
     tauri::async_runtime::spawn(async move { sync.start() });
+    tauri::async_runtime::spawn(
+        state
+            .updates
+            .clone()
+            .check_after_startup(commands::events::announce_update(app.clone())),
+    );
     app.manage(state);
     Ok(())
 }

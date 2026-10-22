@@ -30,9 +30,16 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
   anteriores), `## Highlights` (3 a 5 itens com início em negrito), uma seção `##` por área com o que mudou para o
   usuário, `## Fixes` quando houver, e `## Upgrading from X.Y` (dados preservados, mudanças de comportamento,
   requisitos). Atalhos e formatos entre crases; nada de nomes de código, comandos ou tabelas.
-- **Versão:** muda em `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json` e
-  no `README.md`. Tag leve sem `v` (`2.5.0`); a release tem o mesmo título, começa com
-  `**Full Changelog**: …/compare/<anterior>...<nova>` e leva o `.msi` (`bundle/msi`) e o `-setup.exe` (`bundle/nsis`).
+- **Versão e release** (o aviso de atualização compara a versão em execução com a tag da última release publicada no
+  GitHub; se algo abaixo falhar, os usuários recebem avisos errados ou eternos):
+  1. A mesma versão em `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json` e
+     no `README.md`; `bun run check:version --tag X.Y.Z` confere (sem rede).
+  2. Tag leve igual à versão, sem `v` (`2.5.0`).
+  3. Release publicada (nem draft, nem pre-release) e marcada Latest, com o mesmo título; começa com
+     `**Full Changelog**: …/compare/<anterior>...<nova>` e leva o `.msi` (`bundle/msi`) e o `-setup.exe`
+     (`bundle/nsis`).
+
+  Versões anteriores à primeira com o aviso (2.7.0) não avisam. A skill `release` segue esses passos.
 - Skills e plugins (design, React, revisão) são referência geral: em conflito, valem este arquivo, os tokens e os
   componentes de `src/shared/ui`. Regras de Next.js ou de servidor não se aplicam (app Tauri, sem SSR).
 - **Documentação por área** (leia a seção da área antes de mexer nela; atualize-a junto com o código):
@@ -46,9 +53,10 @@ explorador de arquivos, com metadados, thumbnails, tags e progresso de reproduç
 |---|---|
 | Shell desktop | Tauri 2 (Rust, edição 2024) |
 | Backend | Rust: `tokio` (+ `tokio-util` para `CancellationToken`), `serde`, `thiserror`, `tracing`, `rusqlite` (bundled) + `rusqlite_migration` |
+| Verificação de atualização | `ureq` 3 (só `rustls`, com `ring` e `webpki-roots`: sem OpenSSL nem `aws-lc`; síncrono, num `spawn_blocking`) e `semver` (já vinha pelo Tauri; `package_info().version` é um `semver::Version`) |
 | Monitoramento de pastas | `notify-debouncer-full` (re-exporta `notify`) e `xxhash-rust` (xxh3, hash estável entre versões do Rust, para reconhecer arquivos renomeados ou movidos) |
 | Bindings IPC | `tauri-specta` 2 RC, versão fixada com `=` (tipos TypeScript e constantes gerados a partir do Rust) |
-| Plugins Tauri | `dialog` (seleção de pasta e de arquivo de backup). `tauri-plugin-opener` só como crate Rust (abrir no player externo / revelar), sem plugin nem permissão no webview |
+| Plugins Tauri | `dialog` (seleção de pasta e de arquivo de backup). `tauri-plugin-opener` só como crate Rust (abrir no player externo / revelar / abrir a página da release), sem plugin nem permissão no webview |
 | Frontend | React 19 + TypeScript 7 (strict) + Vite 8 |
 | Estilo | Tailwind CSS 4 com tokens via `@theme` (padrões do Tailwind desligados) |
 | Primitivos de UI | Radix UI (acessibilidade), compostos no design system próprio em `src/shared/ui` |
@@ -79,6 +87,7 @@ bun run format           # biome format --write
 bun run test             # vitest run
 bun run check            # typecheck + lint + test (frontend)
 bun run test src/features/player   # só os testes de um caminho
+bun run check:version --tag 2.7.0  # as cinco versões iguais (e iguais à tag); fora do check, roda na release
 
 cd src-tauri
 cargo fmt --check
@@ -111,12 +120,12 @@ src-tauri/src/
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
 ├── services/           # regras: biblioteca e navegação, ordem das pastas, scanner, mídia (ffprobe/ffmpeg e pipeline), sync com o
 │                       # disco (watcher e reconciliação), busca, visualização, pastas escondidas, grupos, tags, backup, manutenção,
-│                       # legendas, sistema, escopo de assets
+│                       # legendas, sistema, escopo de assets, aviso de atualização (GitHub)
 ├── db/                 # conexão, migrations.rs e repositórios (videos, presence, watch, orphans, tags, folders,
 │                       # settings, history, backup, hidden, groups, layout)
 └── domain/             # tipos e regras puras: extensões e mídia, limiar, ordem natural, faixas de pasta, modo de
                         # exibição, ordem, nome e cor das pastas da biblioteca, pastas escondidas, realocação, layout
-                        # da janela, player, estilo de legenda, atalhos, tags, modelos (models/)
+                        # da janela, player, estilo de legenda, atalhos, tags, versões de release, modelos (models/)
 
 src/
 ├── app/                # entrada, router, RootLayout, layout (shell), rotas que compõem features, DialogHost
@@ -232,6 +241,12 @@ src/
   (`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`), que precisam continuar na lista.
 - Capability mínima: `core:default`, `dialog:allow-open`, `dialog:allow-save`. Comandos que recebem caminhos validam
   que eles estão dentro da biblioteca.
+- A única requisição de rede do app é a verificação de atualização (`services/updates`), feita pelo Rust: `GET` da
+  última release no GitHub, HTTPS com TLS verificado, timeout de 10 s, até 3 redirecionamentos, resposta de até
+  1 MiB, sem token e sem identificadores além do user agent `Mnemo/<versão>`. Da resposta só se lê `tag_name`,
+  validada como `X.Y.Z`; a URL da página é montada no Rust com as constantes de `domain/updates.rs` e essa tag, e o
+  frontend nunca passa URL. CSP e capability não mudam. O setting `check_for_updates` desliga a verificação
+  automática; o override `MNEMO_FAKE_LATEST_RELEASE` só existe em build de debug.
 
 ## Design system e UX
 

@@ -9,6 +9,7 @@ use crate::services::media::Ffmpeg;
 use crate::services::media::processing::{Notifier, Processor};
 use crate::services::search::SearchGate;
 use crate::services::sync::{LibrarySync, SyncNotifier, Timing};
+use crate::services::updates::{self, UpdateChecker};
 
 const DATABASE_FILE: &str = "mnemo.db";
 const THUMBNAILS_DIR: &str = "thumbnails";
@@ -44,6 +45,8 @@ pub struct AppState {
     /// Keeps the library in step with the disk; see `services::sync`.
     pub sync: LibrarySync<Ffmpeg>,
     pub search: SearchGate,
+    /// Looks for a newer release on GitHub; see `services::updates`.
+    pub updates: UpdateChecker,
 }
 
 impl AppState {
@@ -68,12 +71,15 @@ impl AppState {
             Timing::APP,
             notify_sync,
         );
+        let running = app.package_info().version.clone();
+        let updates = UpdateChecker::new(db.clone(), updates::release_source(&running), running);
         Ok(Self {
             db,
             paths,
             processor,
             sync,
             search: SearchGate::default(),
+            updates,
         })
     }
 }

@@ -16,6 +16,7 @@ pub mod subtitles;
 pub mod sync;
 pub mod system;
 pub mod tags;
+pub mod updates;
 pub mod videos;
 pub mod watch;
 pub mod window;

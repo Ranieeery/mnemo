@@ -536,3 +536,38 @@ fn imported_tags_keep_long_names_and_lose_control_characters() {
     assert!(names.contains(&long), "{names:?}");
     assert!(names.contains(&"sci fi".to_owned()), "{names:?}");
 }
+
+#[test]
+fn the_update_settings_stay_on_this_machine() {
+    let source = test_support::connection();
+    settings::set::<settings::CheckForUpdates>(&source, false).unwrap();
+    settings::set::<settings::LastUpdateCheck>(&source, Some(1_800_000_000_000)).unwrap();
+    settings::set::<settings::NotifiedUpdateVersion>(&source, Some("2.7.0".into())).unwrap();
+    let json = serde_json::to_string(&export(&source).unwrap()).unwrap();
+    for key in [
+        "check_for_updates",
+        "checkForUpdates",
+        "last_update_check",
+        "notified_update_version",
+        "2.7.0",
+    ] {
+        assert!(!json.contains(key), "{key} is in the export");
+    }
+
+    let mut target = test_support::connection();
+    settings::set::<settings::LastUpdateCheck>(&target, Some(1_700_000_000_000)).unwrap();
+    settings::set::<settings::NotifiedUpdateVersion>(&target, Some("2.6.5".into())).unwrap();
+    import(&mut target, &parse(&json)).unwrap();
+    import(&mut target, &parse(LEGACY_EXPORT)).unwrap();
+    assert!(settings::get::<settings::CheckForUpdates>(&target).unwrap());
+    assert_eq!(
+        settings::get::<settings::LastUpdateCheck>(&target).unwrap(),
+        Some(1_700_000_000_000)
+    );
+    assert_eq!(
+        settings::get::<settings::NotifiedUpdateVersion>(&target)
+            .unwrap()
+            .as_deref(),
+        Some("2.6.5")
+    );
+}

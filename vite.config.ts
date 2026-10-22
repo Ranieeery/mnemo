@@ -43,7 +43,7 @@ export default defineConfig({
     },
 
     test: {
-        include: ["src/**/*.test.{ts,tsx}"],
+        include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
         environment: "jsdom",
         setupFiles: ["src/shared/test/setup.ts"],
         // Vitest skips CSS by default; the token file is read as text by a test that checks the build keeps them.

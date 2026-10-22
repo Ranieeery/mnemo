@@ -8,6 +8,7 @@ mod search;
 mod settings;
 mod system;
 mod tags;
+mod updates;
 mod videos;
 pub mod window;
 
@@ -37,6 +38,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             events::LibraryChanged,
             events::LibraryFoldersChanged,
             events::StartupSyncFailed,
+            events::UpdateAvailable,
             events::WindowModeChanged
         ])
         .commands(collect_commands![
@@ -116,6 +118,10 @@ pub fn builder() -> Builder<tauri::Wry> {
             settings::clean_missing_videos,
             system::open_externally,
             system::reveal_in_file_manager,
+            updates::get_update_status,
+            updates::set_automatic_update_checks,
+            updates::check_for_updates,
+            updates::open_release_page,
             window::get_window_mode,
             window::set_window_pinned,
             window::enter_mini_player,
@@ -148,8 +154,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("MAX_SUBTITLE_SIZE", MAX_SUBTITLE_SIZE)
         .constant("SUBTITLE_SIZE_STEP", SUBTITLE_SIZE_STEP)
         .constant("MAX_SUBTITLE_POSITION", MAX_SUBTITLE_POSITION)
-        // Every integer crossing IPC is a row id, a count or a byte size, all far below 2^53, so JavaScript numbers
-        // represent them exactly.
+        // Every integer crossing IPC is a row id, a count, a byte size or a time in milliseconds, all far below 2^53,
+        // so JavaScript numbers represent them exactly.
         .dangerously_cast_bigints_to_number()
 }
 

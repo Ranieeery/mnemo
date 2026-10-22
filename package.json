@@ -14,7 +14,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "test": "vitest run",
-    "check": "bun run typecheck && bun run lint && bun run test"
+    "check": "bun run typecheck && bun run lint && bun run test",
+    "check:version": "bun scripts/check-version.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

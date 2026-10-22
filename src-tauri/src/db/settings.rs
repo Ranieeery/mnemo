@@ -11,6 +11,7 @@ use crate::domain::models::{AppSettings, PlayerPreferences};
 use crate::domain::player::{validate_speed, validate_up_next_width, validate_volume};
 use crate::domain::shortcuts::{KeyboardShortcuts, repair_shortcuts, validate_shortcuts};
 use crate::domain::subtitle_style::{SubtitleStyle, repair_subtitle_style, validate_subtitle_style};
+use crate::domain::updates::ReleaseTag;
 use crate::domain::watch::{DEFAULT_WATCHED_THRESHOLD, validate_threshold};
 use crate::error::{AppError, AppResult};
 
@@ -254,6 +255,60 @@ impl Setting for Subtitles {
 
     fn repair(style: SubtitleStyle) -> Option<SubtitleStyle> {
         Some(repair_subtitle_style(style))
+    }
+}
+
+// The update settings belong to this machine: they are not in backups, and importing one leaves them as they are.
+
+/// Whether Mnemo looks for a newer release on its own, shortly after it starts.
+pub struct CheckForUpdates;
+
+impl Setting for CheckForUpdates {
+    const KEY: &'static str = "check_for_updates";
+    type Value = bool;
+
+    fn default_value() -> bool {
+        true
+    }
+}
+
+/// When an update check last got an answer from GitHub, in Unix milliseconds.
+pub struct LastUpdateCheck;
+
+impl Setting for LastUpdateCheck {
+    const KEY: &'static str = "last_update_check";
+    type Value = Option<i64>;
+
+    fn default_value() -> Option<i64> {
+        None
+    }
+
+    fn validate(checked_ms: Option<i64>) -> AppResult<Option<i64>> {
+        match checked_ms {
+            Some(ms) if ms < 0 => Err(AppError::InvalidInput(format!("{ms} is not a check time"))),
+            _ => Ok(checked_ms),
+        }
+    }
+}
+
+/// The newest release tag already announced, so each version is announced once.
+pub struct NotifiedUpdateVersion;
+
+impl Setting for NotifiedUpdateVersion {
+    const KEY: &'static str = "notified_update_version";
+    type Value = Option<String>;
+
+    fn default_value() -> Option<String> {
+        None
+    }
+
+    fn validate(tag: Option<String>) -> AppResult<Option<String>> {
+        match tag {
+            Some(tag) if ReleaseTag::parse(&tag).is_none() => {
+                Err(AppError::InvalidInput(format!("{tag:?} is not a release tag")))
+            }
+            _ => Ok(tag),
+        }
     }
 }
 
@@ -550,6 +605,42 @@ mod tests {
             set::<Subtitles>(&connection, SubtitleStyle { size: 15, ..style }),
             Err(AppError::InvalidInput(_))
         ));
+    }
+
+    #[test]
+    fn update_settings_default_round_trip_and_repair() {
+        let connection = test_support::connection();
+        assert!(get::<CheckForUpdates>(&connection).unwrap());
+        assert_eq!(get::<LastUpdateCheck>(&connection).unwrap(), None);
+        assert_eq!(get::<NotifiedUpdateVersion>(&connection).unwrap(), None);
+
+        set::<CheckForUpdates>(&connection, false).unwrap();
+        set::<LastUpdateCheck>(&connection, Some(1_800_000_000_000)).unwrap();
+        set::<NotifiedUpdateVersion>(&connection, Some("v2.7.0".into())).unwrap();
+        assert!(!get::<CheckForUpdates>(&connection).unwrap());
+        assert_eq!(get::<LastUpdateCheck>(&connection).unwrap(), Some(1_800_000_000_000));
+        assert_eq!(
+            get::<NotifiedUpdateVersion>(&connection).unwrap().as_deref(),
+            Some("v2.7.0")
+        );
+
+        assert!(set::<LastUpdateCheck>(&connection, Some(-1)).is_err());
+        assert!(set::<NotifiedUpdateVersion>(&connection, Some("2.7.0-beta.1".into())).is_err());
+
+        // Unreadable stored values read as the default.
+        let connection = test_support::connection();
+        store_raw(&connection, "check_for_updates", "\"yes\"");
+        store_raw(&connection, "last_update_check", "-5");
+        store_raw(&connection, "notified_update_version", "\"../evil\"");
+        assert!(get::<CheckForUpdates>(&connection).unwrap());
+        assert_eq!(get::<LastUpdateCheck>(&connection).unwrap(), None);
+        assert_eq!(get::<NotifiedUpdateVersion>(&connection).unwrap(), None);
+
+        let connection = test_support::connection();
+        store_raw(&connection, "last_update_check", "12.5");
+        store_raw(&connection, "notified_update_version", "42");
+        assert_eq!(get::<LastUpdateCheck>(&connection).unwrap(), None);
+        assert_eq!(get::<NotifiedUpdateVersion>(&connection).unwrap(), None);
     }
 
     #[test]

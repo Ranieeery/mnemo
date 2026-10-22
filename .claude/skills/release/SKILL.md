@@ -32,7 +32,8 @@ Change `<old>` to `<new>` in exactly these places:
 | `README.md` | `<strong>Version <old></strong>` near the top, and any other mention of the current version |
 
 Afterwards, search the five files for `<old>` and confirm that the only matches left belong to other crates in
-`Cargo.lock`.
+`Cargo.lock`, then run `bun run check:version --tag <new>`: it must pass. The app's update notice compares the
+running version with the latest GitHub release tag, so a mismatch shows users wrong or endless notices.
 
 ## 3. Draft the release notes
 
@@ -64,6 +65,7 @@ never be followed by the tag, or the tag points at the previous commit.
 
 ```sh
 cd "$(git rev-parse --show-toplevel)"
+bun run check:version --tag <new>
 bun run check
 (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 bun tauri build               # installers in src-tauri/target/release/bundle/
@@ -72,9 +74,12 @@ git commit -m "chore(release): <new>"
 git log -1 --format=%s        # must print chore(release): <new> before tagging
 git tag <new>
 git push && git push origin <new>
-gh release create <new> --title "<new>" --notes-file <notes file> \
+gh release create <new> --title "<new>" --notes-file <notes file> --latest \
   src-tauri/target/release/bundle/msi/*.msi src-tauri/target/release/bundle/nsis/*-setup.exe
 ```
+
+The release must be published (no `--draft`, no `--prerelease`) and marked Latest: the app's update notice only sees
+the latest published release.
 
 The notes file given to `gh` must start with
 `**Full Changelog**: https://github.com/Ranieeery/mnemo/compare/<previous>...<new>` followed by a blank line.

@@ -25,6 +25,7 @@ function mockSettings(extra: Record<string, unknown> = {}) {
         },
         list_orphaned_videos: [videoFixture({ filePath: "E:\\Old\\gone.mkv" })],
         list_missing_videos: { videos: [videoFixture({ filePath: "D:\\Series\\deleted.mkv" })], hiddenCount: 0 },
+        get_update_status: { automatic: true, lastCheckedMs: null, running: "2.6.0", available: null },
         ...extra,
     });
 }
