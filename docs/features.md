@@ -37,6 +37,13 @@ teclado e mouse (ver `CLAUDE.md`).
   depois que elas carregam, para não abrir expandida e recolher em seguida; se não puderem ser lidas, valem os padrões.
 - Painéis laterais redimensionáveis (sidebar e "Up next") usam `shared/ui/ResizablePanel`; o salvamento com atraso
   usa `shared/lib/debounce`.
+- Modos da janela (`shared/window`, `services/window`, `domain/window.rs`): o Rust é dono do estado (`WindowMode`:
+  `pinned`, `mini`, `onTopSupported`), devolvido pelos comandos e enviado pelo evento `windowModeChanged`; o frontend
+  o mantém na query `["window-mode"]` e só exibe. Nada é guardado: o tamanho e a posição da janela nunca foram
+  persistidos, e o app sempre abre normal e sem pin, mesmo se fechado (ou se travou) no mini player. O `RootLayout`
+  segue o evento, anuncia as mudanças numa região `status` (`WindowAnnouncer`: "Window pinned on top", "Window
+  unpinned", "Mini player on/off") e encerra o mini player sempre que a rota não é `/watch`
+  (`MiniPlayerOnlyInThePlayer`: fechar o player, voltar pelo botão, tecla ou mouse, ou um reload).
 
 ## Biblioteca e navegação
 - Pastas raiz adicionadas pelo diálogo nativo; navegação pela hierarquia real de subpastas, com breadcrumbs.
@@ -243,7 +250,46 @@ teclado e mouse (ver `CLAUDE.md`).
 - Retomada do ponto onde parou.
 - Atalhos padrão (configuráveis, ver "Atalhos de teclado"): `Espaço`/`K` play/pause · `J`/`L` ±10s · `←`/`→` ±5s ·
   `↑`/`↓` volume ±5% · `[`/`]` velocidade ±0.25× · `Backspace` volta para 1× · `F` tela cheia · `T` modo teatro ·
-  `M` mudo · `C` legendas. `Esc` (fixo) fecha o player ou sai da tela cheia.
+  `M` mudo · `C` legendas · `I` mini player. `Esc` (fixo) sai um nível por vez: um diálogo, menu ou o cartão "Up
+  next" ficam com ele; senão sai da tela cheia, depois do mini player, e só então fecha o player.
+- Mini player (botão `PictureInPicture2` nos controles ou `I`; não é o PiP do navegador nem uma segunda janela): a
+  própria janela encolhe para o vídeo, sempre no topo, no canto inferior direito da área de trabalho do monitor onde
+  ela está, com a barra de título nativa.
+  - Tamanho (`domain/window.rs`, funções puras em pixels físicos): o vídeo começa com 25% da largura da área de
+    trabalho (320–560 lógicos, escalados pelo DPI do monitor), na proporção do vídeo, com no máximo metade da altura
+    da área e margem de 16; tudo cabe na área, mesmo em monitores minúsculos. Mínimo 256×144 enquanto dura (o mínimo
+    normal, 900×600 do `tauri.conf.json`, volta depois). A largura que o usuário der arrastando a borda vale até o
+    fim da sessão (em pixels lógicos, então passa de um monitor a outro com outro DPI). O próximo vídeo com outra
+    proporção mantém a largura e muda a altura, presa ao canto da área mais próximo.
+  - Só o vídeo e os controles essenciais (`MiniPlayerControls`: barra de progresso, play/pause, tempo, "Expand" e
+    "Close player"), que aparecem ao passar o mouse e ficam visíveis com foco de teclado; sem cabeçalho, detalhes nem
+    coluna "Up next", mas a lista continua decidindo o próximo vídeo: ao terminar, um cartão compacto
+    (`NextVideoDialog` `compact`, um `dialog` não modal) faz a mesma contagem de 5 s, com "Play now" focado e `Esc`
+    cancelando. Legendas no estilo do usuário, escalando com o vídeo. Todos os atalhos do player continuam; `F` sai
+    do mini e entra em tela cheia; `T` muda o modo teatro (que reaparece ao sair) e diz o novo estado no flash.
+  - Sai por "Expand", `I`, `Esc`, maximizando a janela (duplo clique na barra ou `Win+↑` contam como "Expand") ou
+    saindo do player de qualquer jeito (o botão voltar do mouse sai do mini e fecha o player de uma vez). Ao sair, a
+    janela volta exatamente como estava: tamanho, posição, maximizada e pin; se o monitor dela sumiu, ela volta
+    centralizada no primário. Minimizada no mini, ela é restaurada ao sair.
+  - Entrar em tela cheia sai dela antes (a janela volta janela, não tela cheia, ao sair do mini); o modo teatro não
+    muda (é só escondido) e volta junto. Ao trocar os controles, o foco vai para o palco do vídeo (nunca um botão,
+    cujo tooltip ficaria com o próximo `Esc`), e o `Tab` segue para os controles.
+  - Redimensionamentos feitos pelo próprio app não contam como do usuário: o tratamento do evento da janela só usa
+    `try_lock` (o comando que segura o estado está esperando a thread principal) e confere o tamanho pedido.
+  - Sem suporte a manter janelas no topo (Linux sob Wayland), o botão fica desabilitado com o motivo no tooltip e `I`
+    só explica no flash.
+  - Picture-in-Picture nativo (spike no WebView2, Windows, 2.7.0): `requestPictureInPicture()` num clique abre a
+    janela flutuante do navegador. Não é usado: ela mostra só o `<video>`, sem as legendas desenhadas pelo app
+    (`SubtitleLine`), o estilo delas, o "Up next", a contagem e os controles e atalhos do player. Uma janela
+    flutuante separada, com player próprio, seria uma evolução possível e não faz parte desta feature.
+- Pin window (botão `Pin`/`PinOff` nos controles do player, ao lado do mini player, `aria-pressed`, tooltip com a
+  tecla; atalho configurável, sem tecla padrão, em qualquer tela fora de campos de texto e overlays): a janela inteira
+  fica acima das outras, em qualquer tamanho e tela, até desfixar ou fechar o app (não é lembrado). Complementa o
+  mini player: o player completo (ou qualquer tela) no topo, do tamanho que o usuário quiser. Sem botão na barra
+  superior, onde quase não tem uso. Otimista; se o sistema recusar,
+  volta e mostra um toast. No mini player o pin fica inerte (a janela já está no topo) e o do usuário volta ao sair.
+  Sem suporte, desabilitado com o motivo no tooltip. Limite conhecido: jogos em tela cheia exclusiva ficam acima de
+  qualquer janela.
 - Usar o frame atual como thumbnail do vídeo (botão na barra de controles). O frame é extraído pelo ffmpeg no
   backend (`services/media/cover.rs`) no tempo enviado pelo player, não por canvas: o vídeo vem do asset protocol, que
   deixaria o canvas bloqueado. A imagem vai para um arquivo novo e a anterior é apagada só depois de gravar no banco.
@@ -283,8 +329,10 @@ teclado e mouse (ver `CLAUDE.md`).
 - O texto roda 300 ms depois da última tecla, na tela onde foi digitado: sair dela antes disso descarta a busca.
 
 ## Atalhos de teclado
-- Configuráveis em Settings → Shortcuts (`/settings?tab=shortcuts`): as ações do player e voltar/avançar do
-  histórico, até 2 teclas cada, sem repetir tecla entre ações. Gravação pela própria tecla (`Esc` cancela); conflito
+- Configuráveis em Settings → Shortcuts (`/settings?tab=shortcuts`): as ações do player, voltar/avançar do
+  histórico e as da janela ("Pin window", sem tecla padrão, e "Mini player", `I`), até 2 teclas cada, sem repetir
+  tecla entre ações. Ações novas entram no fim de `KeyboardShortcuts::actions()`: um valor salvo sem elas recebe o
+  padrão, e uma tecla que o usuário já deu a outra ação fica com ela (a ação nova fica sem tecla). Gravação pela própria tecla (`Esc` cancela); conflito
   oferece "Use here instead"; reset por ação e "Restore all defaults" (com confirmação). Salvo na hora, com rollback.
 - Fixos: `Esc`, `?` (ajuda), `F2` (renomear a pasta da biblioteca focada, à frente de um atalho na mesma tecla) e os
   botões laterais do mouse. Reservadas (não atribuíveis): `Esc`, `?`, `Tab`,

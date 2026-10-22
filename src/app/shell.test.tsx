@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_SIDEBAR_PREFERENCES } from "../shared/ipc/bindings";
 import { entryFixture, folderContentsFixture, videoFixture } from "../shared/test/fixtures";
 import { callsOf, commandError } from "../shared/test/ipc";
-import { renderApp } from "./testApp";
+import { normalWindow, renderApp } from "./testApp";
 
 async function openSeries(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole("link", { name: "Series" }));
@@ -76,7 +76,10 @@ describe("app shell", () => {
         const help = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
         const sound = within(help).getByRole("region", { name: "Sound and speed" });
         expect(within(sound).getByText("Mute").closest("div")).toHaveTextContent(/^MuteN/);
-        expect(within(help).getByText("Leave full screen or close the player")).toBeInTheDocument();
+        expect(within(help).getByText("Leave full screen or the mini player, or close the player")).toBeInTheDocument();
+        const windowKeys = within(help).getByRole("region", { name: "Window" });
+        expect(within(windowKeys).getByText("Mini player").closest("div")).toHaveTextContent(/^Mini playerI/);
+        expect(within(windowKeys).getByText("Pin window")).toBeInTheDocument();
 
         // The first Esc closes it (no tooltip opened on the close button to take it).
         await user.keyboard("{Escape}");
@@ -369,5 +372,78 @@ describe("long library folder names", () => {
         const tooltip = await screen.findByRole("tooltip");
         expect(tooltip).toHaveTextContent("Series");
         expect(tooltip).toHaveTextContent("D:\\Series");
+    });
+});
+
+describe("pin window", () => {
+    /** The app with a key for "Pin window", which has none by default. */
+    function renderWithPinKey(extraCommands: Record<string, unknown> = {}) {
+        return renderApp("/", {
+            get_keyboard_shortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS, pinWindow: ["P"] },
+            ...extraCommands,
+        });
+    }
+
+    it("starts unpinned, and its key keeps the window on top on every screen until pressed again", async () => {
+        const { user, calls } = renderWithPinKey();
+        await screen.findByRole("heading", { name: "Home", level: 1 });
+        await waitFor(() => expect(callsOf(calls, "get_window_mode")).toHaveLength(1));
+        // The top bar has no pin button: it lives in the player, and its key works everywhere.
+        expect(screen.queryByRole("button", { name: "Pin window" })).not.toBeInTheDocument();
+
+        await user.keyboard("p");
+        expect(
+            await screen.findByText("Window pinned on top", { selector: "[role=status] > span" })
+        ).toBeInTheDocument();
+        expect(callsOf(calls, "set_window_pinned")).toEqual([{ pinned: true }]);
+
+        // The pin survives moving around the app.
+        await openSeries(user);
+        await user.keyboard("p");
+        expect(await screen.findByText("Window unpinned", { selector: "[role=status] > span" })).toBeInTheDocument();
+        expect(callsOf(calls, "set_window_pinned")).toEqual([{ pinned: true }, { pinned: false }]);
+    });
+
+    it("goes back to unpinned and says why when the system refuses", async () => {
+        const { user, calls } = renderWithPinKey({
+            set_window_pinned: () => {
+                throw commandError("internal", "the window manager said no");
+            },
+        });
+        await screen.findByRole("heading", { name: "Home", level: 1 });
+        await user.keyboard("p");
+
+        expect(await screen.findByText("Could not pin the window")).toBeInTheDocument();
+        expect(screen.getByText("the window manager said no")).toBeInTheDocument();
+        // Still unpinned: the next press tries to pin again.
+        await user.keyboard("p");
+        await waitFor(() => expect(callsOf(calls, "set_window_pinned")).toEqual([{ pinned: true }, { pinned: true }]));
+    });
+
+    it("ignores its key while typing", async () => {
+        const { user, calls } = renderWithPinKey();
+        const search = await screen.findByRole("searchbox", { name: "Search the library" });
+        await user.type(search, "p");
+        expect(search).toHaveValue("p");
+        expect(callsOf(calls, "set_window_pinned")).toEqual([]);
+    });
+
+    it("does nothing where windows cannot stay on top", async () => {
+        const { user, calls } = renderWithPinKey({ get_window_mode: { ...normalWindow, onTopSupported: false } });
+        await screen.findByRole("heading", { name: "Home", level: 1 });
+        await waitFor(() => expect(callsOf(calls, "get_window_mode")).toHaveLength(1));
+        await user.keyboard("p");
+        expect(callsOf(calls, "set_window_pinned")).toEqual([]);
+    });
+});
+
+describe("mini player outside the player", () => {
+    it("ends as soon as the app is not showing a video", async () => {
+        const { calls } = renderApp("/", {
+            get_window_mode: { ...normalWindow, mini: true },
+            exit_mini_player: normalWindow,
+        });
+        await waitFor(() => expect(callsOf(calls, "exit_mini_player")).toHaveLength(1));
+        expect(await screen.findByText("Mini player off", { selector: "[role=status] > span" })).toBeInTheDocument();
     });
 });

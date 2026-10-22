@@ -56,7 +56,7 @@ export function ShortcutsHelpDialog({ onClose, onCustomize }: ShortcutsHelpDialo
                 <section aria-label="Always available">
                     <h3 className="mb-1 text-small font-semibold text-text">Always available</h3>
                     <dl className="divide-y divide-border">
-                        <Row label="Leave full screen or close the player">
+                        <Row label="Leave full screen or the mini player, or close the player">
                             <Kbd>Esc</Kbd>
                         </Row>
                         <Row label="Show keyboard shortcuts">

@@ -1,13 +1,15 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DEFAULT_SIDEBAR_PREFERENCES, type HomeData } from "../shared/ipc/bindings";
+import { DEFAULT_SIDEBAR_PREFERENCES, type HomeData, type WindowMode } from "../shared/ipc/bindings";
 import { folderContentsFixture, libraryCommandsFixture, libraryFolderFixture } from "../shared/test/fixtures";
 import { mockCommands } from "../shared/test/ipc";
 import { createAppRouter } from "./router";
 
 const seriesFolder = libraryFolderFixture({ path: "D:\\Series", name: "Series" });
 const emptyHome: HomeData = { continueWatching: [], recentlyWatched: [], suggestions: [], folderPreviews: [] };
+/** How every session starts. */
+export const normalWindow: WindowMode = { pinned: false, mini: false, onTopSupported: true };
 
 /** Test helper: the whole app at `path` (with its real router and root layout) over a small mocked backend. */
 export function renderApp(path = "/", extraCommands: Record<string, unknown> = {}) {
@@ -24,6 +26,8 @@ export function renderApp(path = "/", extraCommands: Record<string, unknown> = {
         get_folder_summary: { totalVideos: 0, watchedVideos: 0, taggedVideos: 0 },
         get_sidebar_preferences: DEFAULT_SIDEBAR_PREFERENCES,
         update_sidebar_preferences: ({ preferences }: { preferences: unknown }) => preferences,
+        get_window_mode: normalWindow,
+        set_window_pinned: ({ pinned }: { pinned: boolean }) => ({ ...normalWindow, pinned }),
         ...extraCommands,
     });
     const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));

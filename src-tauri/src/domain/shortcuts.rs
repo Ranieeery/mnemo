@@ -71,6 +71,8 @@ pub struct KeyboardShortcuts {
     pub subtitles: Vec<String>,
     pub history_back: Vec<String>,
     pub history_forward: Vec<String>,
+    pub pin_window: Vec<String>,
+    pub mini_player: Vec<String>,
 }
 
 fn keys(list: &[&str]) -> Vec<String> {
@@ -96,13 +98,16 @@ impl Default for KeyboardShortcuts {
             subtitles: keys(&["C"]),
             history_back: keys(&["Alt+ArrowLeft"]),
             history_forward: keys(&["Alt+ArrowRight"]),
+            pin_window: Vec::new(),
+            mini_player: keys(&["I"]),
         }
     }
 }
 
 impl KeyboardShortcuts {
-    /// Every action with its keys, in a fixed order.
-    pub fn actions(&self) -> [(&'static str, &Vec<String>); 16] {
+    /// Every action with its keys, in a fixed order. When stored keys clash, the earlier action keeps them, so actions
+    /// added later go last: a key a user already gave to another action stays there.
+    pub fn actions(&self) -> [(&'static str, &Vec<String>); 18] {
         [
             ("playPause", &self.play_pause),
             ("seekBack10", &self.seek_back_10),
@@ -120,10 +125,12 @@ impl KeyboardShortcuts {
             ("subtitles", &self.subtitles),
             ("historyBack", &self.history_back),
             ("historyForward", &self.history_forward),
+            ("pinWindow", &self.pin_window),
+            ("miniPlayer", &self.mini_player),
         ]
     }
 
-    fn actions_mut(&mut self) -> [&mut Vec<String>; 16] {
+    fn actions_mut(&mut self) -> [&mut Vec<String>; 18] {
         [
             &mut self.play_pause,
             &mut self.seek_back_10,
@@ -141,6 +148,8 @@ impl KeyboardShortcuts {
             &mut self.subtitles,
             &mut self.history_back,
             &mut self.history_forward,
+            &mut self.pin_window,
+            &mut self.mini_player,
         ]
     }
 }

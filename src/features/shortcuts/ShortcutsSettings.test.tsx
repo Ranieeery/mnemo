@@ -89,6 +89,20 @@ describe("ShortcutsSettings", () => {
         expect((await row("Full screen")).getByText("Not set")).toBeInTheDocument();
     });
 
+    it("lists the window actions with their defaults, and I as the mini player's", async () => {
+        const { user } = renderShortcuts();
+        const pin = await row("Pin window");
+        expect(pin.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
+        expect(pin.getByRole("button", { name: "Add a key for Pin window" })).toBeInTheDocument();
+        const mini = await row("Mini player");
+        expect(mini.getByRole("button", { name: "Remove I from Mini player" })).toBeInTheDocument();
+
+        const mute = await row("Mute");
+        await user.click(mute.getByRole("button", { name: "Add a key for Mute" }));
+        await user.keyboard("i");
+        expect(mute.getByRole("alert")).toHaveTextContent("I is already used by Mini player.");
+    });
+
     it("removes a key and resets an action to its defaults", async () => {
         const { user, saved } = renderShortcuts();
         const playPause = await row("Play or pause");

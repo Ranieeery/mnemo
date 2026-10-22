@@ -60,6 +60,11 @@ thumbnails, tags and watch progress in a local SQLite database.
   `.ass`) or embedded in it (text tracks of MKV and MP4), switching between audio tracks where the system's webview
   can play them, speeds from 0.25× to 2×, an "Up next" list and a countdown to the next video, plus keyboard and
   mouse shortcuts. Volume, speed, subtitles and theater mode are remembered between sessions.
+- **Mini player:** shrink the window to a small video that stays on top of other apps in a corner of the screen, with
+  just the essential controls; subtitles, "Up next" and every shortcut keep working, and expanding it puts the window
+  back exactly as it was.
+- **Pin window:** keep the whole Mnemo window on top of other apps at any size, from the player's controls or a key
+  of your choice that works on every screen (until you unpin it or close the app).
 - **Subtitle style:** size, color, background and its opacity, outline, position and font, with a live preview.
 - **Custom thumbnails:** use the frame on screen as a video's thumbnail, or go back to the automatic one.
 - **Watch status:** videos count as watched at 90% by default (adjustable from 50% to 100%) or when they end; mark
@@ -80,8 +85,9 @@ thumbnails, tags and watch progress in a local SQLite database.
 
 ## Shortcuts
 
-Press `?` anywhere (or the keyboard button in the top bar or the player) to see every shortcut. Player and
-back/forward keys can be changed in Settings → Shortcuts; the tables below show the defaults.
+Press `?` anywhere (or the keyboard button in the top bar or the player) to see every shortcut. Player, window and
+back/forward keys can be changed in Settings → Shortcuts; the tables below show the defaults. "Pin window" has no
+key until you give it one.
 
 ### Anywhere
 
@@ -107,7 +113,8 @@ back/forward keys can be changed in Settings → Shortcuts; the tables below sho
 | `T` | Theater mode |
 | `M` | Mute |
 | `C` | Subtitles on or off |
-| `Esc` | Leave full screen, or close the player |
+| `I` | Mini player on or off |
+| `Esc` | Leave full screen or the mini player, or close the player |
 
 Right-click a video or a folder (or press `Shift+F10` on it) for its actions.
 

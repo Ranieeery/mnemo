@@ -35,6 +35,13 @@ export const SHORTCUT_GROUPS: { title: string; actions: { action: ShortcutAction
         ],
     },
     {
+        title: "Window",
+        actions: [
+            { action: "pinWindow", label: "Pin window" },
+            { action: "miniPlayer", label: "Mini player" },
+        ],
+    },
+    {
         title: "Navigation",
         actions: [
             { action: "historyBack", label: "Go back" },
@@ -80,6 +87,8 @@ export function copyShortcuts(shortcuts: ShortcutKeys): KeyboardShortcuts {
         subtitles: [...shortcuts.subtitles],
         historyBack: [...shortcuts.historyBack],
         historyForward: [...shortcuts.historyForward],
+        pinWindow: [...shortcuts.pinWindow],
+        miniPlayer: [...shortcuts.miniPlayer],
     };
 }
 

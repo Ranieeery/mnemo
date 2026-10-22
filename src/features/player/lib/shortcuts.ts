@@ -12,11 +12,15 @@ export type PlayerCommand =
     | { type: "theater" }
     | { type: "mute" }
     | { type: "subtitles" }
+    | { type: "miniPlayer" }
     | { type: "close" };
 
 const VOLUME_STEP = 0.05;
 
-/** The configurable actions the player handles; history back and forward belong to the app's navigation. */
+/**
+ * The configurable actions the player handles; history back and forward belong to the app's navigation, and pinning
+ * the window to every screen.
+ */
 const commandByAction = {
     playPause: { type: "togglePlay" },
     seekBack10: { type: "seek", by: -10 },
@@ -32,11 +36,15 @@ const commandByAction = {
     fullscreen: { type: "fullscreen" },
     theater: { type: "theater" },
     subtitles: { type: "subtitles" },
+    miniPlayer: { type: "miniPlayer" },
 } satisfies Partial<Record<keyof KeyboardShortcuts, PlayerCommand>>;
 
 type KeyLike = Parameters<typeof comboFromEvent>[0];
 
-/** Maps a key press to a player command using the configured shortcuts. `Esc` always closes (it is not configurable). */
+/**
+ * Maps a key press to a player command using the configured shortcuts. `Esc` (not configurable) is "close": it leaves
+ * full screen or the mini player first.
+ */
 export function commandForKey(event: KeyLike, shortcuts: ShortcutKeys): PlayerCommand | null {
     const combo = comboFromEvent(event);
     if (combo === null) {

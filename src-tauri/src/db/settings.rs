@@ -509,6 +509,24 @@ mod tests {
     }
 
     #[test]
+    fn window_shortcuts_added_later_never_take_a_users_key() {
+        let connection = test_support::connection();
+        // Saved before the window actions existed: they get their defaults.
+        store_raw(&connection, "keyboard_shortcuts", r#"{"playPause":["P"]}"#);
+        let shortcuts = get::<Shortcuts>(&connection).unwrap();
+        assert_eq!(shortcuts.mini_player, ["I"]);
+        assert!(shortcuts.pin_window.is_empty());
+
+        // A user who already gave "I" to another action keeps it; the mini player is left without a key.
+        let connection = test_support::connection();
+        store_raw(&connection, "keyboard_shortcuts", r#"{"subtitles":["C","I"]}"#);
+        let shortcuts = get::<Shortcuts>(&connection).unwrap();
+        assert_eq!(shortcuts.subtitles, ["C", "I"]);
+        assert!(shortcuts.mini_player.is_empty());
+        assert_eq!(set::<Shortcuts>(&connection, shortcuts.clone()).unwrap(), shortcuts);
+    }
+
+    #[test]
     fn subtitle_style_keeps_readable_fields_and_repairs_the_rest() {
         use crate::domain::subtitle_style::{SubtitleColor, SubtitleFont};
 

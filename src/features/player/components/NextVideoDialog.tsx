@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { VideoEntry } from "../../../shared/ipc/bindings";
 import { Button, Dialog } from "../../../shared/ui";
 import { entryTitle } from "../../../shared/video";
@@ -8,12 +8,14 @@ const NEXT_VIDEO_COUNTDOWN = 5;
 
 type NextVideoDialogProps = {
     next: VideoEntry;
+    /** A card over the video instead of a dialog, for the mini player's small window. */
+    compact?: boolean;
     onPlay: () => void;
     onCancel: () => void;
 };
 
 /** Shown when a video ends: plays the next one after a countdown unless cancelled. */
-export function NextVideoDialog({ next, onPlay, onCancel }: NextVideoDialogProps) {
+export function NextVideoDialog({ next, compact = false, onPlay, onCancel }: NextVideoDialogProps) {
     const [remaining, setRemaining] = useState(NEXT_VIDEO_COUNTDOWN);
     const latestOnPlay = useRef(onPlay);
     latestOnPlay.current = onPlay;
@@ -28,11 +30,15 @@ export function NextVideoDialog({ next, onPlay, onCancel }: NextVideoDialogProps
         return () => window.clearTimeout(timer);
     }, [remaining]);
 
+    const title = `Up next in ${remaining}s`;
+    if (compact) {
+        return <NextVideoCard title={title} next={next} onPlay={onPlay} onCancel={onCancel} />;
+    }
     return (
         <Dialog
             open
             onOpenChange={(open) => !open && onCancel()}
-            title={`Up next in ${remaining}s`}
+            title={title}
             description={entryTitle(next)}
             size="sm"
             footer={
@@ -46,5 +52,49 @@ export function NextVideoDialog({ next, onPlay, onCancel }: NextVideoDialogProps
                 </>
             }
         />
+    );
+}
+
+type NextVideoCardProps = { title: string; next: VideoEntry; onPlay: () => void; onCancel: () => void };
+
+/**
+ * The countdown as a small card at the bottom of the mini player. It is a (non-modal) dialog, so the player's keys
+ * wait while it is open; `Esc` cancels it, as it does the full dialog.
+ */
+function NextVideoCard({ title, next, onPlay, onCancel }: NextVideoCardProps) {
+    const titleId = useId();
+    const latestOnCancel = useRef(onCancel);
+    latestOnCancel.current = onCancel;
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape" && !event.defaultPrevented) {
+                event.preventDefault();
+                latestOnCancel.current();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
+    return (
+        <div
+            role="dialog"
+            aria-labelledby={titleId}
+            className="fixed inset-x-2 bottom-2 flex animate-appear items-center gap-2 rounded-card bg-surface-raised p-2 shadow-overlay"
+        >
+            <div className="min-w-0 flex-1">
+                <p id={titleId} className="text-small font-semibold text-text">
+                    {title}
+                </p>
+                <p className="truncate text-caption text-text-muted">{entryTitle(next)}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onCancel}>
+                Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={onPlay} autoFocus>
+                Play now
+            </Button>
+        </div>
     );
 }

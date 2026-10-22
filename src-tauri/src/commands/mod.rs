@@ -9,6 +9,7 @@ mod settings;
 mod system;
 mod tags;
 mod videos;
+pub mod window;
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
@@ -35,7 +36,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             events::ProcessingFinished,
             events::LibraryChanged,
             events::LibraryFoldersChanged,
-            events::StartupSyncFailed
+            events::StartupSyncFailed,
+            events::WindowModeChanged
         ])
         .commands(collect_commands![
             library::list_library_folders,
@@ -114,6 +116,11 @@ pub fn builder() -> Builder<tauri::Wry> {
             settings::clean_missing_videos,
             system::open_externally,
             system::reveal_in_file_manager,
+            window::get_window_mode,
+            window::set_window_pinned,
+            window::enter_mini_player,
+            window::exit_mini_player,
+            window::set_mini_player_aspect,
         ])
         .constant("DEFAULT_WATCHED_THRESHOLD", DEFAULT_WATCHED_THRESHOLD)
         .constant("MIN_WATCHED_THRESHOLD", MIN_WATCHED_THRESHOLD)

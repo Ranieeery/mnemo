@@ -204,6 +204,15 @@ export const commands = {
 	openExternally: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("open_externally", { path })),
 	/**  Shows a library file selected in the system file manager. */
 	revealInFileManager: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("reveal_in_file_manager", { path })),
+	getWindowMode: () => typedError<WindowMode, IpcError>(__TAURI_INVOKE("get_window_mode")),
+	/**  Keeps the window above other windows, or stops. Not remembered between sessions. */
+	setWindowPinned: (pinned: boolean) => typedError<WindowMode, IpcError>(__TAURI_INVOKE("set_window_pinned", { pinned })),
+	/**  Shrinks the window to the mini player for a video of the given size, in pixels. */
+	enterMiniPlayer: (videoWidth: number | null, videoHeight: number | null) => typedError<WindowMode, IpcError>(__TAURI_INVOKE("enter_mini_player", { videoWidth, videoHeight })),
+	/**  Gives the window back the size, position and state it had before the mini player. */
+	exitMiniPlayer: () => typedError<WindowMode, IpcError>(__TAURI_INVOKE("exit_mini_player")),
+	/**  Fits the mini player to the video now playing. */
+	setMiniPlayerAspect: (videoWidth: number | null, videoHeight: number | null) => typedError<WindowMode, IpcError>(__TAURI_INVOKE("set_mini_player_aspect", { videoWidth, videoHeight })),
 };
 
 /** Events */
@@ -213,10 +222,11 @@ export const events = {
 	processingFinished: makeEvent<ProcessingFinished>("processing-finished"),
 	processingStatusChanged: makeEvent<ProcessingStatusChanged>("processing-status-changed"),
 	startupSyncFailed: makeEvent<StartupSyncFailed>("startup-sync-failed"),
+	windowModeChanged: makeEvent<WindowModeChanged>("window-mode-changed"),
 };
 
 /* Constants */
-export const DEFAULT_KEYBOARD_SHORTCUTS = {"fullscreen":["F"],"historyBack":["Alt+ArrowLeft"],"historyForward":["Alt+ArrowRight"],"mute":["M"],"playPause":["Space","K"],"seekBack10":["J"],"seekBack5":["ArrowLeft"],"seekForward10":["L"],"seekForward5":["ArrowRight"],"speedDown":["["],"speedReset":["Backspace"],"speedUp":["]"],"subtitles":["C"],"theater":["T"],"volumeDown":["ArrowDown"],"volumeUp":["ArrowUp"]} as const;
+export const DEFAULT_KEYBOARD_SHORTCUTS = {"fullscreen":["F"],"historyBack":["Alt+ArrowLeft"],"historyForward":["Alt+ArrowRight"],"miniPlayer":["I"],"mute":["M"],"pinWindow":[],"playPause":["Space","K"],"seekBack10":["J"],"seekBack5":["ArrowLeft"],"seekForward10":["L"],"seekForward5":["ArrowRight"],"speedDown":["["],"speedReset":["Backspace"],"speedUp":["]"],"subtitles":["C"],"theater":["T"],"volumeDown":["ArrowDown"],"volumeUp":["ArrowUp"]} as const;
 
 export const DEFAULT_PLAYER_PREFERENCES = {"muted":false,"speed":1.0,"subtitlesEnabled":true,"theater":false,"upNextWidth":null,"volume":1.0} as const;
 
@@ -435,6 +445,8 @@ export type KeyboardShortcuts = {
 	subtitles: string[],
 	historyBack: string[],
 	historyForward: string[],
+	pinWindow: string[],
+	miniPlayer: string[],
 };
 
 /**  One item of the library list by id: how the custom order is stored, and how an arrangement is sent. */
@@ -742,6 +754,22 @@ export type VideoGroup = {
 	relativePath: string,
 	entries: VideoEntry[],
 };
+
+/**
+ *  Whether the window stays on top of the others, whether it is the mini player, and whether this system can keep a
+ *  window on top at all.
+ */
+export type WindowMode = {
+	pinned: boolean,
+	mini: boolean,
+	onTopSupported: boolean,
+};
+
+/**
+ *  The window was pinned or unpinned, or entered or left the mini player (also on its own: maximizing the mini
+ *  player expands it).
+ */
+export type WindowModeChanged = WindowMode;
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

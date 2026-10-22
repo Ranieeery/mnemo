@@ -17,8 +17,10 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
+use crate::domain::window::LogicalSize;
 use crate::error::{AppError, AppResult};
 use crate::services::asset_scope;
+use crate::services::window::WindowControl;
 use crate::state::AppState;
 
 /// Written again at every start, in the app's log folder. Release builds have no console, so this file is the only
@@ -34,6 +36,11 @@ pub fn run() -> tauri::Result<()> {
         .setup(move |app| {
             bindings.mount_events(app);
             let log_file = init_tracing(app.handle());
+            // Before the database: the window modes work even when the library cannot open.
+            app.manage(WindowControl::new(
+                WindowControl::system_supports_on_top(),
+                configured_min_size(app.handle()),
+            ));
             if let Err(error) = start(app.handle()) {
                 tracing::error!(%error, "Mnemo could not start");
                 report_startup_failure(app.handle(), &error, log_file);
@@ -42,10 +49,12 @@ pub fn run() -> tauri::Result<()> {
         })
         .invoke_handler(invoke_handler)
         .on_window_event(|window, event| {
-            // Closing the main window ends background work (processing jobs, ffmpeg) with the app.
+            // Closing the main window ends background work (processing jobs, ffmpeg) with the app. Nothing about the
+            // window is stored, so closing it as the mini player leaves no trace.
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 window.app_handle().exit(0);
             }
+            commands::window::follow_window_event(window, event);
         })
         .run(tauri::generate_context!())
 }
@@ -65,6 +74,15 @@ fn start(app: &AppHandle) -> AppResult<()> {
     tauri::async_runtime::spawn(async move { sync.start() });
     app.manage(state);
     Ok(())
+}
+
+/// The main window's minimum size from `tauri.conf.json`, given back after the mini player.
+fn configured_min_size(app: &AppHandle) -> Option<LogicalSize> {
+    let config = app.config().app.windows.first()?;
+    Some(LogicalSize {
+        width: config.min_width?,
+        height: config.min_height?,
+    })
 }
 
 /// Without its state the window can't show anything, and a release build has no console: say why in a native dialog

@@ -7,6 +7,7 @@ import { cx } from "../../../shared/lib/cx";
 import { baseName, parentPath } from "../../../shared/lib/paths";
 import { openShortcutsHelp } from "../../../shared/stores/dialogs";
 import { ErrorState, IconButton, ScrollContainer, Skeleton } from "../../../shared/ui";
+import { useWindowMode } from "../../../shared/window";
 import { usePreferencesSession } from "../hooks/usePreferencesSession";
 import { useSubtitles } from "../hooks/useSubtitles";
 import { usePlaylist, useVideoRecord } from "../queries";
@@ -24,6 +25,7 @@ export function PlayerPage({ path }: { path: string }) {
     const subtitles = useSubtitles(path);
     const [nextPrompt, setNextPrompt] = useState<VideoEntry | null>(null);
     const theater = usePlayerStore((state) => state.theater);
+    const { mini } = useWindowMode();
     const preferencesReady = usePreferencesSession();
 
     const entries = playlist.data ?? [];
@@ -50,18 +52,27 @@ export function PlayerPage({ path }: { path: string }) {
     const playNext = useCallback(() => nextPrompt && play(nextPrompt), [nextPrompt, play]);
     const title = record.data?.title ?? baseName(path).replace(/\.[^.]+$/, "");
 
-    const upNext = <UpNextPanel entries={following} onSelect={play} scrollsWithPage={theater} />;
+    // The mini player shows the video alone; the list still decides what plays next.
+    const upNext = !mini && <UpNextPanel entries={following} onSelect={play} scrollsWithPage={theater} />;
 
     return (
         <div className="flex h-screen flex-col bg-background text-text">
-            <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-                <IconButton label="Close player" shortcut="Esc" icon={<ArrowLeft />} onClick={close} />
-                <span className="min-w-0 flex-1 truncate text-lead font-medium">{title}</span>
-                <IconButton label="Keyboard shortcuts" shortcut="?" icon={<Keyboard />} onClick={openShortcutsHelp} />
-            </header>
-            {/* Both layouts keep the video at the same place in the tree, so switching never reloads it. */}
+            {!mini && (
+                <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+                    <IconButton label="Close player" shortcut="Esc" icon={<ArrowLeft />} onClick={close} />
+                    <span className="min-w-0 flex-1 truncate text-lead font-medium">{title}</span>
+                    <IconButton
+                        label="Keyboard shortcuts"
+                        shortcut="?"
+                        icon={<Keyboard />}
+                        onClick={openShortcutsHelp}
+                    />
+                </header>
+            )}
+            {/* Every layout (theater, mini player) keeps the video at the same place in the tree, so switching never
+                reloads it. */}
             <div className="flex min-h-0 flex-1">
-                <ScrollContainer className="min-w-0 flex-1">
+                <ScrollContainer className={cx("min-w-0 flex-1", mini && "overflow-hidden")}>
                     {(record.isPending || (record.isSuccess && !preferencesReady)) && (
                         <Skeleton className={cx("aspect-video w-full rounded-none", stageHeight(theater))} />
                     )}
@@ -84,12 +95,14 @@ export function PlayerPage({ path }: { path: string }) {
                         />
                     )}
                     {/* In theater mode the video spans the window and the playlist moves next to the details. */}
-                    <div className="flex">
-                        <div className="min-w-0 flex-1">
-                            {record.isSuccess && <VideoInfo path={path} title={title} video={record.data} />}
+                    {!mini && (
+                        <div className="flex">
+                            <div className="min-w-0 flex-1">
+                                {record.isSuccess && <VideoInfo path={path} title={title} video={record.data} />}
+                            </div>
+                            {theater && upNext}
                         </div>
-                        {theater && upNext}
-                    </div>
+                    )}
                 </ScrollContainer>
                 {!theater && upNext}
             </div>
@@ -97,6 +110,7 @@ export function PlayerPage({ path }: { path: string }) {
                 <NextVideoDialog
                     key={nextPrompt.path}
                     next={nextPrompt}
+                    compact={mini}
                     onPlay={playNext}
                     onCancel={() => setNextPrompt(null)}
                 />

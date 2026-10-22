@@ -3,6 +3,7 @@ import {
     Maximize,
     Minimize,
     Pause,
+    PictureInPicture2,
     Play,
     RectangleHorizontal,
     RotateCcw,
@@ -28,6 +29,7 @@ import {
     Slider,
     Spinner,
 } from "../../../shared/ui";
+import { PinWindowButton } from "../../../shared/window";
 import type { AudioTracksState } from "../hooks/useAudioTracks";
 import type { PlaybackState } from "../hooks/usePlayback";
 import type { SubtitlesState } from "../hooks/useSubtitles";
@@ -47,9 +49,16 @@ type PlayerControlsProps = {
     audio: AudioTracksState;
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
+    miniPlayer: MiniPlayerButton;
     visible: boolean;
     /** Makes the current frame the video's thumbnail; absent for videos that are not in the library. */
     frameCapture?: FrameCapture;
+};
+
+type MiniPlayerButton = {
+    onEnter: () => void;
+    /** False where the window cannot stay on top (see `PinWindowButton`). */
+    available: boolean;
 };
 
 type FrameCapture = {
@@ -66,6 +75,7 @@ export function PlayerControls({
     audio,
     isFullscreen,
     onToggleFullscreen,
+    miniPlayer,
     visible,
     frameCapture,
 }: PlayerControlsProps) {
@@ -191,6 +201,19 @@ export function PlayerControls({
                             </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    <PinWindowButton variant="overlay" />
+                    <IconButton
+                        label={
+                            miniPlayer.available
+                                ? "Mini player"
+                                : "The mini player needs a window that stays on top, which this system doesn't support"
+                        }
+                        shortcut={miniPlayer.available ? shortcutHint(shortcuts.miniPlayer) : undefined}
+                        icon={<PictureInPicture2 />}
+                        variant="overlay"
+                        disabled={!miniPlayer.available}
+                        onClick={miniPlayer.onEnter}
+                    />
                     {/* Like YouTube, theater mode is a page layout, so it has no meaning in full screen. */}
                     {!isFullscreen && (
                         <IconButton

@@ -11,6 +11,7 @@ import {
     type SubtitleTrack,
     type Video,
     type VideoEntry,
+    type WindowMode,
 } from "../../shared/ipc/bindings";
 import type { ShortcutKeys } from "../../shared/lib/keyboard";
 import { entryFixture, videoFixture } from "../../shared/test/fixtures";
@@ -41,6 +42,10 @@ type Options = {
     shortcuts?: ShortcutKeys;
     subtitleStyle?: SubtitleStyle;
     extractFails?: boolean;
+    /** Whether the system lets the window stay on top (not under Wayland). */
+    onTopSupported?: boolean;
+    /** The system refuses to pin the window. */
+    pinFails?: boolean;
 };
 
 /** The player as the app's watch route mounts it: a new one for each video. */
@@ -60,12 +65,30 @@ function renderPlayer({
     shortcuts = DEFAULT_KEYBOARD_SHORTCUTS,
     subtitleStyle = DEFAULT_SUBTITLE_STYLE,
     extractFails = false,
+    onTopSupported = true,
+    pinFails = false,
 }: Options = {}) {
     const path = video?.filePath ?? `${SHOW}\\Raw.mkv`;
     const playlist: VideoEntry[] = video ? [entryFixture(video), entryFixture(next)] : [];
     // The record a real backend would keep, so refetches after a change see it.
     let stored = video;
+    // The window's modes, kept by the backend.
+    let windowMode: WindowMode = { pinned: false, mini: false, onTopSupported };
+    const changeWindow = (change: Partial<WindowMode>) => {
+        windowMode = { ...windowMode, ...change };
+        return windowMode;
+    };
     const calls = mockCommands({
+        get_window_mode: () => windowMode,
+        set_window_pinned: ({ pinned }: Record<string, unknown>) => {
+            if (pinFails) {
+                throw commandError("internal", "the window manager said no");
+            }
+            return changeWindow({ pinned: pinned === true });
+        },
+        enter_mini_player: () => changeWindow({ mini: true }),
+        exit_mini_player: () => changeWindow({ mini: false }),
+        set_mini_player_aspect: () => windowMode,
         get_video: () => stored,
         list_playlist: playlist,
         find_subtitle: subtitle ? { format: "srt", content: SUBTITLE } : null,
@@ -718,5 +741,189 @@ describe("PlayerPage", () => {
         expect(callsOf(calls, "save_progress")).toEqual([]);
         // Without a library record there is nothing to give a thumbnail to.
         expect(screen.queryByRole("button", { name: "Use frame as thumbnail" })).not.toBeInTheDocument();
+    });
+
+    describe("pin window", () => {
+        it("starts unpinned and toggles from its button, which shows its key", async () => {
+            const { user, calls } = renderPlayer({ shortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS, pinWindow: ["P"] } });
+            const pin = await screen.findByRole("button", { name: "Pin window" });
+            await waitFor(() => expect(callsOf(calls, "get_window_mode")).toHaveLength(1));
+            expect(pin).toHaveAttribute("aria-pressed", "false");
+            await user.hover(pin);
+            expect(await screen.findByRole("tooltip")).toHaveTextContent("Pin windowP");
+
+            await user.click(pin);
+            expect(pin).toHaveAttribute("aria-pressed", "true");
+            await user.click(pin);
+            await waitFor(() => expect(pin).toHaveAttribute("aria-pressed", "false"));
+            expect(callsOf(calls, "set_window_pinned")).toEqual([{ pinned: true }, { pinned: false }]);
+        });
+
+        it("goes back to unpinned and says why when the system refuses", async () => {
+            const { user } = renderPlayer({ pinFails: true });
+            const pin = await screen.findByRole("button", { name: "Pin window" });
+            await user.click(pin);
+
+            expect(await screen.findByText("Could not pin the window")).toBeInTheDocument();
+            expect(screen.getByText("the window manager said no")).toBeInTheDocument();
+            expect(pin).toHaveAttribute("aria-pressed", "false");
+        });
+
+        it("explains why it is unavailable where windows cannot stay on top", async () => {
+            const { user, calls } = renderPlayer({ onTopSupported: false });
+            const pin = await screen.findByRole("button", {
+                name: "Keeping the window on top isn't supported on this system",
+            });
+            expect(pin).toHaveAttribute("aria-disabled", "true");
+            await user.click(pin);
+            expect(callsOf(calls, "set_window_pinned")).toEqual([]);
+        });
+    });
+
+    describe("mini player", () => {
+        afterEach(() => {
+            Reflect.deleteProperty(document, "fullscreenElement");
+        });
+
+        it("shows only the video and its essential controls, without reloading it", async () => {
+            const { user, calls } = renderPlayer();
+            const element = await playingAt(60);
+            Object.defineProperty(element, "videoWidth", { configurable: true, value: 1440 });
+            Object.defineProperty(element, "videoHeight", { configurable: true, value: 1080 });
+
+            await user.click(screen.getByRole("button", { name: "Mini player" }));
+            await screen.findByRole("button", { name: "Expand" });
+            expect(callsOf(calls, "enter_mini_player")).toEqual([{ videoWidth: 1440, videoHeight: 1080 }]);
+            expect(document.querySelector("video")).toBe(element);
+            // Its button went away with the full controls: focus moves to the video, next to the new ones.
+            expect(element.parentElement).toHaveFocus();
+
+            expect(screen.getByRole("slider", { name: "Seek" })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Close player" })).toBeInTheDocument();
+            for (const gone of ["Keyboard shortcuts", "Watched", "Theater mode", "Full screen", "Mute", "Pin window"]) {
+                expect(screen.queryByRole("button", { name: gone })).not.toBeInTheDocument();
+            }
+            expect(screen.queryByRole("complementary", { name: "Up next" })).not.toBeInTheDocument();
+
+            // Every control is reachable from the keyboard, and shows while focused.
+            await user.tab();
+            expect(screen.getByRole("slider", { name: "Seek" })).toHaveFocus();
+            await user.tab();
+            expect(screen.getByRole("button", { name: "Play" })).toHaveFocus();
+            await user.tab();
+            expect(screen.getByRole("button", { name: "Expand" })).toHaveFocus();
+            await user.tab();
+            expect(screen.getByRole("button", { name: "Close player" })).toHaveFocus();
+
+            await user.click(screen.getByRole("button", { name: "Close player" }));
+            await waitFor(() => expect(screen.queryByRole("button", { name: "Expand" })).not.toBeInTheDocument());
+        });
+
+        it("leaves with Escape first, and only then closes the player", async () => {
+            const { user, router, calls } = renderPlayer();
+            await playingAt(60);
+            await user.keyboard("i");
+            expect(await screen.findByRole("button", { name: "Expand" })).toBeInTheDocument();
+
+            await user.keyboard("{Escape}");
+            expect(await screen.findByRole("button", { name: "Mini player" })).toBeInTheDocument();
+            expect(callsOf(calls, "exit_mini_player")).toHaveLength(1);
+            expect(router.state.location.pathname).toBe("/watch");
+            expect(screen.getByRole("button", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+
+            await user.keyboard("{Escape}");
+            await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+        });
+
+        it("toggles with its key and shows it in the tooltip", async () => {
+            const { user, calls } = renderPlayer({ shortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS, miniPlayer: ["P"] } });
+            await playingAt(60);
+            await user.hover(screen.getByRole("button", { name: "Mini player" }));
+            expect(await screen.findByRole("tooltip")).toHaveTextContent("Mini playerP");
+
+            await user.keyboard("p");
+            expect(await screen.findByRole("button", { name: "Expand" })).toBeInTheDocument();
+            await user.keyboard("p");
+            expect(await screen.findByRole("button", { name: "Mini player" })).toBeInTheDocument();
+            expect(callsOf(calls, "exit_mini_player")).toHaveLength(1);
+        });
+
+        it("leaves full screen before shrinking the window", async () => {
+            const { user, calls } = renderPlayer();
+            await playingAt(60);
+            let fullscreenElement: Element | null = document.body;
+            let enteredWhileFullscreen = false;
+            Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => fullscreenElement });
+            document.exitFullscreen = vi.fn(async () => {
+                enteredWhileFullscreen = callsOf(calls, "enter_mini_player").length > 0;
+                fullscreenElement = null;
+            });
+
+            await user.keyboard("i");
+            expect(await screen.findByRole("button", { name: "Expand" })).toBeInTheDocument();
+            expect(document.exitFullscreen).toHaveBeenCalledOnce();
+            expect(enteredWhileFullscreen).toBe(false);
+        });
+
+        it("brings theater mode back afterwards, and T in it says what it will be", async () => {
+            const { user } = renderPlayer();
+            await playingAt(60);
+            await user.keyboard("t");
+            await user.keyboard("i");
+            await screen.findByRole("button", { name: "Expand" });
+            expect(screen.queryByRole("complementary", { name: "Up next" })).not.toBeInTheDocument();
+
+            await user.keyboard("t");
+            expect(
+                await screen.findByText("Theater mode off", { selector: "[role=status] > span" })
+            ).toBeInTheDocument();
+            await user.keyboard("t");
+
+            await user.click(screen.getByRole("button", { name: "Expand" }));
+            expect(await screen.findByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "true");
+            expect(screen.getByRole("complementary", { name: "Up next" })).toBeInTheDocument();
+        });
+
+        it("still plays the next video on its own, from a compact card", async () => {
+            const { user, router, calls } = renderPlayer();
+            const element = await playingAt(60);
+            await user.keyboard("i");
+            await screen.findByRole("button", { name: "Expand" });
+
+            act(() => playToEnd(element));
+            const card = await screen.findByRole("dialog", { name: /Up next in/ });
+            expect(card).toHaveTextContent("The Second One");
+            expect(within(card).getByRole("button", { name: "Play now" })).toHaveFocus();
+            // Escape cancels the countdown, and leaves the mini player alone.
+            await user.keyboard("{Escape}");
+            await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+            expect(callsOf(calls, "exit_mini_player")).toEqual([]);
+
+            act(() => playToEnd(element));
+            await user.click(await screen.findByRole("button", { name: "Play now" }));
+            await waitFor(() => expect(router.state.location.search).toEqual({ path: next.filePath }));
+            // The next video fits the mini player to its own shape.
+            const following = await videoElement();
+            act(() => loadMetadata(following, 1500));
+            await waitFor(() => expect(callsOf(calls, "set_mini_player_aspect")).toHaveLength(1));
+            expect(screen.getByRole("button", { name: "Expand" })).toBeInTheDocument();
+        });
+
+        it("explains why it is unavailable where windows cannot stay on top", async () => {
+            const { user, calls } = renderPlayer({ onTopSupported: false });
+            await playingAt(60);
+            const button = await screen.findByRole("button", {
+                name: "The mini player needs a window that stays on top, which this system doesn't support",
+            });
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await user.keyboard("i");
+            expect(
+                await screen.findByText("The mini player isn't supported on this system", {
+                    selector: "[role=status] > span",
+                })
+            ).toBeInTheDocument();
+            expect(callsOf(calls, "enter_mini_player")).toEqual([]);
+        });
     });
 });

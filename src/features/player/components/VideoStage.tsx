@@ -1,25 +1,26 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import type { AudioTrack, Video } from "../../../shared/ipc/bindings";
-import { errorMessage } from "../../../shared/ipc/client";
 import { useMediaTools, useSubtitleStyle } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { cueTextAt } from "../../../shared/lib/subtitles";
-import { Button, ErrorState, toast } from "../../../shared/ui";
+import { Button, ErrorState } from "../../../shared/ui";
 import { openInDefaultPlayer, SubtitleLine, useSetVideoThumbnail } from "../../../shared/video";
 import { useAudioTracks } from "../hooks/useAudioTracks";
+import { useMiniPlayer } from "../hooks/useMiniPlayer";
 import { usePlayback } from "../hooks/usePlayback";
 import { usePlayerShortcuts } from "../hooks/usePlayerShortcuts";
+import { useProgressSaver } from "../hooks/useProgressSaver";
 import { useAutoHide, useFlash, useFullscreen } from "../hooks/useStageUi";
 import type { SubtitlesState } from "../hooks/useSubtitles";
-import { ProgressSaver, resumePosition } from "../lib/progress";
+import { resumePosition } from "../lib/progress";
 import type { PlayerCommand } from "../lib/shortcuts";
 import { audioFormatsOf } from "../lib/tracks";
-import { saveProgress, useMediaTracks } from "../queries";
+import { useMediaTracks } from "../queries";
 import { playerPreferences, usePlayerStore } from "../store";
+import { MiniPlayerControls } from "./MiniPlayerControls";
 import { NoSoundNotice } from "./NoSoundNotice";
 import { PlayerControls } from "./PlayerControls";
 
@@ -47,6 +48,8 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
     const { visible, reveal, focusHandlers } = useAutoHide(playback.playing);
     const { flash, show } = useFlash();
     const fullscreen = useFullscreen(containerRef);
+    const miniPlayer = useMiniPlayer(videoRef);
+    useFocusAcrossMiniPlayer(miniPlayer.mini, containerRef);
     const { volume, muted, speed, subtitlesEnabled, theater } = usePlayerStore(
         useShallow(({ volume, muted, speed, subtitlesEnabled, theater }) => ({
             volume,
@@ -73,6 +76,8 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
     latestVideo.current = video;
     const latestOnEnded = useRef(onEnded);
     latestOnEnded.current = onEnded;
+    const latestFitMini = useRef(miniPlayer.fit);
+    latestFitMini.current = miniPlayer.fit;
 
     // Preferences apply to the element whenever they change (and after loading, which resets the rate).
     useEffect(() => {
@@ -92,6 +97,8 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
         }
         const onMetadata = () => {
             element.playbackRate = usePlayerStore.getState().speed;
+            // The next video in the mini player may have another shape.
+            void latestFitMini.current();
             const start = resumePosition(latestVideo.current, element.duration);
             if (start > 0) {
                 element.currentTime = start;
@@ -146,12 +153,29 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
                 playerPreferences.toggleSubtitles();
                 return show(usePlayerStore.getState().subtitlesEnabled ? "Subtitles on" : "Subtitles off");
             case "fullscreen":
+                if (miniPlayer.mini) {
+                    return void miniPlayer.exit().then(fullscreen.toggle);
+                }
                 return fullscreen.toggle();
             case "theater":
-                return playerPreferences.toggleTheater();
+                playerPreferences.toggleTheater();
+                // The mini player shows no page layout: say what it will be once it ends.
+                if (miniPlayer.mini) {
+                    show(usePlayerStore.getState().theater ? "Theater mode on" : "Theater mode off");
+                }
+                return;
+            case "miniPlayer":
+                if (!miniPlayer.available) {
+                    return show("The mini player isn't supported on this system");
+                }
+                return void miniPlayer.toggle();
             case "close":
+                // Esc steps out one level at a time: full screen, then the mini player, then the player.
                 if (document.fullscreenElement) {
                     return void document.exitFullscreen();
+                }
+                if (miniPlayer.mini) {
+                    return void miniPlayer.exit();
                 }
                 return onClose();
         }
@@ -164,12 +188,18 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
         // biome-ignore lint/a11y/noStaticElementInteractions: pointer movement only reveals the controls.
         <div
             ref={containerRef}
+            // Focus lands here when the controls swap (mini player), never in the tab order.
+            tabIndex={-1}
             onMouseMove={reveal}
             {...focusHandlers}
             className={cx(
                 // A size container: subtitles scale with the video.
-                "@container relative flex items-center justify-center overflow-hidden bg-backdrop",
-                fullscreen.isFullscreen ? "size-full" : cx("aspect-video w-full", stageHeight(theater)),
+                "@container relative flex items-center justify-center overflow-hidden bg-backdrop outline-none",
+                fullscreen.isFullscreen
+                    ? "size-full"
+                    : miniPlayer.mini
+                      ? "h-screen w-full"
+                      : cx("aspect-video w-full", stageHeight(theater)),
                 !visible && "cursor-none"
             )}
         >
@@ -223,55 +253,56 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
                     </span>
                 </div>
             )}
-            <PlayerControls
-                playback={playback}
-                path={path}
-                subtitles={subtitles}
-                audio={audio}
-                isFullscreen={fullscreen.isFullscreen}
-                onToggleFullscreen={fullscreen.toggle}
-                visible={visible}
-                frameCapture={
-                    video
-                        ? {
-                              busy: setThumbnail.isPending,
-                              unavailable: tools.data?.ffmpeg === false ? "Needs ffmpeg to capture frames" : undefined,
-                              onCapture: () =>
-                                  setThumbnail.mutate({
-                                      video,
-                                      positionSeconds: videoRef.current?.currentTime ?? playback.currentTime,
-                                  }),
-                          }
-                        : undefined
-                }
-            />
+            {miniPlayer.mini ? (
+                <MiniPlayerControls
+                    playback={playback}
+                    visible={visible}
+                    onExpand={() => void miniPlayer.exit()}
+                    onClose={onClose}
+                />
+            ) : (
+                <PlayerControls
+                    playback={playback}
+                    path={path}
+                    subtitles={subtitles}
+                    audio={audio}
+                    isFullscreen={fullscreen.isFullscreen}
+                    onToggleFullscreen={fullscreen.toggle}
+                    miniPlayer={{ onEnter: () => void miniPlayer.enter(), available: miniPlayer.available }}
+                    visible={visible}
+                    frameCapture={
+                        video
+                            ? {
+                                  busy: setThumbnail.isPending,
+                                  unavailable:
+                                      tools.data?.ffmpeg === false ? "Needs ffmpeg to capture frames" : undefined,
+                                  onCapture: () =>
+                                      setThumbnail.mutate({
+                                          video,
+                                          positionSeconds: videoRef.current?.currentTime ?? playback.currentTime,
+                                      }),
+                              }
+                            : undefined
+                    }
+                />
+            )}
         </div>
     );
 }
 
-/** One saver per video; failures are reported once, not every few seconds. */
-function useProgressSaver(video: Video | null) {
-    const queryClient = useQueryClient();
-    // Saves follow the record: it appears once an unread video is read, and changes after each save or toggle.
-    const latest = useRef(video);
-    latest.current = video;
-    return useMemo(() => {
-        let reported = false;
-        return new ProgressSaver((positionSeconds, finished) => {
-            const current = latest.current;
-            if (!current) {
-                return;
+/**
+ * Entering or leaving the mini player swaps the controls, taking away the button that did it: focus then goes to the
+ * stage, from where `Tab` reaches the new controls. Not to a button, whose tooltip would open and take the next Esc.
+ */
+function useFocusAcrossMiniPlayer(mini: boolean, stage: RefObject<HTMLElement | null>) {
+    const wasMini = useRef(mini);
+    useEffect(() => {
+        if (wasMini.current !== mini) {
+            wasMini.current = mini;
+            const focused = document.activeElement;
+            if (focused === null || focused === document.body) {
+                stage.current?.focus({ preventScroll: true });
             }
-            saveProgress(queryClient, current, positionSeconds, finished).catch((error: unknown) => {
-                if (!reported) {
-                    reported = true;
-                    toast({
-                        title: "Could not save your progress",
-                        description: errorMessage(error),
-                        tone: "danger",
-                    });
-                }
-            });
-        });
-    }, [queryClient]);
+        }
+    }, [mini, stage]);
 }
