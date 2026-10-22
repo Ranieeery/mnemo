@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { cx } from "../lib/cx";
 import { IconButton } from "./IconButton";
 
@@ -17,6 +17,8 @@ export const overlayClasses =
 
 export const dialogPanelClasses = cx(
     "fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col",
+    // The panel itself takes focus when it opens; the outline would ring the whole dialog.
+    "outline-none",
     "rounded-dialog bg-surface-raised text-text shadow-dialog",
     "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out"
 );
@@ -33,12 +35,20 @@ type DialogProps = {
 };
 
 export function Dialog({ open, onOpenChange, title, description, footer, size = "md", children }: DialogProps) {
+    const contentRef = useRef<HTMLDivElement>(null);
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
             <DialogPrimitive.Portal>
                 <DialogPrimitive.Overlay className={overlayClasses} />
                 <DialogPrimitive.Content
+                    ref={contentRef}
                     className={cx(dialogPanelClasses, sizeClasses[size])}
+                    // Radix would focus the close button, whose tooltip then opens and takes the first Esc. Unless a
+                    // field already took focus (autoFocus), the panel takes it: its title is read and Tab goes on.
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+                        contentRef.current?.focus();
+                    }}
                     // Without a description, Radix must not point aria-describedby at a missing element.
                     {...(description ? {} : { "aria-describedby": undefined })}
                 >

@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { callsOf, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
@@ -38,6 +38,25 @@ describe("TagManager", () => {
         await user.click(await screen.findByRole("button", { name: "Remove from videos" }));
         expect(await screen.findByText('Removed "anime" from 12 videos')).toBeInTheDocument();
         expect(callsOf(calls, "remove_tag_from_all_videos")).toEqual([{ tagId: 1 }]);
+    });
+
+    it("keeps focus on the list as tags are deleted, then on the new tag field", async () => {
+        let stored = tags;
+        mockCommands({
+            list_tags: () => stored,
+            delete_tag: ({ tagId }: Record<string, unknown>) => {
+                stored = stored.filter((tag) => tag.id !== tagId);
+                return null;
+            },
+        });
+        const { user } = renderScreen(<TagManager />);
+        await user.click(await screen.findByRole("button", { name: 'Delete tag "anime"' }));
+        await user.click(await screen.findByRole("button", { name: "Delete tag" }));
+        await waitFor(() => expect(screen.getByRole("button", { name: 'Delete tag "old"' })).toHaveFocus());
+
+        await user.keyboard("{Enter}");
+        await user.click(await screen.findByRole("button", { name: "Delete tag" }));
+        await waitFor(() => expect(screen.getByRole("textbox", { name: "New tag" })).toHaveFocus());
     });
 
     it("creates a tag from Settings", async () => {

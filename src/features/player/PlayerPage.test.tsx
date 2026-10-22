@@ -177,7 +177,7 @@ describe("PlayerPage", () => {
         act(() => loadMetadata(element, 1500));
 
         expect(element.currentTime).toBe(300);
-        expect(await screen.findByText("Resumed at 5:00")).toBeInTheDocument();
+        expect(await screen.findByText("Resumed at 5:00", { selector: "[role=status] > span" })).toBeInTheDocument();
     });
 
     it("supports every keyboard shortcut", async () => {
@@ -222,6 +222,21 @@ describe("PlayerPage", () => {
 
         await user.keyboard("f");
         expect(requestFullscreen).toHaveBeenCalledOnce();
+    });
+
+    it("announces what a key did to screen readers, even the same thing twice", async () => {
+        const { user } = renderPlayer();
+        const element = await videoElement();
+        act(() => loadMetadata(element, 1500));
+        const announced = (text: string) => screen.getByText(text, { selector: "[role=status] > span" });
+
+        await user.keyboard("{ArrowDown}");
+        expect(announced("Volume 95%")).toBeInTheDocument();
+        await user.keyboard("l");
+        const first = announced("+10s");
+        await user.keyboard("l");
+        // A new node, so the live region speaks again.
+        expect(announced("+10s")).not.toBe(first);
     });
 
     it("shows a subtitle track from inside the file, chosen in the menu", async () => {

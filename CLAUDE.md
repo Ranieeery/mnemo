@@ -124,7 +124,8 @@ src/
 │   │                   # shortcuts, dev-catalog (catálogo do design system, só em dev)
 │   └── <feature>/      # components/, hooks/, lib/, queries.ts, index.ts e testes ao lado (*.test.ts[x])
 └── shared/
-    ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns, useIsTruncated
+    ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns, useIsTruncated,
+    │                   # useFocusAfterRemoval
     ├── video/          # UI e ações de vídeo usadas por várias features (card, thumbnail, grade, menu de contexto,
     │                   # visibilidade de pastas escondidas)
     ├── ipc/            # bindings gerados, client (`call()` → CommandError), queryKeys, queryClient, queries comuns

@@ -28,6 +28,27 @@ describe("app shell", () => {
         expect(await screen.findByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument();
     });
 
+    it("offers to skip to the screen with the first Tab", async () => {
+        const { user } = renderApp("/");
+        const heading = await screen.findByRole("heading", { name: "Home", level: 1 });
+        await user.tab();
+        expect(screen.getByRole("button", { name: "Skip to content" })).toHaveFocus();
+        await user.keyboard("{Enter}");
+        expect(heading).toHaveFocus();
+    });
+
+    it("moves focus to the new screen's title, unless it is in the sidebar", async () => {
+        const { user } = renderApp("/");
+        await openSeries(user);
+        // Opened from the sidebar: focus stays on the folder (F2 renames it).
+        expect(screen.getByRole("link", { name: "Series" })).toHaveFocus();
+
+        // Focus lost with the screen left behind (like a clicked card) goes to the new screen's title.
+        screen.getByRole("link", { name: "Series" }).blur();
+        await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+        await waitFor(() => expect(screen.getByRole("heading", { name: "Home", level: 1 })).toHaveFocus());
+    });
+
     it("never opens the webview's own right-click menu, except in text fields", async () => {
         renderApp("/");
         const heading = await screen.findByRole("heading", { name: "Home", level: 1 });
@@ -57,7 +78,13 @@ describe("app shell", () => {
         expect(within(sound).getByText("Mute").closest("div")).toHaveTextContent(/^MuteN/);
         expect(within(help).getByText("Leave full screen or close the player")).toBeInTheDocument();
 
-        await user.click(within(help).getByRole("button", { name: "Customize in Settings" }));
+        // The first Esc closes it (no tooltip opened on the close button to take it).
+        await user.keyboard("{Escape}");
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+        await user.keyboard("?");
+        const reopened = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+
+        await user.click(within(reopened).getByRole("button", { name: "Customize in Settings" }));
         await waitFor(() => expect(router.state.location.search).toEqual({ tab: "shortcuts" }));
         expect(await screen.findByRole("tab", { name: "Shortcuts", selected: true })).toBeInTheDocument();
     });

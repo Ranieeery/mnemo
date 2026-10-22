@@ -1,9 +1,18 @@
 import { Eraser, Tags, Trash2, Unlink } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { TagWithUsage } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
 import { plural } from "../../../shared/lib/plural";
-import { Button, ConfirmDialog, EmptyState, ErrorState, IconButton, Skeleton } from "../../../shared/ui";
+import {
+    Button,
+    ConfirmDialog,
+    EmptyState,
+    ErrorState,
+    elementNear,
+    IconButton,
+    Skeleton,
+    useFocusAfterRemoval,
+} from "../../../shared/ui";
 import { useAllTags, useDeleteAllTags, useDeleteTag, useDeleteUnusedTags, useRemoveTagFromAllVideos } from "../queries";
 import { CreateTagForm } from "./CreateTagForm";
 
@@ -21,6 +30,19 @@ export function TagManager() {
     const deleteAll = useDeleteAllTags();
     const deleteUnused = useDeleteUnusedTags();
     const [pending, setPending] = useState<PendingAction | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLUListElement>(null);
+    const focusAfterRemoval = useFocusAfterRemoval();
+
+    // A deleted tag takes its row away: focus goes to the next row's delete button, or to the new tag field.
+    const confirmDelete = (tag: TagWithUsage, index: number) => {
+        focusAfterRemoval(
+            () =>
+                elementNear(listRef.current?.querySelectorAll<HTMLElement>("[data-delete-tag]"), index) ??
+                containerRef.current?.querySelector("input")
+        );
+        setPending({ kind: "delete", tag });
+    };
 
     if (tags.isPending) {
         return (
@@ -41,7 +63,7 @@ export function TagManager() {
     }
     if (tags.data.length === 0) {
         return (
-            <div className="flex flex-col gap-4">
+            <div ref={containerRef} className="flex flex-col gap-4">
                 <CreateTagForm />
                 <EmptyState
                     icon={Tags}
@@ -55,7 +77,7 @@ export function TagManager() {
     const unused = tags.data.filter((tag) => tag.videoCount === 0).length;
 
     return (
-        <div className="flex flex-col gap-4">
+        <div ref={containerRef} className="flex flex-col gap-4">
             <CreateTagForm />
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-body text-text-muted">
@@ -80,8 +102,8 @@ export function TagManager() {
                     </Button>
                 </div>
             </div>
-            <ul className="flex flex-col divide-y divide-border rounded-card border border-border">
-                {tags.data.map((tag) => (
+            <ul ref={listRef} className="flex flex-col divide-y divide-border rounded-card border border-border">
+                {tags.data.map((tag, index) => (
                     <li key={tag.id} className="flex items-center gap-3 px-4 py-2">
                         <span className="min-w-0 flex-1 truncate text-body text-text">{tag.name}</span>
                         <span className="text-small text-text-muted tabular-nums">
@@ -98,7 +120,8 @@ export function TagManager() {
                             label={`Delete tag "${tag.name}"`}
                             icon={<Trash2 />}
                             size="sm"
-                            onClick={() => setPending({ kind: "delete", tag })}
+                            data-delete-tag
+                            onClick={() => confirmDelete(tag, index)}
                         />
                     </li>
                 ))}

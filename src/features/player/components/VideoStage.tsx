@@ -207,8 +207,17 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
                 </div>
             )}
             {subtitle && <SubtitleLine text={subtitle} style={subtitleStyle} aboveControls={visible} />}
+            {/* What a key did, for screen readers. Always present so changes are announced; a new node per flash
+                repeats even the same text ("+10s" twice). */}
+            <p role="status" className="sr-only">
+                {flash && <span key={flash.id}>{flash.label}</span>}
+            </p>
             {flash && (
-                <div key={flash.id} className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div
+                    key={flash.id}
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                >
                     <span className="animate-pop-in rounded-card bg-scrim px-4 py-2 text-title font-semibold text-text tabular-nums">
                         {flash.label}
                     </span>

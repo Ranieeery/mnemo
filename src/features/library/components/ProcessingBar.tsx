@@ -16,6 +16,11 @@ export function ProcessingBar() {
 
     return (
         <>
+            {/* Always present, so the start is announced; the end and failures come as toasts, and progress
+                ticks (file names, "N of M") stay silent. */}
+            <p role="status" className="sr-only">
+                {first ? "Reading new videos" : ""}
+            </p>
             {first && (
                 <ReadingSummary
                     status={status}
@@ -49,7 +54,10 @@ function ReadingSummary({ status, first, others, onShowDetails }: ReadingSummary
             : folderName(first.folder, libraryFolders);
 
     return (
-        <div className="flex animate-appear flex-col gap-1.5 border-b border-border px-6 py-2" role="status">
+        <section
+            aria-label="Reading new videos"
+            className="flex animate-appear flex-col gap-1.5 border-b border-border px-6 py-2"
+        >
             <div className="flex items-center justify-between gap-4 text-small">
                 <span className="min-w-0 truncate text-text-muted">
                     Reading new videos in <span className="text-text">{where}</span>
@@ -75,6 +83,6 @@ function ReadingSummary({ status, first, others, onShowDetails }: ReadingSummary
                 </div>
             </div>
             <Progress label="Reading new videos" value={done} max={Math.max(total, 1)} size="thin" />
-        </div>
+        </section>
     );
 }

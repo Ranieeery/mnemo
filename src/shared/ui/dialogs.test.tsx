@@ -49,7 +49,7 @@ describe("ConfirmDialog", () => {
 });
 
 describe("Dialog", () => {
-    it("is labelled by its title and closes with the close button or Escape", async () => {
+    it("is labelled by its title and closes with the close button", async () => {
         const onOpenChange = vi.fn();
         const { user } = renderWithUi(
             <Dialog open onOpenChange={onOpenChange} title="Video details" description="Edit title and tags.">
@@ -60,8 +60,29 @@ describe("Dialog", () => {
         expect(dialog).toHaveAccessibleDescription("Edit title and tags.");
 
         await user.click(screen.getByRole("button", { name: "Close" }));
-        expect(onOpenChange).toHaveBeenLastCalledWith(false);
+        expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+    });
+
+    it("closes with the first Escape after opening, with no tooltip in the way", async () => {
+        const onOpenChange = vi.fn();
+        const { user } = renderWithUi(
+            <Dialog open onOpenChange={onOpenChange} title="Keyboard shortcuts">
+                <p>Body</p>
+            </Dialog>
+        );
+        expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveFocus();
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
         await user.keyboard("{Escape}");
-        expect(onOpenChange).toHaveBeenCalledTimes(2);
+        expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+    });
+
+    it("leaves focus on a field that asks for it", () => {
+        renderWithUi(
+            <Dialog open onOpenChange={vi.fn()} title="Rename">
+                <input aria-label="Name" autoFocus />
+            </Dialog>
+        );
+        expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus();
     });
 });

@@ -1,8 +1,8 @@
 import { Plus, RotateCcw, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MAX_KEYS_PER_SHORTCUT } from "../../../shared/ipc/bindings";
 import { comboLabel, isReservedCombo } from "../../../shared/lib/keyboard";
-import { Button, IconButton } from "../../../shared/ui";
+import { Button, elementNear, IconButton, useFocusAfterRemoval } from "../../../shared/ui";
 import { actionLabel, type ShortcutAction } from "../lib/actions";
 import { ComboKeys } from "./ComboKeys";
 import { KeyRecorder } from "./KeyRecorder";
@@ -24,9 +24,39 @@ export function ShortcutRow({ label, keys, defaults, owner, onChange }: Shortcut
     const [recording, setRecording] = useState(false);
     const [problem, setProblem] = useState<Problem | null>(null);
     const isDefault = keys.length === defaults.length && keys.every((key, index) => key === defaults[index]);
+    const keysRef = useRef<HTMLDivElement>(null);
+    const addRef = useRef<HTMLButtonElement>(null);
+    const focusAfterRemoval = useFocusAfterRemoval();
+    const removeButtons = () => keysRef.current?.querySelectorAll<HTMLElement>("[data-remove-key]");
+
+    const remove = (index: number) => {
+        focusAfterRemoval(() => elementNear(removeButtons(), index) ?? addRef.current);
+        onChange(keys.filter((_, other) => other !== index));
+    };
+
+    // At the key limit there is no "Add key": the last key takes focus instead.
+    const focusRowAfterRemoval = () =>
+        focusAfterRemoval(() => addRef.current ?? elementNear(removeButtons(), MAX_KEYS_PER_SHORTCUT));
+
+    const add = (combo: string, takeFrom?: ShortcutAction) => {
+        // The new key arrives in a later render; when it fills the row, "Add key" leaves and the new key takes focus.
+        const fillsRow = keys.length + 1 >= MAX_KEYS_PER_SHORTCUT;
+        focusAfterRemoval(() => (fillsRow ? removeButtons()?.[keys.length] : addRef.current));
+        onChange([...keys, combo], takeFrom);
+    };
+
+    const stopRecording = () => {
+        focusRowAfterRemoval();
+        setRecording(false);
+    };
+
+    const dismissProblem = () => {
+        focusRowAfterRemoval();
+        setProblem(null);
+    };
 
     const record = (combo: string) => {
-        setRecording(false);
+        stopRecording();
         if (keys.includes(combo)) {
             setProblem(null);
             return;
@@ -41,15 +71,15 @@ export function ShortcutRow({ label, keys, defaults, owner, onChange }: Shortcut
             return;
         }
         setProblem(null);
-        onChange([...keys, combo]);
+        add(combo);
     };
 
     return (
         <li className="flex flex-col gap-2 px-5 py-3">
             <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
                 <span className="min-w-40 text-body text-text">{label}</span>
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    {keys.map((combo) => (
+                <div ref={keysRef} className="flex flex-wrap items-center justify-end gap-2">
+                    {keys.map((combo, index) => (
                         <span
                             key={combo}
                             className="inline-flex items-center gap-1 rounded-control border border-border bg-surface-raised py-0.5 pr-0.5 pl-2"
@@ -60,16 +90,18 @@ export function ShortcutRow({ label, keys, defaults, owner, onChange }: Shortcut
                                 icon={<X />}
                                 size="sm"
                                 className="size-6"
-                                onClick={() => onChange(keys.filter((key) => key !== combo))}
+                                data-remove-key
+                                onClick={() => remove(index)}
                             />
                         </span>
                     ))}
                     {keys.length === 0 && !recording && <span className="text-small text-text-subtle">Not set</span>}
                     {recording ? (
-                        <KeyRecorder label={label} onRecord={record} onCancel={() => setRecording(false)} />
+                        <KeyRecorder label={label} onRecord={record} onCancel={stopRecording} />
                     ) : (
                         keys.length < MAX_KEYS_PER_SHORTCUT && (
                             <Button
+                                ref={addRef}
                                 variant="ghost"
                                 size="sm"
                                 icon={<Plus />}
@@ -113,7 +145,7 @@ export function ShortcutRow({ label, keys, defaults, owner, onChange }: Shortcut
                                     const from = problem.owner;
                                     setProblem(null);
                                     if (from) {
-                                        onChange([...keys, problem.combo], from);
+                                        add(problem.combo, from);
                                     }
                                 }}
                             >
@@ -121,7 +153,7 @@ export function ShortcutRow({ label, keys, defaults, owner, onChange }: Shortcut
                             </Button>
                         </>
                     )}
-                    <Button variant="ghost" size="sm" onClick={() => setProblem(null)}>
+                    <Button variant="ghost" size="sm" onClick={dismissProblem}>
                         {problem.owner === null ? "OK" : "Cancel"}
                     </Button>
                 </div>

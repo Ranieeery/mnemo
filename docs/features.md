@@ -10,6 +10,14 @@ teclado e mouse (ver `CLAUDE.md`).
   do histórico são acompanhadas por um rastreador único por `RouterHistory` (a barra superior desmonta no player);
   entradas `/watch` de um vídeo de pasta escondida são puladas quando a tela atual não está dentro dela
   (`isConcealed`), e uma direção sem outra entrada fica desabilitada.
+- Foco (`app/layout/AppShell`): o primeiro `Tab` mostra "Skip to content", que leva ao título (`h1`) da tela. Ao
+  trocar de tela (depois de carregada), o foco vai para o `h1` novo quando estava na tela anterior ou se perdeu com
+  ela; na sidebar ou na barra superior ele fica onde está (o `F2` continua renomeando a pasta recém-aberta). Um
+  `Dialog` sem campo com `autoFocus` foca o próprio painel ao abrir, para o primeiro `Esc` fechá-lo (focar o X abriria
+  o tooltip, que ficaria com o `Esc`). Controles que somem com o foco (tag removida, tecla de atalho removida ou
+  gravada, tag excluída) passam o foco ao vizinho ou ao campo da lista (`shared/ui/useFocusAfterRemoval`).
+- Anúncios para leitor de tela: o player anuncia o que um atalho fez (o mesmo texto do flash, numa região `status`);
+  a barra de leitura de vídeos anuncia só o início (o fim e as falhas chegam pelos toasts), nunca cada arquivo.
 - Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências
   entre sessões (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e
   salvas 400 ms após a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada

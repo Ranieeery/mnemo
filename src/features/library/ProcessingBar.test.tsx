@@ -24,10 +24,13 @@ function showStatus(status: ProcessingStatus) {
 /** `D:\Movies` is a library folder renamed in the app. */
 const libraryFolders = [libraryFolderFixture({ path: "D:\\Movies", folderName: "Movies", customName: "Films" })];
 
+/** The visible bar; its live region (role status) only says when reading starts. */
+const bar = () => screen.queryByRole("region", { name: "Reading new videos" });
+
 async function renderBar() {
     const rendered = renderScreen(<ProcessingBar />);
     showStatus(running);
-    await screen.findByRole("status");
+    await screen.findByRole("region", { name: "Reading new videos" });
     return rendered;
 }
 
@@ -35,18 +38,21 @@ describe("ProcessingBar", () => {
     it("is hidden while nothing is being read", () => {
         mockCommands({ list_library_folders: libraryFolders });
         renderScreen(<ProcessingBar />);
-        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(bar()).not.toBeInTheDocument();
+        expect(screen.queryByText("Reading new videos")).not.toBeInTheDocument();
     });
 
     it("shows the folders, the files being read, the progress and the failures", async () => {
         mockCommands({ list_library_folders: libraryFolders });
         await renderBar();
 
-        const bar = screen.getByRole("status");
-        expect(bar).toHaveTextContent("Reading new videos in Show and 1 more folder");
-        expect(bar).toHaveTextContent("Ep 05.mkv, Ep 06.mkv");
-        expect(bar).toHaveTextContent("4 of 10");
-        expect(within(bar).getByRole("button", { name: "1 file couldn't be read" })).toBeInTheDocument();
+        const region = screen.getByRole("region", { name: "Reading new videos" });
+        expect(region).toHaveTextContent("Reading new videos in Show and 1 more folder");
+        expect(region).toHaveTextContent("Ep 05.mkv, Ep 06.mkv");
+        expect(region).toHaveTextContent("4 of 10");
+        expect(within(region).getByRole("button", { name: "1 file couldn't be read" })).toBeInTheDocument();
+        // Screen readers hear that reading started, not every file and tick.
+        expect(screen.getByRole("status")).toHaveTextContent(/^Reading new videos$/);
     });
 
     it("cancels everything and says so until the files stop", async () => {
@@ -85,7 +91,7 @@ describe("ProcessingBar", () => {
         const dialog = await screen.findByRole("dialog", { name: "Reading new videos" });
 
         showStatus({ ...running, jobs: [], inFlight: [] });
-        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(bar()).not.toBeInTheDocument();
         expect(dialog).toBeInTheDocument();
         expect(within(dialog).getByText("Nothing left to read.")).toBeInTheDocument();
         expect(within(dialog).getByText("ffprobe failed: invalid data")).toBeInTheDocument();

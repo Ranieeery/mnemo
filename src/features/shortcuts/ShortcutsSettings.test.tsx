@@ -51,9 +51,9 @@ describe("ShortcutsSettings", () => {
 
         expect(await screen.findByText("Shortcut saved")).toBeInTheDocument();
         expect(saved()).toMatchObject({ mute: ["M", "N"] });
-        expect(mute.getByRole("button", { name: "Remove N from Mute" })).toBeInTheDocument();
-        // Two keys is the most an action can have.
+        // Two keys is the most an action can have, so the new key takes the focus "Add key" had.
         expect(mute.queryByRole("button", { name: "Add a key for Mute" })).not.toBeInTheDocument();
+        expect(mute.getByRole("button", { name: "Remove N from Mute" })).toHaveFocus();
     });
 
     it("cancels recording with Escape and refuses reserved keys", async () => {
@@ -62,11 +62,16 @@ describe("ShortcutsSettings", () => {
         await user.click(theater.getByRole("button", { name: "Add a key for Theater mode" }));
         await user.keyboard("{Escape}");
         expect(theater.queryByRole("button", { name: /Press the new key/ })).not.toBeInTheDocument();
+        expect(theater.getByRole("button", { name: "Add a key for Theater mode" })).toHaveFocus();
 
         await user.click(theater.getByRole("button", { name: "Add a key for Theater mode" }));
         await user.keyboard("?");
         expect(theater.getByRole("alert")).toHaveTextContent("? is reserved and can't be used.");
         expect(callsOf(calls, "update_keyboard_shortcuts")).toEqual([]);
+
+        await user.click(theater.getByRole("button", { name: "OK" }));
+        expect(theater.queryByRole("alert")).not.toBeInTheDocument();
+        expect(theater.getByRole("button", { name: "Add a key for Theater mode" })).toHaveFocus();
     });
 
     it("explains a key another action uses and can move it here", async () => {
@@ -80,6 +85,7 @@ describe("ShortcutsSettings", () => {
         await user.click(within(problem).getByRole("button", { name: "Use here instead" }));
 
         await waitFor(() => expect(saved()).toMatchObject({ theater: ["T", "F"], fullscreen: [] }));
+        expect(theater.getByRole("button", { name: "Remove F from Theater mode" })).toHaveFocus();
         expect((await row("Full screen")).getByText("Not set")).toBeInTheDocument();
     });
 
@@ -88,6 +94,8 @@ describe("ShortcutsSettings", () => {
         const playPause = await row("Play or pause");
         await user.click(playPause.getByRole("button", { name: "Remove K from Play or pause" }));
         await waitFor(() => expect(saved()).toMatchObject({ playPause: ["Space"] }));
+        // Focus stays in the row, on the key next to the removed one.
+        expect(playPause.getByRole("button", { name: "Remove Space from Play or pause" })).toHaveFocus();
 
         await user.click(playPause.getByRole("button", { name: "Reset Play or pause to its default keys" }));
         await waitFor(() => expect(saved()).toMatchObject({ playPause: ["Space", "K"] }));

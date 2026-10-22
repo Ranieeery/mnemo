@@ -26,6 +26,11 @@
         outline-offset: 2px;
     }
 
+    /* A screen's title takes focus when the screen opens, to be read; it is not a control, so no ring. */
+    h1[tabindex="-1"]:focus-visible {
+        outline: none;
+    }
+
     ::selection {
         background-color: var(--color-accent);
         color: var(--color-accent-foreground);

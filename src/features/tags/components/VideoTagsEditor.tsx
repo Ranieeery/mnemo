@@ -1,8 +1,8 @@
 import { Plus } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { MAX_TAG_NAME_CHARS } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
-import { Button, Input, Skeleton, Tag } from "../../../shared/ui";
+import { Button, elementNear, Input, Skeleton, Tag, useFocusAfterRemoval } from "../../../shared/ui";
 import { useAddTagToVideo, useAllTags, useRemoveTagFromVideo, useVideoTags } from "../queries";
 
 /** Most-used tags offered as one-click suggestions. */
@@ -14,6 +14,22 @@ export function VideoTagsEditor({ videoId }: { videoId: number }) {
     const addTag = useAddTagToVideo(videoId);
     const removeTag = useRemoveTagFromVideo(videoId);
     const [name, setName] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
+    const tagsRef = useRef<HTMLUListElement>(null);
+    const suggestionsRef = useRef<HTMLDivElement>(null);
+    const focusAfterRemoval = useFocusAfterRemoval();
+
+    // A removed tag or a used suggestion leaves the list: focus goes to its neighbor, or to the field when none is left.
+    const remove = (tagId: number, index: number) => {
+        focusAfterRemoval(() => elementNear(tagsRef.current?.querySelectorAll("button"), index) ?? inputRef.current);
+        removeTag.mutate(tagId);
+    };
+    const addSuggestion = (tagName: string, index: number) => {
+        focusAfterRemoval(
+            () => elementNear(suggestionsRef.current?.querySelectorAll("button"), index) ?? inputRef.current
+        );
+        addTag.mutate(tagName);
+    };
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -40,17 +56,18 @@ export function VideoTagsEditor({ videoId }: { videoId: number }) {
                 </p>
             )}
             {videoTags.data && (
-                <ul aria-label="Tags of this video" className="flex flex-wrap gap-1.5">
+                <ul ref={tagsRef} aria-label="Tags of this video" className="flex flex-wrap gap-1.5">
                     {videoTags.data.length === 0 && <li className="text-small text-text-subtle">No tags yet.</li>}
-                    {videoTags.data.map((tag) => (
+                    {videoTags.data.map((tag, index) => (
                         <li key={tag.id}>
-                            <Tag onRemove={() => removeTag.mutate(tag.id)}>{tag.name}</Tag>
+                            <Tag onRemove={() => remove(tag.id, index)}>{tag.name}</Tag>
                         </li>
                     ))}
                 </ul>
             )}
             <form onSubmit={submit} className="flex items-end gap-2">
                 <Input
+                    ref={inputRef}
                     label="Add a tag"
                     hideLabel
                     placeholder="Add a tag"
@@ -64,13 +81,13 @@ export function VideoTagsEditor({ videoId }: { videoId: number }) {
                 </Button>
             </form>
             {suggestions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div ref={suggestionsRef} className="flex flex-wrap items-center gap-1.5">
                     <span className="text-small text-text-subtle">Existing tags:</span>
-                    {suggestions.map((tag) => (
+                    {suggestions.map((tag, index) => (
                         <button
                             key={tag.id}
                             type="button"
-                            onClick={() => addTag.mutate(tag.name)}
+                            onClick={() => addSuggestion(tag.name, index)}
                             aria-label={`Add tag ${tag.name}`}
                             className="rounded-full border border-dashed border-border-strong px-2.5 py-0.5 text-small text-text-muted hover:border-text-muted hover:text-text"
                         >
