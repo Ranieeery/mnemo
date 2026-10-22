@@ -57,13 +57,19 @@ Save the draft to `release-notes-<new>.md` in the scratchpad directory and show 
 
 ## 4. Hand over
 
-Never run these yourself; the git guard blocks committing and tagging anyway. Give them to the user in order:
+Never run these yourself; the git guard blocks committing and tagging anyway. Give them to the user in order. The
+Rust checks run inside `src-tauri`, so every later step must start back at the repository root: the paths below are
+relative to it. Tell the user to stop at the first command that fails. In particular, a failed `git commit` must
+never be followed by the tag, or the tag points at the previous commit.
 
 ```sh
-bun run check                 # or /check; then cargo fmt --check, clippy and cargo test in src-tauri
+cd "$(git rev-parse --show-toplevel)"
+bun run check
+(cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 bun tauri build               # installers in src-tauri/target/release/bundle/
 git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json README.md
 git commit -m "chore(release): <new>"
+git log -1 --format=%s        # must print chore(release): <new> before tagging
 git tag <new>
 git push && git push origin <new>
 gh release create <new> --title "<new>" --notes-file <notes file> \
