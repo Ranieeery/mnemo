@@ -60,7 +60,7 @@ pub fn is_video_file(path: &Path) -> bool {
     }
 }
 
-pub fn sort_by_name(paths: &mut [PathBuf]) {
+fn sort_by_name(paths: &mut [PathBuf]) {
     paths.sort_by(|a, b| natural_cmp(&display_name(a), &display_name(b)));
 }
 

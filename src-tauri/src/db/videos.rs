@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter};
@@ -7,6 +7,7 @@ use super::hidden::VISIBLE;
 use super::like_pattern;
 use crate::domain::media::FileIdentity;
 use crate::domain::models::{FolderStats, Video};
+use crate::domain::natural_order::reading_order_cmp;
 use crate::domain::paths::FolderBounds;
 use crate::error::{AppError, AppResult};
 
@@ -213,22 +214,36 @@ pub fn tagged_count_in_folder(connection: &Connection, folder: &str) -> AppResul
     )?)
 }
 
-/// A few videos of a library folder for the home page: not started first, then in progress, then watched.
+/// A few videos of a library folder for the home page: not started first, then in progress, then watched, each in
+/// the reading order of the continuous view. SQLite has no natural order, so only the keys of the folder's videos are
+/// sorted here, and the full records are read for the `limit` that make it.
 pub fn folder_preview(connection: &Connection, folder: &str, limit: i64) -> AppResult<Vec<Video>> {
     let bounds = FolderBounds::new(folder);
     let sql = format!(
-        "SELECT {COLUMNS} FROM videos v
-         WHERE v.file_path >= ?1 AND v.file_path < ?2 AND v.missing_since IS NULL AND {VISIBLE}
-         ORDER BY CASE
-                    WHEN v.is_watched = 1 THEN 2
-                    WHEN v.watch_progress_seconds > 0 THEN 1
-                    ELSE 0
-                  END,
-                  v.last_watched_at DESC NULLS LAST,
-                  v.title
-         LIMIT ?3"
+        "SELECT CASE
+                  WHEN v.is_watched = 1 THEN 2
+                  WHEN v.watch_progress_seconds > 0 THEN 1
+                  ELSE 0
+                END,
+                v.file_path, v.id
+         FROM videos v
+         WHERE v.file_path >= ?1 AND v.file_path < ?2 AND v.missing_since IS NULL AND {VISIBLE}"
     );
-    query_videos(connection, &sql, params![bounds.lower, bounds.upper, limit])
+    let mut statement = connection.prepare_cached(&sql)?;
+    let mut keys = statement
+        .query_map(params![bounds.lower, bounds.upper], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    keys.sort_by(|(a_status, a_path, _), (b_status, b_path, _)| {
+        a_status
+            .cmp(b_status)
+            .then_with(|| reading_order_cmp(Path::new(a_path), Path::new(b_path)))
+    });
+    keys.into_iter()
+        .take(usize::try_from(limit).unwrap_or(0))
+        .map(|(_, _, id)| get(connection, id))
+        .collect()
 }
 
 pub fn continue_watching(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {
@@ -311,7 +326,7 @@ pub(crate) mod tests {
     use std::path::MAIN_SEPARATOR_STR;
 
     use super::*;
-    use crate::db::{test_support, watch};
+    use crate::db::{hidden, presence, test_support, watch};
 
     pub fn path(parts: &[&str]) -> String {
         parts.join(MAIN_SEPARATOR_STR)
@@ -441,6 +456,102 @@ pub(crate) mod tests {
             vec![path(&["F", "c.mkv"]), path(&["F", "b.mkv"]), path(&["F", "a.mkv"])]
         );
         assert_eq!(folder_preview(&connection, "F", 1).unwrap().len(), 1);
+    }
+
+    /// The `Lib` library folder, its tree added in no particular order, each video titled by its file name the way
+    /// the pipeline does (titles alone sort `Video 1` of every folder together).
+    fn course_library(connection: &Connection) -> Vec<Video> {
+        let files: [&[&str]; 10] = [
+            &["Course 2", "Video 1.mkv"],
+            &["Course", "Module 2", "Video 1.mkv"],
+            &["Course_", "Video 1.mkv"],
+            &["Course", "Video 10.mkv"],
+            &["Course", "Module 1", "Video 2.mkv"],
+            &["Root 10.mkv"],
+            &["Course", "Module 1", "Video 1.mkv"],
+            &["Course", "Video 2.mkv"],
+            &["Root 2.mkv"],
+            &["Course", "Module 1", "Video 10.mkv"],
+        ];
+        add_video(connection, &path(&["Lib 2", "Video 1.mkv"]), 10.0);
+        files
+            .iter()
+            .map(|parts| {
+                let video = add_video(connection, &lib(parts), 10.0);
+                let name = parts.last().unwrap().trim_end_matches(".mkv");
+                update_details(connection, video.id, name, "").unwrap()
+            })
+            .collect()
+    }
+
+    fn lib(parts: &[&str]) -> String {
+        path(&[&["Lib"], parts].concat())
+    }
+
+    /// The reading order of [`course_library`].
+    fn course_tree() -> Vec<String> {
+        [
+            &["Root 2.mkv"][..],
+            &["Root 10.mkv"],
+            &["Course", "Video 2.mkv"],
+            &["Course", "Video 10.mkv"],
+            &["Course", "Module 1", "Video 1.mkv"],
+            &["Course", "Module 1", "Video 2.mkv"],
+            &["Course", "Module 1", "Video 10.mkv"],
+            &["Course", "Module 2", "Video 1.mkv"],
+            &["Course 2", "Video 1.mkv"],
+            &["Course_", "Video 1.mkv"],
+        ]
+        .iter()
+        .map(|parts| lib(parts))
+        .collect()
+    }
+
+    #[test]
+    fn folder_preview_reads_the_tree_folder_by_folder() {
+        // Regression: the preview sorted by title, interleaving the videos of sibling folders.
+        let connection = test_support::connection();
+        course_library(&connection);
+        assert_eq!(paths(&folder_preview(&connection, "Lib", 50).unwrap()), course_tree());
+    }
+
+    #[test]
+    fn folder_preview_shows_the_next_videos_of_each_status_in_tree_order() {
+        let mut connection = test_support::connection();
+        let videos = course_library(&connection);
+        let id_of = |parts: &[&str]| videos.iter().find(|video| video.file_path == lib(parts)).unwrap().id;
+        assert_eq!(
+            paths(&folder_preview(&connection, "Lib", 3).unwrap()),
+            course_tree()[..3].to_vec()
+        );
+
+        watch::mark_watched(&mut connection, id_of(&["Root 2.mkv"])).unwrap();
+        watch::mark_watched(&mut connection, id_of(&["Root 10.mkv"])).unwrap();
+        watch::save_progress(&mut connection, id_of(&["Course 2", "Video 1.mkv"]), 5.0, 0.9, false).unwrap();
+        watch::save_progress(&mut connection, id_of(&["Course", "Video 2.mkv"]), 5.0, 0.9, false).unwrap();
+        let tree = course_tree();
+        let expected = [&tree[3..8], &tree[9..], &[tree[2].clone(), tree[8].clone()], &tree[..2]].concat();
+        assert_eq!(paths(&folder_preview(&connection, "Lib", 50).unwrap()), expected);
+        assert_eq!(
+            paths(&folder_preview(&connection, "Lib", 3).unwrap()),
+            tree[3..6].to_vec()
+        );
+    }
+
+    #[test]
+    fn folder_preview_leaves_out_missing_videos_and_hidden_folders() {
+        let connection = test_support::connection();
+        let videos = course_library(&connection);
+        let missing = videos
+            .iter()
+            .find(|video| video.file_path == lib(&["Root 2.mkv"]))
+            .unwrap();
+        presence::mark_missing(&connection, missing.id).unwrap();
+        hidden::hide(&connection, &lib(&["Course", "Module 1"])).unwrap();
+
+        let tree = course_tree();
+        let expected = [&tree[1..4], &tree[7..]].concat();
+        assert_eq!(paths(&folder_preview(&connection, "Lib", 50).unwrap()), expected);
     }
 
     #[test]

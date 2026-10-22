@@ -42,6 +42,18 @@ pub fn natural_path_cmp(a: &Path, b: &Path) -> Ordering {
     }
 }
 
+/// Orders files the way the continuous view reads a tree: a folder's own files first, by name, then each subfolder
+/// followed by its own subfolders (folders compared with [`natural_path_cmp`], file names with [`natural_cmp`]).
+pub fn reading_order_cmp(a: &Path, b: &Path) -> Ordering {
+    let folder = |path: &Path| path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let name = |path: &Path| {
+        path.file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
+    natural_path_cmp(&folder(a), &folder(b)).then_with(|| natural_cmp(&name(a), &name(b)))
+}
+
 fn compare_chunks(a: &str, b: &str) -> Ordering {
     let a_is_number = a.starts_with(|c: char| c.is_ascii_digit());
     let b_is_number = b.starts_with(|c: char| c.is_ascii_digit());
@@ -143,6 +155,37 @@ mod tests {
             paths(&["Course", "Course/Module 2", "Course/Module 10", "Course 2", "Course 10"])
         );
         assert_eq!(natural_path_cmp(Path::new(""), Path::new("a")), Ordering::Less);
+    }
+
+    #[test]
+    fn reads_a_folder_before_its_subfolders_and_each_subfolder_before_the_next() {
+        let paths = |list: &[&str]| -> Vec<PathBuf> { list.iter().map(|path| path.split('/').collect()).collect() };
+        let mut sorted = paths(&[
+            "Course 2/Video 1.mkv",
+            "Course_/Video 1.mkv",
+            "Course/Module 2/Video 1.mkv",
+            "Course/Zeta.mkv",
+            "Course/Module 1/Video 10.mkv",
+            "Course/Module 1/Video 2.mkv",
+            "Course/Intro.mkv",
+            "Root 10.mkv",
+            "Root 2.mkv",
+        ]);
+        sorted.sort_by(|a, b| reading_order_cmp(a, b));
+        assert_eq!(
+            sorted,
+            paths(&[
+                "Root 2.mkv",
+                "Root 10.mkv",
+                "Course/Intro.mkv",
+                "Course/Zeta.mkv",
+                "Course/Module 1/Video 2.mkv",
+                "Course/Module 1/Video 10.mkv",
+                "Course/Module 2/Video 1.mkv",
+                "Course 2/Video 1.mkv",
+                "Course_/Video 1.mkv",
+            ])
+        );
     }
 
     #[test]

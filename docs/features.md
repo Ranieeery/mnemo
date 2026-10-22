@@ -55,7 +55,7 @@ teclado e mouse (ver `CLAUDE.md`).
   reabre o último vídeo).
 - Ordenação natural (`Ep 2` antes de `Ep 10`), definida no backend e usada em tudo. Caminhos são comparados pasta a
   pasta, como numa árvore: cada pasta vem logo seguida das suas subpastas (`Course`, `Course\Module 1`, `Course 2`) nos
-  grupos do modo contínuo, na ordem de leitura e na busca por arquivo.
+  grupos do modo contínuo, nas prévias de pasta da home, na ordem de leitura e na busca por arquivo.
 - Sidebar redimensionável e recolhível:
   - a borda direita pode ser arrastada, ou focada e movida com `←`/`→` (16 px por tecla), entre 200 e 400 px, nunca
     mais de ⅓ da janela; uma janela estreita só a encolhe, sem mudar a largura salva; duplo clique volta a 240 px;
@@ -203,6 +203,10 @@ teclado e mouse (ver `CLAUDE.md`).
 ## Home
 - Continuar assistindo, sugestões (não assistidos), assistidos recentemente e prévia de cada pasta da biblioteca.
   O número de cards se adapta à largura da tela.
+- Prévia de pasta (`db/videos.rs` `folder_preview`; as pastas na ordem da sidebar, sem as vazias): vídeos não
+  iniciados, depois em andamento, depois assistidos, cada grupo na ordem do modo contínuo (`reading_order_cmp`: os
+  vídeos da pasta, depois cada subpasta seguida das suas), cortados no número de cards. Sem sumidos nem pastas
+  escondidas; uma pasta desconectada continua com a prévia.
 
 ## Player embutido
 - Controles com auto-hide, tela cheia, modo teatro (vídeo na largura da janela, detalhes e playlist abaixo), volume,

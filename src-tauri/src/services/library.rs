@@ -13,7 +13,7 @@ use crate::domain::models::{
     FileEntry, FolderContents, FolderPreview, FolderSummary, HomeData, LibraryFolder, SubfolderEntry, Video,
     VideoEntry, VideoGroup,
 };
-use crate::domain::natural_order::natural_path_cmp;
+use crate::domain::natural_order::reading_order_cmp;
 use crate::domain::paths::{is_within, relative_to};
 use crate::error::{AppError, AppResult};
 use crate::services::folder_order;
@@ -314,27 +314,23 @@ pub(crate) fn video_entry(file: PathBuf, records: &mut HashMap<String, Video>) -
     }
 }
 
-fn group_by_folder(root: &Path, files: Vec<PathBuf>, mut records: HashMap<String, Video>) -> Vec<VideoGroup> {
-    let mut by_folder: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+/// The files in reading order (the same order as the home previews), one group per run of files sharing a folder.
+fn group_by_folder(root: &Path, mut files: Vec<PathBuf>, mut records: HashMap<String, Video>) -> Vec<VideoGroup> {
+    files.sort_by(|a, b| reading_order_cmp(a, b));
+    let mut groups: Vec<VideoGroup> = Vec::new();
     for file in files {
-        let folder = file
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| root.to_path_buf());
-        by_folder.entry(folder).or_default().push(file);
-    }
-    let mut groups: Vec<VideoGroup> = by_folder
-        .into_iter()
-        .map(|(folder, mut files)| {
-            scanner::sort_by_name(&mut files);
-            VideoGroup {
+        let folder = file.parent().unwrap_or(root).to_path_buf();
+        let folder_path = folder.to_string_lossy().into_owned();
+        let entry = video_entry(file, &mut records);
+        match groups.last_mut() {
+            Some(group) if group.folder_path == folder_path => group.entries.push(entry),
+            _ => groups.push(VideoGroup {
                 relative_path: relative_to(&folder, root),
-                folder_path: folder.to_string_lossy().into_owned(),
-                entries: files.into_iter().map(|file| video_entry(file, &mut records)).collect(),
-            }
-        })
-        .collect();
-    groups.sort_by(|a, b| natural_path_cmp(Path::new(&a.relative_path), Path::new(&b.relative_path)));
+                folder_path,
+                entries: vec![entry],
+            }),
+        }
+    }
     groups
 }
 
@@ -789,6 +785,111 @@ mod tests {
             add_folder(&fixture.db, file).await,
             Err(AppError::InvalidInput(_))
         ));
+    }
+
+    /// A `Course` library folder with videos directly in it, sibling and nested subfolders and a name that prefixes
+    /// another, every video stored and not started. Returns its path.
+    async fn course_library(db: &Db, dir: &Path) -> String {
+        let files = [
+            "Course/Root 10.mkv",
+            "Course/Root 2.mkv",
+            "Course/Course/Video 10.mkv",
+            "Course/Course/Video 2.mkv",
+            "Course/Course/Module 1/Video 1.mkv",
+            "Course/Course/Module 1/Video 10.mkv",
+            "Course/Course/Module 1/Video 2.mkv",
+            "Course/Course/Module 2/Video 1.mkv",
+            "Course/Course/Private/Video 1.mkv",
+            "Course/Course 2/Video 1.mkv",
+            "Course/Course_/Video 1.mkv",
+        ];
+        let paths: Vec<String> = files.iter().map(|file| below(dir, file)).collect();
+        for path in &paths {
+            std::fs::create_dir_all(Path::new(path).parent().unwrap()).unwrap();
+            std::fs::write(path, b"").unwrap();
+        }
+        let root = below(dir, "Course");
+        add_folder(db, root.clone()).await.unwrap();
+        let hidden_folder = below(dir, "Course/Course/Private");
+        db.call(move |connection| {
+            for path in &paths {
+                let title = display_name(Path::new(path));
+                videos::insert(
+                    connection,
+                    &NewVideo {
+                        file_path: path,
+                        title: &title,
+                        duration_seconds: 60.0,
+                        thumbnail_path: None,
+                        identity: None,
+                    },
+                )?;
+            }
+            hidden::hide(connection, &hidden_folder)
+        })
+        .await
+        .unwrap();
+        root
+    }
+
+    /// `relative` (with `/` separators) below `dir`, with the platform's separators.
+    fn below(dir: &Path, relative: &str) -> String {
+        relative
+            .split('/')
+            .fold(dir.to_path_buf(), |path, part| path.join(part))
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    async fn preview_paths(db: &Db) -> Vec<String> {
+        let previews = home(db, MAX_HOME_SECTION).await.unwrap().folder_previews;
+        previews[0].videos.iter().map(|video| video.file_path.clone()).collect()
+    }
+
+    #[tokio::test]
+    async fn home_preview_follows_the_order_of_the_continuous_view() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open_in_memory().unwrap();
+        let root = course_library(&db, dir.path()).await;
+        set_view_mode(&db, root.clone(), Some(FolderViewMode::Continuous))
+            .await
+            .unwrap();
+        let continuous: Vec<String> = browse_folder(&db, root)
+            .await
+            .unwrap()
+            .groups
+            .into_iter()
+            .flat_map(|group| group.entries)
+            .map(|entry| entry.path)
+            .collect();
+
+        assert_eq!(continuous.len(), 10);
+        assert_eq!(preview_paths(&db).await, continuous);
+    }
+
+    #[tokio::test]
+    async fn home_preview_of_a_disconnected_folder_keeps_the_tree_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open_in_memory().unwrap();
+        let root = course_library(&db, dir.path()).await;
+        std::fs::remove_dir_all(&root).unwrap();
+
+        let expected: Vec<String> = [
+            "Root 2.mkv",
+            "Root 10.mkv",
+            "Course/Video 2.mkv",
+            "Course/Video 10.mkv",
+            "Course/Module 1/Video 1.mkv",
+            "Course/Module 1/Video 2.mkv",
+            "Course/Module 1/Video 10.mkv",
+            "Course/Module 2/Video 1.mkv",
+            "Course 2/Video 1.mkv",
+            "Course_/Video 1.mkv",
+        ]
+        .iter()
+        .map(|file| below(Path::new(&root), file))
+        .collect();
+        assert_eq!(preview_paths(&db).await, expected);
     }
 
     #[tokio::test]
