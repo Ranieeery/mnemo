@@ -130,7 +130,7 @@ src/
     │                   # visibilidade de pastas escondidas)
     ├── ipc/            # bindings gerados, client (`call()` → CommandError), queryKeys, queryClient, queries comuns
     ├── lib/            # funções puras (duração, bytes, caminhos, classes, parsers de legenda, debounce,
-    │                   # capitalize)
+    │                   # capitalize, direção de ordenação)
     ├── stores/         # Zustand: processamento em segundo plano e diálogos globais
     ├── styles/         # tokens (`@theme`) e estilos globais
     └── test/           # setup do Vitest, helpers, fixtures, stub de mídia
@@ -266,7 +266,9 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 ### Componentes
 
 Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interação: `Button`, `IconButton`, `Input`,
-`Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu`, `ContextMenu` (com submenu: `ContextMenuSub`),
+`Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu` (com `DropdownMenuSortItem`: campo de ordenação
+num radio group; escolher de novo inverte a direção, mostrada por uma seta e no nome acessível, e o menu fica aberto),
+`ContextMenu` (com submenu: `ContextMenuSub`),
 `Tooltip`, `Toast`, `Progress`,
 `Skeleton`, `Card`, `Tabs`, `Slider` (`compact` para volume), `Switch`, `Badge`/`Tag`, `EmptyState`, `ErrorState`, `Kbd`,
 `Spinner`, `FolderIcon`, `ScrollToTopButton`, `Popover` (painel flutuante não modal para uma edição rápida; `Esc` e o clique fora são
