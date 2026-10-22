@@ -3,6 +3,7 @@ import type { LibraryEntry } from "../../../shared/ipc/bindings";
 import { libraryFolderFixture, libraryGroupFixture, libraryLayoutFixture } from "../../../shared/test/fixtures";
 import {
     arrangementChanged,
+    atPinEdge,
     flatFolders,
     folderPosition,
     groupsOf,
@@ -10,6 +11,7 @@ import {
     mapFolders,
     mapGroup,
     moveToGroup,
+    pinnedFirst,
     stepFolder,
     stepGroup,
 } from "./folderLayout";
@@ -86,5 +88,42 @@ describe("library layout", () => {
         expect(arrangementChanged(library, [...library])).toBe(false);
         expect(arrangementChanged(library, moveToGroup(library, 4, 10))).toBe(true);
         expect(arrangementChanged(library, stepGroup(library, 20, -1) ?? [])).toBe(true);
+    });
+});
+
+describe("pinned items", () => {
+    /** Last and Courses pinned in the list, Wire in Series. */
+    const pinned = pinnedFirst(
+        libraryLayoutFixture(
+            [loose, dark, { ...wire, pinned: true }, { ...last, pinned: true }],
+            [series, { ...courses, pinned: true }]
+        )
+    );
+
+    it("go first in each list, each part keeping its order", () => {
+        expect(names(pinned)).toEqual(["Last", "Courses []", "Loose", "Series [Wire, Dark]"]);
+        expect(pinnedFirst(pinned)).toEqual(pinned);
+    });
+
+    it("move up and down only among themselves, and so do the others", () => {
+        expect(atPinEdge(pinned, { kind: "group", id: 20 }, 1)).toBe(true);
+        expect(stepGroup(pinned, 20, 1)).toBeNull();
+        expect(names(stepGroup(pinned, 20, -1))).toEqual(["Courses []", "Last", "Loose", "Series [Wire, Dark]"]);
+
+        expect(atPinEdge(pinned, { kind: "folder", id: 1 }, -1)).toBe(true);
+        expect(stepFolder(pinned, 1, -1)).toBeNull();
+        expect(names(stepFolder(pinned, 1, 1))).toEqual(["Last", "Courses []", "Series [Wire, Dark]", "Loose"]);
+
+        // Inside a group too; the edge of a list is no edge of the pinned items.
+        expect(stepFolder(pinned, 2, -1)).toBeNull();
+        expect(stepFolder(pinned, 3, 1)).toBeNull();
+        expect(atPinEdge(pinned, { kind: "folder", id: 3 }, -1)).toBe(false);
+        expect(atPinEdge(pinned, { kind: "folder", id: 4 }, -1)).toBe(false);
+        expect(atPinEdge(pinned, { kind: "folder", id: 99 }, 1)).toBe(false);
+    });
+
+    it("stay pinned when they change group, at the end of the pinned ones", () => {
+        expect(names(moveToGroup(pinned, 4, 10))).toEqual(["Courses []", "Loose", "Series [Wire, Last, Dark]"]);
+        expect(names(moveToGroup(pinned, 3, null))).toEqual(["Last", "Courses []", "Wire", "Loose", "Series [Dark]"]);
     });
 });

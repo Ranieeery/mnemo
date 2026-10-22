@@ -3,13 +3,13 @@
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
-use super::layout::{self, NEXT_TOP_LEVEL};
+use super::layout::{self, NEXT_PINNED_TOP_LEVEL, NEXT_TOP_LEVEL};
 use crate::domain::folder_order::ungrouped;
 use crate::domain::models::LibraryGroup;
 use crate::error::{AppError, AppResult};
 
 /// The columns [`map_group`] reads, in its order.
-const COLUMNS: &str = "id, name, collapsed, created_at";
+const COLUMNS: &str = "id, name, collapsed, created_at, pin_order IS NOT NULL";
 
 fn map_group(row: &Row) -> rusqlite::Result<LibraryGroup> {
     Ok(LibraryGroup {
@@ -17,6 +17,7 @@ fn map_group(row: &Row) -> rusqlite::Result<LibraryGroup> {
         name: row.get(1)?,
         collapsed: row.get(2)?,
         created_at: row.get(3)?,
+        pinned: row.get(4)?,
     })
 }
 
@@ -74,8 +75,23 @@ fn update(connection: &Connection, id: i64, sql: &str, value: impl rusqlite::ToS
     Ok(())
 }
 
-/// Deletes a group; its folders stay where it was, without a group. Returns how many folders it had. Call it inside
-/// a transaction.
+/// Pins a group at the end of the pinned items of the list, or unpins it. Its place in the custom order is kept, so
+/// unpinned it goes back there. Pinning a pinned group changes nothing. Call it inside a transaction.
+pub fn set_pinned(connection: &Connection, id: i64, pinned: bool) -> AppResult<()> {
+    update(
+        connection,
+        id,
+        &format!(
+            "UPDATE library_groups SET pin_order = CASE WHEN ?2 THEN COALESCE(pin_order, {NEXT_PINNED_TOP_LEVEL}) END
+             WHERE id = ?1"
+        ),
+        pinned,
+    )?;
+    layout::compact(connection)
+}
+
+/// Deletes a group; its folders stay where it was, without a group, each pinned or not as it was (pinned ones join
+/// the pinned items of the list). Returns how many folders it had. Call it inside a transaction.
 pub fn delete(connection: &Connection, id: i64) -> AppResult<i64> {
     find(connection, id)?;
     let folders: i64 = connection.query_row(
@@ -137,5 +153,36 @@ mod tests {
         );
         assert!(list(&connection).unwrap().is_empty());
         assert!(matches!(delete(&connection, series.id), Err(AppError::NotFound(_))));
+    }
+
+    #[test]
+    fn deleting_a_group_keeps_the_pins_of_its_folders() {
+        for pinned_group in [false, true] {
+            let connection = test_support::connection();
+            let first = folders::add(&connection, "First").unwrap().id;
+            let series = create(&connection, "Series").unwrap();
+            let last = folders::add(&connection, "Last").unwrap().id;
+            let show = folders::add(&connection, "Show").unwrap().id;
+            let other = folders::add(&connection, "Other").unwrap().id;
+            folders::move_to_group(&connection, show, Some(series.id)).unwrap();
+            folders::move_to_group(&connection, other, Some(series.id)).unwrap();
+            folders::set_pinned(&connection, first, true).unwrap();
+            folders::set_pinned(&connection, show, true).unwrap();
+            set_pinned(&connection, series.id, pinned_group).unwrap();
+
+            delete(&connection, series.id).unwrap();
+            // The pinned folder joins the pinned items; the other one takes the group's place among the rest.
+            assert_eq!(
+                layout::read(&connection).unwrap(),
+                [first, show, other, last].map(|id| LayoutEntry::Folder { id }),
+                "pinned group: {pinned_group}"
+            );
+            let pinned: Vec<bool> = folders::list(&connection)
+                .unwrap()
+                .iter()
+                .map(|folder| folder.pinned)
+                .collect();
+            assert_eq!(pinned, [true, false, true, false]);
+        }
     }
 }

@@ -4,7 +4,8 @@ Detalhes do banco. As regras gerais (WAL, local do `mnemo.db`, settings tipados,
 no `CLAUDE.md`.
 
 - Tabelas: `videos`, `tags`, `video_tags` (N:N, `ON DELETE CASCADE`), `library_folders` (com `custom_icon`, `icon_color`,
-  `sort_order`, `custom_name` e `group_id`), `library_groups` (`name`, `sort_order`, `collapsed`), `watch_history`,
+  `sort_order`, `custom_name`, `group_id` e `pin_order`), `library_groups` (`name`, `sort_order`, `collapsed`,
+  `pin_order`), `watch_history`,
   `app_settings`, `folder_settings`, `hidden_folders`.
 - Settings: `watched_threshold`, `watch_folders`, `recent_folder_icons`, `player_preferences` (campos ausentes recebem o padrão; campos inválidos, um a um),
   `keyboard_shortcuts` (ações ausentes recebem o padrão; teclas inválidas são descartadas ação por ação),
@@ -22,6 +23,11 @@ no `CLAUDE.md`.
   cria `library_groups` e adiciona `library_folders.group_id` (`ON DELETE SET NULL`, índice; vazio em bancos antigos).
   A `10` renumera `sort_order` para a lista única (pastas sem grupo e grupos numa sequência, as pastas de cada grupo
   em outra), mantendo a ordem exibida antes: as pastas sem grupo, depois os grupos; bancos sem grupos não mudam.
+  A `11` adiciona `pin_order` a `library_folders` e `library_groups` (`NULL`: não fixado; vazio em bancos antigos,
+  sem tocar no `sort_order`). Ele numera os fixados de cada lista como o `sort_order` (pastas sem grupo e grupos
+  juntos, as pastas de cada grupo à parte); o `sort_order` de um fixado é a vaga para onde ele volta ao ser
+  desfixado, e só muda quando ele troca de lista (`db/layout.rs`: `read` lista os fixados primeiro; `write` numera os
+  fixados na ordem pedida e dá aos outros as vagas que não são de fixados, `folder_order::with_return_slots`).
   `watch_progress_seconds` guarda segundos fracionários.
 - Vídeos cujo arquivo sumiu não são apagados: recebem `missing_since` (`db/presence.rs`) e somem da home, da busca, das
   estatísticas e das contagens por pasta (o histórico continua mostrando). Voltam com todos os dados se o arquivo
@@ -48,7 +54,9 @@ no `CLAUDE.md`.
   `collapsed`, `created_at`) e `group_id` em cada pasta: exports antigos importam sem grupos, um grupo com nome que o
   app recusaria é descartado e uma pasta com `group_id` que o arquivo não tem fica sem grupo. O `sort_order` segue a
   lista única (ver `db/layout.rs`), e o import renumera tudo (`layout::compact`), resolvendo posições repetidas pela
-  data de adição.
+  data de adição. `pin_order` (opcional, desde a 2.7) vai em cada pasta e grupo: exports antigos importam sem nada
+  fixado, um valor que não é inteiro importa como não fixado, e o import renumera os fixados de cada lista (empates
+  pelo `sort_order`); a pasta de um grupo descartado fica sem grupo e continua fixada, entre os fixados da lista.
 - O import descarta (com log) o que o app recusaria, em vez de falhar inteiro: em `settings`, cada campo ausente
   (`watchFolders` só existe desde a 2.3) ou inválido importa o padrão; `view_mode` desconhecido; tags com nome em
   branco (os nomes são normalizados como no app, sem o limite de tamanho, e tags que viram o mesmo nome se fundem); vídeos com id ou caminho

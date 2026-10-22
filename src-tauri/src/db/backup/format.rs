@@ -87,6 +87,10 @@ pub struct LibraryFolderRecord {
     /// Added in 2.5. A group missing from the file leaves the folder without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_id: Option<i64>,
+    /// Position among the pinned folders of its list, added in 2.7. Older exports, and values that are not a whole
+    /// number, import unpinned.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "known_or_none")]
+    pub pin_order: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -99,6 +103,10 @@ pub struct LibraryGroupRecord {
     pub collapsed: bool,
     #[serde(default)]
     pub created_at: Option<String>,
+    /// Position among the pinned items of the list, added in 2.7. Older exports, and values that are not a whole
+    /// number, import unpinned.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "known_or_none")]
+    pub pin_order: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

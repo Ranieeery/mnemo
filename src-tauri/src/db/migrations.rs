@@ -167,6 +167,14 @@ FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY sort_order, created_at, id) - 1 AS 
 WHERE ranked.id = library_groups.id;
 "#;
 
+/// Version 2.7: library folders and groups can be pinned to the top of their list. `pin_order` is the place in the
+/// pinned block of that list (`NULL`: not pinned), apart from `sort_order`, which keeps the place an item goes back to
+/// when unpinned. Every existing item starts unpinned, in the order it had.
+const PINNED_LIBRARY_ITEMS: &str = r#"
+ALTER TABLE library_folders ADD COLUMN pin_order INTEGER;
+ALTER TABLE library_groups ADD COLUMN pin_order INTEGER;
+"#;
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(BASELINE, add_missing_legacy_columns),
@@ -179,6 +187,7 @@ fn migrations() -> Migrations<'static> {
         M::up(FOLDER_CUSTOM_NAME),
         M::up(LIBRARY_GROUPS),
         M::up(SHARED_LIBRARY_ORDER),
+        M::up(PINNED_LIBRARY_ITEMS),
     ])
 }
 
@@ -322,7 +331,7 @@ mod tests {
         let mut connection = Connection::open(path).unwrap();
         let before = table_counts(&connection);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 10);
+        assert_eq!(user_version(&connection), 11);
         let after = table_counts(&connection);
         assert_eq!(after[0], before[0], "videos");
         assert_eq!(after[1], before[1], "tags");
@@ -346,7 +355,7 @@ mod tests {
     fn creates_the_full_schema_on_an_empty_database() {
         let mut connection = Connection::open_in_memory().unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 10);
+        assert_eq!(user_version(&connection), 11);
         for table in [
             "videos",
             "tags",
@@ -478,6 +487,67 @@ mod tests {
     }
 
     #[test]
+    fn legacy_library_folders_start_unpinned() {
+        let mut connection = legacy_database(true);
+        run(&mut connection).unwrap();
+        let pinned: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM library_folders WHERE pin_order IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pinned, 0);
+        assert!(columns(&connection, "library_groups").contains(&"pin_order".to_owned()));
+        assert_legacy_data_preserved(&connection);
+    }
+
+    #[test]
+    fn folders_and_groups_start_unpinned_keeping_their_order() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrations().to_version(&mut connection, 10).unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO library_groups (id, name, sort_order, collapsed) VALUES (1, 'Series', 1, 1);
+                 INSERT INTO library_folders (id, path, sort_order, group_id, custom_name) VALUES
+                     (1, 'A', 0, NULL, 'Anime'), (2, 'B', 0, 1, NULL), (3, 'C', 2, NULL, NULL), (4, 'D', 1, 1, NULL);",
+            )
+            .unwrap();
+        let rows = |connection: &Connection, sql: &str| -> Vec<(i64, i64, Option<i64>)> {
+            let mut statement = connection.prepare(sql).unwrap();
+            statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let folders_before = rows(
+            &connection,
+            "SELECT id, sort_order, group_id FROM library_folders ORDER BY id",
+        );
+        run(&mut connection).unwrap();
+
+        assert_eq!(
+            rows(
+                &connection,
+                "SELECT id, sort_order, group_id FROM library_folders ORDER BY id"
+            ),
+            folders_before
+        );
+        assert_eq!(
+            rows(&connection, "SELECT id, sort_order, pin_order FROM library_groups"),
+            [(1, 1, None)]
+        );
+        assert_eq!(
+            rows(
+                &connection,
+                "SELECT id, sort_order, pin_order FROM library_folders WHERE pin_order IS NOT NULL"
+            ),
+            []
+        );
+    }
+
+    #[test]
     fn legacy_library_folders_keep_the_order_they_were_listed_in() {
         let mut connection = legacy_database(true);
         connection
@@ -520,7 +590,7 @@ mod tests {
     fn upgrades_the_latest_legacy_schema_without_losing_data() {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 10);
+        assert_eq!(user_version(&connection), 11);
         assert_legacy_data_preserved(&connection);
     }
 
@@ -590,7 +660,7 @@ mod tests {
         let mut connection = legacy_database(true);
         run(&mut connection).unwrap();
         run(&mut connection).unwrap();
-        assert_eq!(user_version(&connection), 10);
+        assert_eq!(user_version(&connection), 11);
         assert_legacy_data_preserved(&connection);
     }
 

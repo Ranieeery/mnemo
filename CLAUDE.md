@@ -268,7 +268,8 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
 Em `src/shared/ui` (exportados por `index.ts`), sobre Radix quando há interação: `Button`, `IconButton`, `Input`,
 `Textarea`, `SearchInput`, `Dialog`, `ConfirmDialog`, `DropdownMenu` (com `DropdownMenuSortItem`: campo de ordenação
 num radio group; escolher de novo inverte a direção, mostrada por uma seta e no nome acessível, e o menu fica aberto),
-`ContextMenu` (com submenu: `ContextMenuSub`),
+`ContextMenu` (com submenu: `ContextMenuSub`; `ContextMenuItem` desabilitado com `disabledReason` usa `aria-disabled`,
+continua alcançável pelas setas, mostra o motivo num tooltip e não age),
 `Tooltip`, `Toast`, `Progress`,
 `Skeleton`, `Card`, `Tabs`, `Slider` (`compact` para volume), `Switch`, `Badge`/`Tag`, `EmptyState`, `ErrorState`, `Kbd`,
 `Spinner`, `FolderIcon`, `ScrollToTopButton`, `Popover` (painel flutuante não modal para uma edição rápida; `Esc` e o clique fora são

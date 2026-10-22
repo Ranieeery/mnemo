@@ -20,6 +20,16 @@ export const commands = {
 	 *  group); unknown ids are ignored. Returns the library in the new order.
 	 */
 	arrangeLibrary: (entries: LayoutEntry[]) => typedError<LibraryEntry[], IpcError>(__TAURI_INVOKE("arrange_library", { entries })),
+	/**
+	 *  Pins a library folder to the top of its list (its group's, or the library's), or unpins it; the sort mode is
+	 *  kept. Returns the library in the new order.
+	 */
+	setLibraryFolderPinned: (folderId: number, pinned: boolean) => typedError<LibraryEntry[], IpcError>(__TAURI_INVOKE("set_library_folder_pinned", { folderId, pinned })),
+	/**
+	 *  Pins a group to the top of the library, or unpins it; the sort mode is kept. Returns the library in the new
+	 *  order.
+	 */
+	setLibraryGroupPinned: (groupId: number, pinned: boolean) => typedError<LibraryEntry[], IpcError>(__TAURI_INVOKE("set_library_group_pinned", { groupId, pinned })),
 	/**  Creates a group at the end of the list; with `folder_id`, that folder moves into it at the same time. */
 	createLibraryGroup: (name: string, folderId: number | null) => typedError<LibraryGroup, IpcError>(__TAURI_INVOKE("create_library_group", { name, folderId })),
 	renameLibraryGroup: (id: number, name: string) => typedError<LibraryGroup, IpcError>(__TAURI_INVOKE("rename_library_group", { id, name })),
@@ -447,6 +457,8 @@ export type LibraryFolder = {
 	customName: string | null,
 	/**  The group it is listed in, if any. */
 	groupId: number | null,
+	/**  Listed at the top of its list (its group's, or the library's). */
+	pinned: boolean,
 	customIcon: string | null,
 	/**  `None` draws the icon in the surrounding text color. */
 	iconColor: FolderColor | null,
@@ -480,6 +492,8 @@ export type LibraryGroup = {
 	name: string,
 	/**  Its folders are hidden in the expanded sidebar (the rail always shows them). */
 	collapsed: boolean,
+	/**  Listed at the top of the library, above the items not pinned. */
+	pinned: boolean,
 	createdAt: string,
 };
 

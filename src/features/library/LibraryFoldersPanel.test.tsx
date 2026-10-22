@@ -27,6 +27,18 @@ describe("LibraryFoldersPanel", () => {
         expect(screen.getByText(/Not connected\. Its videos and progress are kept/)).toBeInTheDocument();
     });
 
+    it("lists the folders in the order of the sidebar, pinned ones first", async () => {
+        mockCommands({
+            list_library_folders: [{ ...external, pinned: true }, series, share],
+            get_library_folder_statuses: [],
+        });
+        renderScreen(<LibraryFoldersPanel />);
+
+        await screen.findByText("Anime");
+        const names = screen.getAllByText(/^(Anime|Series|Movies)$/).map((element) => element.textContent);
+        expect(names).toEqual(["Anime", "Series", "Movies"]);
+    });
+
     it("says when there are no folders yet", async () => {
         mockCommands({ list_library_folders: [], get_library_folder_statuses: [] });
         renderScreen(<LibraryFoldersPanel />);

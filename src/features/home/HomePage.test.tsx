@@ -41,6 +41,26 @@ describe("HomePage", () => {
         expect(screen.getByRole("button", { name: "From the folder" })).toBeInTheDocument();
     });
 
+    it("previews the folders in the order of the sidebar, pinned ones first", async () => {
+        const anime = libraryFolderFixture({ id: 1, path: "D:\\Anime", name: "Anime" });
+        const series = libraryFolderFixture({ id: 2, path: "D:\\Series", name: "Series", pinned: true });
+        mockCommands({
+            list_library_folders: [series, anime],
+            get_home: {
+                ...emptyHome,
+                folderPreviews: [
+                    { folder: series, videos: [videoFixture({ id: 1, title: "Pilot" })] },
+                    { folder: anime, videos: [videoFixture({ id: 2, title: "Opening" })] },
+                ],
+            } satisfies HomeData,
+        });
+        renderHome();
+
+        await screen.findByRole("heading", { level: 2, name: /Series/ });
+        const previews = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+        expect(previews.filter((name) => name === "Series" || name === "Anime")).toEqual(["Series", "Anime"]);
+    });
+
     it("invites to add a folder when the library is empty", async () => {
         mockCommands({ list_library_folders: [], get_home: emptyHome });
         renderHome();

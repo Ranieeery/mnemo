@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowDown, ArrowUp, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { LibraryGroup } from "../../../shared/ipc/bindings";
 import { cx } from "../../../shared/lib/cx";
@@ -15,11 +15,11 @@ import {
 } from "../../../shared/ui";
 import { useDeleteLibraryGroup, useRenameLibraryGroup, useSetLibraryGroupCollapsed } from "../groupQueries";
 import { groupRowId } from "../lib/libraryRows";
-import { HOLD_TO_DRAG_MS } from "./LibraryFolderItem";
+import { HOLD_TO_DRAG_MS, type ListItemControls } from "./LibraryFolderItem";
 import { type NameDone, NameField } from "./NameField";
 import { useNewGroup } from "./NewGroupContext";
 
-type LibraryGroupHeaderProps = {
+type LibraryGroupHeaderProps = ListItemControls & {
     group: LibraryGroup;
     /** How many folders it has, shown so a collapsed group still tells what it holds. */
     count: number;
@@ -48,6 +48,11 @@ export function LibraryGroupHeader({
     held,
     onMoveUp,
     onMoveDown,
+    onTogglePin,
+    focusRequested,
+    onFocused,
+    moveUpReason,
+    moveDownReason,
 }: LibraryGroupHeaderProps) {
     const [renaming, setRenaming] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
@@ -74,6 +79,13 @@ export function LibraryGroupHeader({
             buttonRef.current?.focus();
         }
     }, [focusGroupId, group.id, clearFocusGroup]);
+
+    useEffect(() => {
+        if (focusRequested) {
+            buttonRef.current?.focus();
+            onFocused();
+        }
+    }, [focusRequested, onFocused]);
 
     useEffect(() => {
         if (!renaming && focusAfterRename.current) {
@@ -149,10 +161,13 @@ export function LibraryGroupHeader({
                                 )}
                             />
                             <span className="line-clamp-2 min-w-0 flex-1 break-words">{group.name}</span>
+                            {group.pinned && <Pin aria-hidden className="size-3 shrink-0 text-text-subtle" />}
                             <span aria-hidden className="text-caption text-text-subtle tabular-nums">
                                 {count}
                             </span>
-                            <span className="sr-only">, {plural(count, "folder")}</span>
+                            <span className="sr-only">
+                                {group.pinned && ", pinned"}, {plural(count, "folder")}
+                            </span>
                             {held && (
                                 <span
                                     aria-hidden
@@ -180,12 +195,25 @@ export function LibraryGroupHeader({
                         >
                             Rename group
                         </ContextMenuItem>
+                        <ContextMenuItem icon={group.pinned ? <PinOff /> : <Pin />} onSelect={onTogglePin}>
+                            {group.pinned ? "Unpin" : "Pin"}
+                        </ContextMenuItem>
                         {sortable && (
                             <>
-                                <ContextMenuItem icon={<ArrowUp />} disabled={!onMoveUp} onSelect={onMoveUp}>
+                                <ContextMenuItem
+                                    icon={<ArrowUp />}
+                                    disabled={!onMoveUp}
+                                    disabledReason={moveUpReason}
+                                    onSelect={onMoveUp}
+                                >
                                     Move up
                                 </ContextMenuItem>
-                                <ContextMenuItem icon={<ArrowDown />} disabled={!onMoveDown} onSelect={onMoveDown}>
+                                <ContextMenuItem
+                                    icon={<ArrowDown />}
+                                    disabled={!onMoveDown}
+                                    disabledReason={moveDownReason}
+                                    onSelect={onMoveDown}
+                                >
                                     Move down
                                 </ContextMenuItem>
                             </>

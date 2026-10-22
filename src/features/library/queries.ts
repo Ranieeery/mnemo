@@ -15,7 +15,7 @@ import { joinPath, relativeSegments } from "../../shared/lib/paths";
 import { plural } from "../../shared/lib/plural";
 import { processFolder } from "../../shared/stores/processing";
 import { toast } from "../../shared/ui";
-import { flatFolders, layoutOf, mapFolders } from "./lib/folderLayout";
+import { flatFolders, type LibraryItem, layoutOf, mapFolders } from "./lib/folderLayout";
 import { renamed } from "./lib/rename";
 
 /** Asks for a folder with the native dialog, adds it and starts reading its videos in the background. */
@@ -146,9 +146,11 @@ export function useLibraryFolderSort() {
     });
 }
 
-/** Shows the library in the order the backend returned, wherever it is listed. */
-async function showLibraryOrder(queryClient: QueryClient, sort: LibraryFolderSort, entries: LibraryEntry[]) {
-    queryClient.setQueryData(queryKeys.libraryFolderSort(), sort);
+/** Shows the library in the order the backend returned, wherever it is listed, and the sort mode it is in if given. */
+async function showLibraryOrder(queryClient: QueryClient, sort: LibraryFolderSort | null, entries: LibraryEntry[]) {
+    if (sort) {
+        queryClient.setQueryData(queryKeys.libraryFolderSort(), sort);
+    }
     queryClient.setQueryData(queryKeys.libraryLayout(), entries);
     queryClient.setQueryData(queryKeys.libraryFolders(), flatFolders(entries));
     // The home lists its folder previews in the same order.
@@ -196,6 +198,30 @@ export function useArrangeLibrary() {
             queryClient.setQueryData(queryKeys.libraryFolders(), previous?.folders);
             queryClient.setQueryData(queryKeys.libraryFolderSort(), previous?.sort);
             toast({ title: `Could not move the ${moved}`, description: errorMessage(error), tone: "danger" });
+        },
+    });
+}
+
+/**
+ * Pins a folder or a group to the top of its list, or unpins it, keeping the sort mode. It waits for the backend,
+ * which keeps where an unpinned item goes back to.
+ */
+export function useSetLibraryItemPinned() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ item, pinned }: { item: LibraryItem; pinned: boolean }) =>
+            call(
+                item.kind === "folder"
+                    ? commands.setLibraryFolderPinned(item.id, pinned)
+                    : commands.setLibraryGroupPinned(item.id, pinned)
+            ),
+        onSuccess: (entries) => showLibraryOrder(queryClient, null, entries),
+        onError: (error, { item, pinned }) => {
+            toast({
+                title: `Could not ${pinned ? "pin" : "unpin"} the ${item.kind}`,
+                description: errorMessage(error),
+                tone: "danger",
+            });
         },
     });
 }

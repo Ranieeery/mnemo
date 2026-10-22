@@ -10,6 +10,7 @@ import {
     menuSeparatorClasses,
     menuShortcutClasses,
 } from "./menuStyles";
+import { Tooltip } from "./Tooltip";
 
 /** Right-click menu. Also opens from the keyboard (context menu key / Shift+F10) on the focused trigger. */
 export const ContextMenu = Primitive.Root;
@@ -27,25 +28,46 @@ type ContextMenuItemProps = ComponentProps<typeof Primitive.Item> & {
     icon?: ReactNode;
     shortcut?: string;
     tone?: "default" | "danger";
+    /**
+     * Why it is disabled, shown in a tooltip. With it, a disabled item stays reachable (`aria-disabled`, like a
+     * disabled `IconButton`), so the pointer and the arrow keys get to the reason, and choosing it does nothing.
+     */
+    disabledReason?: string;
 };
 
 export function ContextMenuItem({
     icon,
     shortcut,
     tone = "default",
+    disabled,
+    disabledReason,
+    onSelect,
     className,
     children,
     ...props
 }: ContextMenuItemProps) {
-    return (
+    const explained = disabled === true && disabledReason !== undefined;
+    const item = (
         <Primitive.Item
             className={cx(menuItemClasses, tone === "danger" && menuDangerItemClasses, className)}
+            disabled={disabled && !explained}
+            // Set here also for a plain disabled item: this prop replaces the one Radix sets.
+            aria-disabled={disabled || undefined}
+            // Keeps the menu open, as a disabled item would.
+            onSelect={explained ? (event) => event.preventDefault() : onSelect}
             {...props}
         >
             {icon}
             {children}
             {shortcut && <span className={menuShortcutClasses}>{shortcut}</span>}
         </Primitive.Item>
+    );
+    return explained ? (
+        <Tooltip content={disabledReason} side="right">
+            {item}
+        </Tooltip>
+    ) : (
+        item
     );
 }
 

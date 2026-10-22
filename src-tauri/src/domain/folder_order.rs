@@ -1,8 +1,10 @@
 //! The order the library is listed in: the sidebar, the rail, the home page and Settings. Folders without a group
-//! and groups share one list; each group keeps its folders in a list of their own.
+//! and groups share one list; each group keeps its folders in a list of their own. Pinned items come first in their
+//! list, in every sort mode.
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -35,6 +37,7 @@ struct SortKey<'a> {
     is_group: bool,
     id: i64,
     last_watched: Option<&'a str>,
+    pinned: bool,
 }
 
 fn folder_key<'a>(folder: &'a LibraryFolder, last_watched: &'a HashMap<i64, String>) -> SortKey<'a> {
@@ -45,6 +48,7 @@ fn folder_key<'a>(folder: &'a LibraryFolder, last_watched: &'a HashMap<i64, Stri
         is_group: false,
         id: folder.id,
         last_watched: last_watched.get(&folder.id).map(String::as_str),
+        pinned: folder.pinned,
     }
 }
 
@@ -61,6 +65,7 @@ fn entry_key<'a>(entry: &'a LibraryEntry, last_watched: &'a HashMap<i64, String>
                 .iter()
                 .filter_map(|folder| last_watched.get(&folder.id).map(String::as_str))
                 .max(),
+            pinned: group.pinned,
         },
     }
 }
@@ -103,12 +108,15 @@ fn comparator(sort: LibraryFolderSort) -> Option<fn(&SortKey, &SortKey) -> Order
     }
 }
 
-/// Sorts the library, given in the custom order: the items of the list, and the folders inside each group.
-/// `last_watched` maps folder ids to the latest `last_watched_at` of their videos and is only read for
-/// `RecentlyWatched`.
+/// Sorts the library, given in the custom order: the items of the list, and the folders inside each group. Pinned
+/// items go first, sorted among themselves the same way (in `Custom`, keeping their stored order). `last_watched`
+/// maps folder ids to the latest `last_watched_at` of their videos and is only read for `RecentlyWatched`.
 pub fn sort_entries(entries: &mut [LibraryEntry], sort: LibraryFolderSort, last_watched: &HashMap<i64, String>) {
-    let Some(compare) = comparator(sort) else {
-        return;
+    let mode = comparator(sort);
+    let compare = |a: &SortKey, b: &SortKey| {
+        b.pinned
+            .cmp(&a.pinned)
+            .then_with(|| mode.map_or(Ordering::Equal, |compare| compare(a, b)))
     };
     for entry in entries.iter_mut() {
         if let LibraryEntry::Group { folders, .. } = entry {
@@ -116,6 +124,31 @@ pub fn sort_entries(entries: &mut [LibraryEntry], sort: LibraryFolderSort, last_
         }
     }
     entries.sort_by(|a, b| compare(&entry_key(a, last_watched), &entry_key(b, last_watched)));
+}
+
+/// One list of the custom order (the library's, or a group's) by the places its items go back to when unpinned,
+/// after it was `arranged`: each pinned item still in the list keeps its place in `stored`, and the items not pinned
+/// take the other places in their new order. Items new to the list go last (the pinned ones after the others).
+pub fn with_return_slots<T: Copy + Eq + Hash>(stored: &[T], arranged: &[T], is_pinned: impl Fn(&T) -> bool) -> Vec<T> {
+    let listed: HashSet<T> = arranged.iter().copied().collect();
+    let mut unpinned = arranged.iter().copied().filter(|item| !is_pinned(item));
+    let mut order = Vec::with_capacity(arranged.len());
+    for slot in stored {
+        if is_pinned(slot) && listed.contains(slot) {
+            order.push(*slot);
+        } else if let Some(item) = unpinned.next() {
+            order.push(item);
+        }
+    }
+    order.extend(unpinned);
+    let placed: HashSet<T> = stored.iter().copied().collect();
+    order.extend(
+        arranged
+            .iter()
+            .copied()
+            .filter(|item| is_pinned(item) && !placed.contains(item)),
+    );
+    order
 }
 
 /// The library in the stored `layout`, with the folders and groups it names. Ids that do not exist are skipped, and
@@ -246,6 +279,7 @@ mod tests {
             folder_name: name.to_owned(),
             custom_name: None,
             group_id: None,
+            pinned: false,
             custom_icon: None,
             icon_color: None,
             created_at: Some(created_at.to_owned()),
@@ -258,6 +292,7 @@ mod tests {
                 id,
                 name: name.to_owned(),
                 collapsed: false,
+                pinned: false,
                 created_at: created_at.to_owned(),
             },
             folders: folders
@@ -472,6 +507,7 @@ mod tests {
             id: 10,
             name: "G".into(),
             collapsed: true,
+            pinned: false,
             created_at: "x".into(),
         }];
         let layout = [
@@ -530,5 +566,92 @@ mod tests {
             ungrouped(layout, 10),
             [layout_folder(1), layout_folder(2), layout_folder(3), layout_folder(4)]
         );
+    }
+
+    /// `mixed`, with `Anime` and `Courses` pinned in the list and `Dark` pinned in `Series`.
+    fn mixed_with_pins() -> Vec<LibraryEntry> {
+        let mut entries = mixed();
+        for entry in entries.iter_mut() {
+            match entry {
+                LibraryEntry::Folder { folder } => folder.pinned = folder.name == "Anime",
+                LibraryEntry::Group { group, folders } => {
+                    group.pinned = group.name == "Courses";
+                    for folder in folders.iter_mut() {
+                        folder.pinned = folder.name == "Dark";
+                    }
+                }
+            }
+        }
+        entries
+    }
+
+    #[test]
+    fn pinned_items_go_first_in_their_list_in_every_mode() {
+        let last_watched = HashMap::from([
+            (1, "2025-03-01 08:00:00".to_owned()),
+            (2, "2025-03-02 08:00:00".to_owned()),
+        ]);
+        let cases = [
+            (
+                LibraryFolderSort::Custom,
+                ["Anime", "Courses []", "Movies", "Series [Dark, Wire]"],
+            ),
+            (
+                LibraryFolderSort::NameAscending,
+                ["Anime", "Courses []", "Movies", "Series [Dark, Wire]"],
+            ),
+            (
+                LibraryFolderSort::NameDescending,
+                ["Courses []", "Anime", "Series [Dark, Wire]", "Movies"],
+            ),
+            (
+                LibraryFolderSort::OldestFirst,
+                ["Anime", "Courses []", "Series [Dark, Wire]", "Movies"],
+            ),
+            (
+                LibraryFolderSort::NewestFirst,
+                ["Courses []", "Anime", "Movies", "Series [Dark, Wire]"],
+            ),
+            // Watched folders do not pass the pinned ones, inside a group either.
+            (
+                LibraryFolderSort::RecentlyWatched,
+                ["Anime", "Courses []", "Series [Dark, Wire]", "Movies"],
+            ),
+        ];
+        for (sort, expected) in cases {
+            let mut entries = mixed_with_pins();
+            sort_entries(&mut entries, sort, &last_watched);
+            assert_eq!(names(&entries), expected, "{sort:?}");
+        }
+    }
+
+    #[test]
+    fn custom_keeps_the_stored_order_of_the_pinned_items_too() {
+        let mut entries = mixed_with_pins();
+        entries.reverse();
+        sort_entries(&mut entries, LibraryFolderSort::Custom, &HashMap::new());
+        assert_eq!(
+            names(&entries),
+            ["Courses []", "Anime", "Series [Dark, Wire]", "Movies"]
+        );
+    }
+
+    #[test]
+    fn pinned_items_keep_the_place_they_go_back_to() {
+        let pinned = |item: &char| item.is_ascii_uppercase();
+        let stored = ['a', 'B', 'c', 'd', 'E'];
+        // The items not pinned reordered, the pinned ones too: B and E stay where they were.
+        assert_eq!(
+            with_return_slots(&stored, &['E', 'B', 'd', 'c', 'a'], pinned),
+            ['d', 'B', 'c', 'a', 'E']
+        );
+        // `c` left the list and `f` came in: the free place goes to the next item; new items go last, pinned ones
+        // after the others.
+        assert_eq!(
+            with_return_slots(&stored, &['B', 'G', 'E', 'f', 'a', 'd'], pinned),
+            ['f', 'B', 'a', 'd', 'E', 'G']
+        );
+        assert_eq!(with_return_slots(&[], &['a', 'B'], pinned), ['a', 'B']);
+        assert!(with_return_slots(&stored, &[], pinned).is_empty());
     }
 }

@@ -4,7 +4,7 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter};
 
 use super::hidden::VISIBLE;
-use super::layout::{self, NEXT_TOP_LEVEL};
+use super::layout::{self, NEXT_PINNED_TOP_LEVEL, NEXT_TOP_LEVEL};
 use super::videos::within_except;
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_view::FolderViewMode;
@@ -14,7 +14,7 @@ use crate::domain::paths::FolderBounds;
 use crate::error::{AppError, AppResult};
 
 /// The columns [`map_folder`] reads, in its order.
-const COLUMNS: &str = "id, path, custom_icon, created_at, icon_color, custom_name, group_id";
+const COLUMNS: &str = "id, path, custom_icon, created_at, icon_color, custom_name, group_id, pin_order IS NOT NULL";
 
 fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
     let path: String = row.get(1)?;
@@ -27,6 +27,7 @@ fn map_folder(row: &Row) -> rusqlite::Result<LibraryFolder> {
         folder_name,
         custom_name,
         group_id: row.get(6)?,
+        pinned: row.get(7)?,
         path,
         custom_icon: row.get::<_, Option<String>>(2)?.filter(|icon| !icon.is_empty()),
         // A name this version does not know (written by a newer one, or by hand) shows the default color.
@@ -82,8 +83,8 @@ pub fn remove(connection: &Connection, path: &str) -> AppResult<()> {
     layout::compact(connection)
 }
 
-/// Puts a folder at the end of a group, or with `None` at the end of the list, closing the gap it leaves. Call it
-/// inside a transaction.
+/// Puts a folder at the end of a group, or with `None` at the end of the list, closing the gap it leaves. A pinned
+/// folder stays pinned, at the end of the pinned folders there. Call it inside a transaction.
 pub fn move_to_group(connection: &Connection, id: i64, group_id: Option<i64>) -> AppResult<()> {
     let changed = connection.execute(
         &format!(
@@ -91,10 +92,37 @@ pub fn move_to_group(connection: &Connection, id: i64, group_id: Option<i64>) ->
              SET sort_order = CASE WHEN ?2 IS NULL THEN {NEXT_TOP_LEVEL}
                  ELSE (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM library_folders WHERE group_id = ?2 AND id <> ?1)
                  END,
+                 pin_order = CASE WHEN pin_order IS NULL THEN NULL
+                 WHEN ?2 IS NULL THEN {NEXT_PINNED_TOP_LEVEL}
+                 ELSE (SELECT COALESCE(MAX(pin_order) + 1, 0) FROM library_folders WHERE group_id = ?2 AND id <> ?1)
+                 END,
                  group_id = ?2
              WHERE id = ?1"
         ),
         params![id, group_id],
+    )?;
+    if changed == 0 {
+        return Err(AppError::NotFound(format!("library folder {id}")));
+    }
+    layout::compact(connection)
+}
+
+/// Pins a folder at the end of the pinned folders of its list (its group's, or the library's), or unpins it. Its
+/// place in the custom order is kept, so unpinned it goes back there. Pinning a pinned folder changes nothing. Call
+/// it inside a transaction.
+pub fn set_pinned(connection: &Connection, id: i64, pinned: bool) -> AppResult<()> {
+    let changed = connection.execute(
+        &format!(
+            "UPDATE library_folders
+             SET pin_order = CASE WHEN NOT ?2 THEN NULL
+                 WHEN pin_order IS NOT NULL THEN pin_order
+                 WHEN group_id IS NULL THEN {NEXT_PINNED_TOP_LEVEL}
+                 ELSE (SELECT COALESCE(MAX(pin_order) + 1, 0) FROM library_folders AS other
+                       WHERE other.group_id = library_folders.group_id)
+                 END
+             WHERE id = ?1"
+        ),
+        params![id, pinned],
     )?;
     if changed == 0 {
         return Err(AppError::NotFound(format!("library folder {id}")));

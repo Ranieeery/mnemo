@@ -61,7 +61,8 @@ teclado e mouse (ver `CLAUDE.md`).
     mais de ⅓ da janela; uma janela estreita só a encolhe, sem mudar a largura salva; duplo clique volta a 240 px;
   - o botão no topo (`aria-expanded`, tooltip "Collapse sidebar"/"Expand sidebar") a recolhe para um rail de ícones
     (56 px): Home, History, "Add folder", o ícone de cada pasta (nome no tooltip, status como selo no canto, menu de
-    contexto mantido) e Settings. O rail mantém toda a navegação a um clique;
+    contexto mantido; os fixados primeiro, separados por uma linha) e Settings. O rail mantém toda a navegação a um
+    clique;
   - a transição da largura usa `--duration-base` (zerada com `prefers-reduced-motion`);
   - largura e estado ficam salvos entre sessões; na primeira abertura ela começa expandida, com 240 px.
 - Nomes longos de pastas na sidebar expandida quebram em até duas linhas e terminam com reticências. Só quando o nome
@@ -112,7 +113,27 @@ teclado e mouse (ver `CLAUDE.md`).
     transação; o que o pedido deixa de fora fica depois, no grupo em que estava). É otimista, com rollback e toast.
     Com uma pasta só e sem grupos, não há arraste nem "Move up/down";
   - pastas e grupos novos vão para o fim da lista; remover renumera sem lacunas; realocar mantém a posição; uma pasta
-    desconectada continua no lugar e pode ser movida.
+    desconectada continua no lugar e pode ser movida;
+  - fixar ("Pin"/"Unpin" no menu de contexto da pasta, na sidebar e no rail, e do cabeçalho do grupo; sem atalho
+    próprio, sem limite): o item vai para o topo da **sua** lista (a pasta de um grupo, para o topo do grupo, sem
+    sair dele; o grupo, para o topo da lista principal). Os fixados seguem entre si o modo ativo (em "Custom order",
+    uma ordem manual própria) e os outros, abaixo, a mesma regra à parte (`folder_order::sort_entries`). Fixar põe
+    no fim dos fixados; desfixar volta à posição natural do modo (em Custom, à vaga guardada: `sort_order` não muda
+    enquanto fixado, nem ao arrastar os outros). O pin é do item: mudar de grupo ou "Remove from group" mantém
+    fixada (no fim dos fixados da lista nova, e a vaga de retorno passa a ser o fim dela); excluir um grupo põe as
+    pastas fixadas dele no fim dos fixados da lista (num grupo fixado, onde ele estava) e as outras no lugar do grupo
+    (num grupo fixado, logo abaixo da linha). Pastas escondidas e desconectadas podem ser fixadas. Um grupo recolhido
+    não mostra suas fixadas; para vê-las, fixe o grupo;
+  - arrastar e "Move up/down" não cruzam a fronteira: soltar ao lado do outro bloco deixa o item na borda do seu
+    (`lib/folderLayout` `pinnedFirst`; a vaga não abre e o anúncio diz "Pinned items stay above the others."), e
+    "Move up/down" na borda ficam desabilitados com o motivo num tooltip (`ContextMenuItem` `disabledReason`). Só
+    "Pin"/"Unpin" trocam de lado;
+  - na sidebar expandida, um `Pin` discreto no item e no cabeçalho, e uma linha (`PinnedDivider`) entre os fixados e
+    o resto, na lista e dentro de grupos; no rail, os ícones fixados vêm primeiro e uma linha os separa (quando o
+    bloco termina num grupo, a linha de fim dele basta), e o tooltip diz "Pinned". O nome acessível diz ", pinned";
+    depois de fixar ou desfixar (não otimista: o backend sabe a vaga de retorno), o foco segue o item até o lugar
+    novo e uma região `status` anuncia "Anime pinned to the top." (de um grupo: "... to the top of Series.") ou
+    "Anime unpinned.". Sem toast de sucesso (a mudança é visível); a falha dá toast.
 - Grupos de pastas da biblioteca (`services/library_groups`, `db/groups.rs`; nome validado como o nome personalizado,
   `normalize_group_name`, mas nunca vazio; nomes repetidos são permitidos):
   - pastas sem grupo e grupos formam uma lista só, intercalados (`db/layout.rs`: `sort_order` numera juntos as pastas
@@ -126,8 +147,8 @@ teclado e mouse (ver `CLAUDE.md`).
   - cabeçalho (`LibraryGroupHeader`): botão com `aria-expanded`, seta, nome e contagem ("Series, 3 folders");
     clique, `Enter` ou `Space` recolhe/expande (salvo em `collapsed`, otimista). Recolhido com a pasta atual dentro,
     leva a barra `accent`. As pastas expandidas ficam recuadas, ao longo de uma linha-guia. Menu: "Rename group"
-    (`F2`, vazio mantém o nome), "Move up"/"Move down", "Delete group" (com confirmação só se tiver pastas, que
-    ficam sem grupo no lugar onde o grupo estava; toast);
+    (`F2`, vazio mantém o nome), "Pin"/"Unpin", "Move up"/"Move down", "Delete group" (com confirmação só se tiver
+    pastas, que ficam sem grupo no lugar onde o grupo estava, as fixadas continuando fixadas; toast);
   - "New group…" no menu de ordenação ou em "Move to group" da pasta (que já move a pasta, numa transação): o nome
     é editado no fim da lista (no rail, num popover); `Enter`/blur cria, `Esc` ou vazio desiste. O campo só abre
     depois que o menu fecha (o menu prende o foco);

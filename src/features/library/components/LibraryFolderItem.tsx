@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Unplug } from "lucide-react";
+import { Pin, Unplug } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { useLibraryFolderStatus } from "../../../shared/ipc/queries";
@@ -29,7 +29,18 @@ import type { NameDone } from "./NameField";
 /** How long a folder must be pressed before it can be dragged, so a click, or a slip of the mouse, never moves it. */
 export const HOLD_TO_DRAG_MS = 400;
 
-type LibraryFolderItemProps = {
+/** What a folder and a group of the list share: pinning, and why a move stops at the edge of the pinned items. */
+export type ListItemControls = {
+    onTogglePin: () => void;
+    /** It was just pinned or unpinned: it takes the focus at its new place, then calls `onFocused`. */
+    focusRequested: boolean;
+    onFocused: () => void;
+    /** Set when "Move up" (or "Move down") stops at the edge of the pinned items, saying so. */
+    moveUpReason?: string;
+    moveDownReason?: string;
+};
+
+type LibraryFolderItemProps = ListItemControls & {
     folder: LibraryFolder;
     /** Path of the folder being browsed, to highlight the library folder that contains it. */
     currentPath: string | undefined;
@@ -55,6 +66,11 @@ export function LibraryFolderItem({
     onMoveUp,
     onMoveDown,
     groupName,
+    onTogglePin,
+    focusRequested,
+    onFocused,
+    moveUpReason,
+    moveDownReason,
 }: LibraryFolderItemProps) {
     const [renaming, setRenaming] = useState(false);
     const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -85,6 +101,13 @@ export function LibraryFolderItem({
             linkRef.current?.focus();
         }
     }, [renaming]);
+
+    useEffect(() => {
+        if (focusRequested) {
+            linkRef.current?.focus();
+            onFocused();
+        }
+    }, [focusRequested, onFocused]);
 
     const finishRename: NameDone = (name, restoreFocus) => {
         if (!renaming) {
@@ -130,6 +153,7 @@ export function LibraryFolderItem({
                             <span>{fullName}</span>
                             {folderOnDisk}
                             {groupName && <span className="text-caption text-text-muted">Group: {groupName}</span>}
+                            {folder.pinned && <span className="text-caption text-text-muted">Pinned</span>}
                         </span>
                     ) : (
                         <span className="flex max-w-80 flex-col whitespace-normal">
@@ -181,8 +205,10 @@ export function LibraryFolderItem({
                             }
                         >
                             {folder.name}
+                            {folder.pinned && <span className="sr-only">, pinned</span>}
                             {unavailable && <span className="sr-only">, not connected</span>}
                         </span>
+                        {folder.pinned && !compact && <Pin aria-hidden className="size-3 shrink-0 text-text-subtle" />}
                         {/* The rail shows it in the tooltip: its corner badge belongs to the status. */}
                         {visibility.kind === "hidden" && (
                             <HiddenFolderMark visibility={visibility} className={compact ? "sr-only" : undefined} />
@@ -206,6 +232,9 @@ export function LibraryFolderItem({
                 sortable={sortable}
                 onMoveUp={onMoveUp}
                 onMoveDown={onMoveDown}
+                moveUpReason={moveUpReason}
+                moveDownReason={moveDownReason}
+                onTogglePin={onTogglePin}
                 onRename={() => setRenaming(true)}
                 onResetName={() => rename.mutate({ folder, name: "" })}
                 onChangeIcon={() => setIconOpen(true)}

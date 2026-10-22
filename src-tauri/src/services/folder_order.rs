@@ -51,6 +51,31 @@ pub async fn set_folder_sort(db: &Db, sort: LibraryFolderSort) -> AppResult<Vec<
     .await
 }
 
+/// Pins a folder to the top of its list (its group's, or the library's) or unpins it, keeping the sort mode. Returns
+/// the library in the new order.
+pub async fn set_folder_pinned(db: &Db, id: i64, pinned: bool) -> AppResult<Vec<LibraryEntry>> {
+    db.call(move |connection| {
+        let transaction = connection.transaction()?;
+        folders::set_pinned(&transaction, id, pinned)?;
+        let entries = library_layout(&transaction)?;
+        transaction.commit()?;
+        Ok(entries)
+    })
+    .await
+}
+
+/// Pins a group to the top of the library or unpins it, keeping the sort mode. Returns the library in the new order.
+pub async fn set_group_pinned(db: &Db, id: i64, pinned: bool) -> AppResult<Vec<LibraryEntry>> {
+    db.call(move |connection| {
+        let transaction = connection.transaction()?;
+        groups::set_pinned(&transaction, id, pinned)?;
+        let entries = library_layout(&transaction)?;
+        transaction.commit()?;
+        Ok(entries)
+    })
+    .await
+}
+
 /// Stores where folders and groups were moved to (see `folder_order::arranged`) and switches to the custom order, so
 /// moving something while another mode is active starts from the order on screen. Returns the library in the new
 /// order.
@@ -240,5 +265,67 @@ mod tests {
             folder_names(&list_folders(&db).await.unwrap()),
             ["Series", "Anime", "Movies"]
         );
+    }
+
+    #[tokio::test]
+    async fn pinned_items_stay_on_top_in_every_mode_keeping_the_mode() {
+        let (db, listed, _, courses) = grouped_folders().await;
+        let anime = listed[2].id;
+        assert_eq!(
+            entry_names(&set_group_pinned(&db, courses, true).await.unwrap()),
+            ["Courses []", "Movies", "Shows [Series, Anime]"]
+        );
+        assert_eq!(
+            entry_names(&set_folder_pinned(&db, anime, true).await.unwrap()),
+            ["Courses []", "Movies", "Shows [Anime, Series]"]
+        );
+
+        let sorted = set_folder_sort(&db, LibraryFolderSort::NameDescending).await.unwrap();
+        assert_eq!(entry_names(&sorted), ["Courses []", "Shows [Anime, Series]", "Movies"]);
+        let previews = home(&db, 5).await.unwrap().folder_previews;
+        let preview_names: Vec<&str> = previews.iter().map(|preview| preview.folder.name.as_str()).collect();
+        assert_eq!(preview_names, ["Anime", "Series", "Movies"]);
+
+        let unpinned = set_group_pinned(&db, courses, false).await.unwrap();
+        assert_eq!(
+            entry_names(&unpinned),
+            ["Shows [Anime, Series]", "Movies", "Courses []"]
+        );
+        assert_eq!(folder_sort(&db).await.unwrap(), LibraryFolderSort::NameDescending);
+        assert!(matches!(
+            set_folder_pinned(&db, 999, true).await,
+            Err(crate::error::AppError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn arranging_keeps_the_pinned_items_on_top() {
+        let db = three_folders().await;
+        let [anime, movies, series] = <[i64; 3]>::try_from(ids(&list_folders(&db).await.unwrap())).unwrap();
+        set_folder_pinned(&db, series, true).await.unwrap();
+        // Dropped among the others, a pinned folder stays pinned, at the top.
+        let arranged = arrange(
+            &db,
+            [movies, series, anime].map(|id| LayoutEntry::Folder { id }).to_vec(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(entry_names(&arranged), ["Series", "Movies", "Anime"]);
+        let unpinned = set_folder_pinned(&db, series, false).await.unwrap();
+        assert_eq!(entry_names(&unpinned), ["Movies", "Anime", "Series"]);
+    }
+
+    #[tokio::test]
+    async fn hidden_and_disconnected_folders_can_be_pinned() {
+        // The folders of `three_folders` are not on disk: the library shows them as not connected.
+        let db = three_folders().await;
+        let series = list_folders(&db).await.unwrap()[2].clone();
+        let path = series.path.clone();
+        db.call(move |connection| crate::db::hidden::hide(connection, &path))
+            .await
+            .unwrap();
+        let entries = set_folder_pinned(&db, series.id, true).await.unwrap();
+        assert_eq!(entry_names(&entries), ["Series", "Anime", "Movies"]);
+        assert!(list_folders(&db).await.unwrap()[0].pinned);
     }
 }

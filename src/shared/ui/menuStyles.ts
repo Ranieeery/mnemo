@@ -9,6 +9,7 @@ export const menuContentClasses = cx(
 export const menuItemClasses = cx(
     "relative flex h-8 cursor-default select-none items-center gap-2 rounded-control px-2 outline-none",
     "data-[highlighted]:bg-surface-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
+    "aria-disabled:opacity-40",
     "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-text-muted"
 );
 

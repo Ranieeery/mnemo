@@ -33,7 +33,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
         library_folder_sort: Some(settings::get::<settings::FolderSort>(connection)?),
         library_folders: select_all(
             connection,
-            "SELECT id, path, created_at, custom_icon, icon_color, sort_order, custom_name, group_id
+            "SELECT id, path, created_at, custom_icon, icon_color, sort_order, custom_name, group_id, pin_order
              FROM library_folders ORDER BY id",
             |row| {
                 Ok(LibraryFolderRecord {
@@ -45,6 +45,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
                     sort_order: row.get(5)?,
                     custom_name: row.get(6)?,
                     group_id: row.get(7)?,
+                    pin_order: row.get(8)?,
                 })
             },
         )?,
@@ -61,7 +62,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
         hidden_folders: hidden::list(connection)?,
         library_groups: select_all(
             connection,
-            "SELECT id, name, sort_order, collapsed, created_at FROM library_groups ORDER BY id",
+            "SELECT id, name, sort_order, collapsed, created_at, pin_order FROM library_groups ORDER BY id",
             |row| {
                 Ok(LibraryGroupRecord {
                     id: row.get(0)?,
@@ -69,6 +70,7 @@ pub fn export(connection: &Connection) -> AppResult<LibraryFile> {
                     sort_order: row.get(2)?,
                     collapsed: row.get(3)?,
                     created_at: row.get(4)?,
+                    pin_order: row.get(5)?,
                 })
             },
         )?,

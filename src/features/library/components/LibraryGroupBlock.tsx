@@ -3,10 +3,11 @@ import type { LibraryFolder, LibraryGroup } from "../../../shared/ipc/bindings";
 import { cx } from "../../../shared/lib/cx";
 import { isWithin } from "../../../shared/lib/paths";
 import { GroupEndRow } from "./GroupEndRow";
+import type { ListItemControls } from "./LibraryFolderItem";
 import { LibraryGroupHeader } from "./LibraryGroupHeader";
 import { RailGroupSeparator } from "./RailGroupSeparator";
 
-type LibraryGroupBlockProps = {
+type LibraryGroupBlockProps = ListItemControls & {
     group: LibraryGroup;
     folders: LibraryFolder[];
     /** Its folders and its end show (the rail always expands groups). */
@@ -41,6 +42,7 @@ export function LibraryGroupBlock({
     onMoveUp,
     onMoveDown,
     children,
+    ...controls
 }: LibraryGroupBlockProps) {
     if (compact && folders.length === 0) {
         return null;
@@ -62,12 +64,13 @@ export function LibraryGroupBlock({
                     held={held}
                     onMoveUp={onMoveUp}
                     onMoveDown={onMoveDown}
+                    {...controls}
                 />
             )}
             {expanded && (
                 <ul
                     id={listId}
-                    aria-label={group.name}
+                    aria-label={group.pinned ? `${group.name}, pinned` : group.name}
                     className={cx(
                         "flex flex-col gap-0.5",
                         compact ? "items-center" : "ml-3.5 border-l border-border pl-1"

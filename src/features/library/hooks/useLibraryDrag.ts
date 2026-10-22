@@ -11,11 +11,11 @@ import {
     useSensor,
     useSensors,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { type SortingStrategy, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useEffect, useRef, useState } from "react";
 import type { LibraryEntry, LibraryGroup } from "../../../shared/ipc/bindings";
 import { HOLD_TO_DRAG_MS } from "../components/LibraryFolderItem";
-import { arrangementChanged, flatFolders, folderPosition, groupsOf } from "../lib/folderLayout";
+import { arrangementChanged, flatFolders, folderPosition, groupsOf, isPinned, pinnedFirst } from "../lib/folderLayout";
 import { entriesOf, groupRowId, type LibraryRow, libraryRows, moveRow } from "../lib/libraryRows";
 import { useArrangeLibrary } from "../queries";
 
@@ -37,10 +37,16 @@ function isGroupRow(item: Active | Over | null): boolean {
     return item?.data.current?.type === "group";
 }
 
+/** While the item cannot go where it is over (past the edge of the pinned items), nothing makes room for it. */
+const stayInPlace: SortingStrategy = () => null;
+
+const PIN_EDGE_MESSAGE = "Pinned items stay above the others.";
+
 /**
  * Dragging folders and groups in the library list (see `libraryRows`). While something is dragged, the list follows
  * it: each move is applied to a copy of the library, so the slot always shows where it lands, inside a group or out
  * of it. A dragged group shows only its header, and a collapsed group opens while a folder is held over its header.
+ * Pinned items move only among themselves, and so do the others: dragged past that edge, an item stays at it.
  * Dropping saves the new arrangement (switching to the custom order).
  */
 export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
@@ -52,6 +58,8 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
     // A collapsed group shown open while a folder is dragged over it; it stays collapsed.
     const [openedId, setOpenedId] = useState<number | null>(null);
     const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    // The item is over a place past the edge of the pinned items, so it stays where it is.
+    const [atEdge, setAtEdge] = useState(false);
     const sensors = useSensors(
         // Moving the pointer more than a few pixels while holding gives up (a click still opens the folder).
         useSensor(PointerSensor, { activationConstraint: { delay: HOLD_TO_DRAG_MS, tolerance: 5 } }),
@@ -71,12 +79,16 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
         libraryRows(list, { expanded, skipEmptyGroups: compact });
     const rows = rowsOf(shown);
     const moved = (list: readonly LibraryEntry[], active: Active, over: Over) =>
-        entriesOf(moveRow(rowsOf(list), active.id, over.id), list);
+        pinnedFirst(entriesOf(moveRow(rowsOf(list), active.id, over.id), list));
 
     const nameOf = (id: UniqueIdentifier) =>
         typeof id === "number"
             ? (flatFolders(entries).find((folder) => folder.id === id)?.name ?? "The folder")
             : `${groups.find((group) => groupRowId(group.id) === id)?.name ?? "The"} group`;
+    const pinnedOf = (id: UniqueIdentifier) =>
+        typeof id === "number"
+            ? flatFolders(entries).some((folder) => folder.id === id && folder.pinned)
+            : entries.some((entry) => entry.kind === "group" && groupRowId(entry.group.id) === id && isPinned(entry));
     /** Its position in its list (its group's, or the library's), and the group. */
     const placeOf = (list: readonly LibraryEntry[], id: UniqueIdentifier) => {
         if (typeof id !== "number") {
@@ -95,7 +107,8 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
     };
 
     const announcements: Announcements = {
-        onDragStart: ({ active }) => `Picked up ${nameOf(active.id)}, at ${describe(entries, active.id)}.`,
+        onDragStart: ({ active }) =>
+            `Picked up ${nameOf(active.id)}${pinnedOf(active.id) ? ", pinned" : ""}, at ${describe(entries, active.id)}.`,
         onDragOver: ({ active, over }) => {
             if (!over) {
                 return `${nameOf(active.id)} is outside the list.`;
@@ -104,8 +117,12 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
             if (over.id === active.id) {
                 return undefined;
             }
+            const next = moved(shown, active, over);
+            if (!arrangementChanged(shown, next)) {
+                return `${nameOf(active.id)} stays at ${describe(shown, active.id)}. ${PIN_EDGE_MESSAGE}`;
+            }
             const from = placeOf(shown, active.id).group;
-            const { at, group: to } = placeOf(moved(shown, active, over), active.id);
+            const { at, group: to } = placeOf(next, active.id);
             if (grouped && from?.id !== to?.id) {
                 return to
                     ? `${nameOf(active.id)} moved into ${to.name}, ${at}.`
@@ -126,6 +143,7 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
         setDraggedId(null);
         setDragEntries(null);
         setOpenedId(null);
+        setAtEdge(false);
     };
 
     const dndProps: DndContextProps = {
@@ -150,7 +168,9 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
             if (!isGroupRow(active) && target?.kind === "group" && !target.expanded) {
                 openTimer.current = setTimeout(() => setOpenedId(target.group.id), OPEN_GROUP_DELAY_MS);
             }
-            setDragEntries(moved(dragEntries, active, over));
+            const next = moved(dragEntries, active, over);
+            setAtEdge(!arrangementChanged(dragEntries, next));
+            setDragEntries(next);
         },
         onDragCancel: reset,
         onDragEnd: ({ active, over }) => {
@@ -161,5 +181,7 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
         },
     };
 
-    return { shown, rows, expanded, dndProps, heldId, draggedFolder, draggedGroup };
+    const strategy = atEdge ? stayInPlace : verticalListSortingStrategy;
+
+    return { shown, rows, expanded, dndProps, strategy, heldId, draggedFolder, draggedGroup };
 }

@@ -18,7 +18,10 @@ export function RailGroupSeparator({ group, count }: { group: LibraryGroup; coun
         disabled: { draggable: true },
     });
     return (
-        <Tooltip content={`${group.name} · ${plural(count, "folder")}`} side="right">
+        <Tooltip
+            content={[group.name, group.pinned && "Pinned", plural(count, "folder")].filter(Boolean).join(" · ")}
+            side="right"
+        >
             <div
                 ref={setNodeRef}
                 aria-hidden

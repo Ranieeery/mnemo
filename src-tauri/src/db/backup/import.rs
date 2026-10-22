@@ -69,14 +69,15 @@ fn import_groups(connection: &Connection, groups: &[LibraryGroupRecord]) -> AppR
     for group in groups {
         if let Ok(name) = normalize_group_name(&group.name) {
             connection.execute(
-                "INSERT INTO library_groups (id, name, sort_order, collapsed, created_at)
-                 VALUES (?1, ?2, ?3, ?4, COALESCE(?5, CURRENT_TIMESTAMP))",
+                "INSERT INTO library_groups (id, name, sort_order, collapsed, created_at, pin_order)
+                 VALUES (?1, ?2, ?3, ?4, COALESCE(?5, CURRENT_TIMESTAMP), ?6)",
                 params![
                     group.id,
                     name,
                     group.sort_order.unwrap_or(i64::MAX),
                     group.collapsed,
-                    group.created_at
+                    group.created_at,
+                    group.pin_order
                 ],
             )?;
             imported.push(group.id);
@@ -88,8 +89,9 @@ fn import_groups(connection: &Connection, groups: &[LibraryGroupRecord]) -> AppR
 fn import_folders(connection: &Connection, folders: &[LibraryFolderRecord], imported_groups: &[i64]) -> AppResult<()> {
     for folder in folders {
         connection.execute(
-            "INSERT INTO library_folders (id, path, created_at, custom_icon, icon_color, sort_order, custom_name, group_id)
-             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO library_folders
+                 (id, path, created_at, custom_icon, icon_color, sort_order, custom_name, group_id, pin_order)
+             VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP), ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 folder.id,
                 folder.path,
@@ -109,7 +111,10 @@ fn import_folders(connection: &Connection, folders: &[LibraryFolderRecord], impo
                         .ok()
                         .flatten()
                 }),
-                folder.group_id.filter(|id| imported_groups.contains(id))
+                folder.group_id.filter(|id| imported_groups.contains(id)),
+                // `layout::compact` numbers the pins of each list again (a folder left without a group joins the
+                // library's).
+                folder.pin_order
             ],
         )?;
     }

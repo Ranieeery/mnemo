@@ -43,6 +43,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             library::set_library_folder_sort,
             library::get_library_layout,
             library::arrange_library,
+            library::set_library_folder_pinned,
+            library::set_library_group_pinned,
             library_groups::create_library_group,
             library_groups::rename_library_group,
             library_groups::delete_library_group,

@@ -59,6 +59,8 @@ pub struct LibraryFolder {
     pub custom_name: Option<String>,
     /// The group it is listed in, if any.
     pub group_id: Option<i64>,
+    /// Listed at the top of its list (its group's, or the library's).
+    pub pinned: bool,
     pub custom_icon: Option<String>,
     /// `None` draws the icon in the surrounding text color.
     pub icon_color: Option<FolderColor>,
@@ -73,6 +75,8 @@ pub struct LibraryGroup {
     pub name: String,
     /// Its folders are hidden in the expanded sidebar (the rail always shows them).
     pub collapsed: bool,
+    /// Listed at the top of the library, above the items not pinned.
+    pub pinned: bool,
     pub created_at: String,
 }
 

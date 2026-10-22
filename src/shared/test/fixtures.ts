@@ -30,6 +30,7 @@ export function libraryFolderFixture(overrides: Partial<LibraryFolder> = {}): Li
         folderName,
         customName,
         groupId: null,
+        pinned: false,
         customIcon: null,
         iconColor: null,
         createdAt: null,
@@ -38,7 +39,7 @@ export function libraryFolderFixture(overrides: Partial<LibraryFolder> = {}): Li
 }
 
 export function libraryGroupFixture(overrides: Partial<LibraryGroup> = {}): LibraryGroup {
-    return { id: 10, name: "Series", collapsed: false, createdAt: "2025-01-01 10:00:00", ...overrides };
+    return { id: 10, name: "Series", collapsed: false, pinned: false, createdAt: "2025-01-01 10:00:00", ...overrides };
 }
 
 /**

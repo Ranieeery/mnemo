@@ -1,4 +1,15 @@
-import { ArrowDown, ArrowUp, FolderSearch, Palette, Pencil, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import {
+    ArrowDown,
+    ArrowUp,
+    FolderSearch,
+    Palette,
+    Pencil,
+    Pin,
+    PinOff,
+    RefreshCw,
+    RotateCcw,
+    Trash2,
+} from "lucide-react";
 import { useRef } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
 import { openFolderRelocation } from "../../../shared/stores/dialogs";
@@ -15,6 +26,10 @@ type LibraryFolderMenuProps = {
     sortable: boolean;
     onMoveUp?: () => void;
     onMoveDown?: () => void;
+    /** Why "Move up" (or "Move down") is disabled at the edge of the pinned folders. */
+    moveUpReason?: string;
+    moveDownReason?: string;
+    onTogglePin: () => void;
     onRename: () => void;
     onResetName: () => void;
     onChangeIcon: () => void;
@@ -28,6 +43,9 @@ export function LibraryFolderMenu({
     sortable,
     onMoveUp,
     onMoveDown,
+    moveUpReason,
+    moveDownReason,
+    onTogglePin,
     onRename,
     onResetName,
     onChangeIcon,
@@ -79,6 +97,9 @@ export function LibraryFolderMenu({
             <ContextMenuItem icon={<Palette />} onSelect={onChangeIcon}>
                 Icon and color…
             </ContextMenuItem>
+            <ContextMenuItem icon={folder.pinned ? <PinOff /> : <Pin />} onSelect={onTogglePin}>
+                {folder.pinned ? "Unpin" : "Pin"}
+            </ContextMenuItem>
             <MoveToGroupMenu
                 folder={folder}
                 onNewGroup={() => {
@@ -95,10 +116,20 @@ export function LibraryFolderMenu({
             {sortable && (
                 <>
                     <ContextMenuSeparator />
-                    <ContextMenuItem icon={<ArrowUp />} disabled={!onMoveUp} onSelect={onMoveUp}>
+                    <ContextMenuItem
+                        icon={<ArrowUp />}
+                        disabled={!onMoveUp}
+                        disabledReason={moveUpReason}
+                        onSelect={onMoveUp}
+                    >
                         Move up
                     </ContextMenuItem>
-                    <ContextMenuItem icon={<ArrowDown />} disabled={!onMoveDown} onSelect={onMoveDown}>
+                    <ContextMenuItem
+                        icon={<ArrowDown />}
+                        disabled={!onMoveDown}
+                        disabledReason={moveDownReason}
+                        onSelect={onMoveDown}
+                    >
                         Move down
                     </ContextMenuItem>
                 </>

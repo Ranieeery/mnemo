@@ -1,4 +1,4 @@
-import { Check, Eye, FolderOpen, Info, Play, Tag as TagIcon, Trash2 } from "lucide-react";
+import { ArrowUp, Check, Eye, FolderOpen, Info, Play, Tag as TagIcon, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { nextDirection, type SortDirection } from "../../../shared/lib/sortDirection";
 import {
@@ -185,6 +185,13 @@ export function OverlaysSection() {
                         <ContextMenuSeparator />
                         <ContextMenuItem icon={<Eye />}>Open in default player</ContextMenuItem>
                         <ContextMenuItem icon={<FolderOpen />}>Show in file manager</ContextMenuItem>
+                        <ContextMenuItem
+                            icon={<ArrowUp />}
+                            disabled
+                            disabledReason="Pinned items stay above. Pin it to move it there."
+                        >
+                            Move up
+                        </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem icon={<Trash2 />} tone="danger">
                             Remove all tags

@@ -51,6 +51,30 @@ pub async fn arrange_library(state: State<'_, AppState>, entries: Vec<LayoutEntr
     folder_order::arrange(&state.db, entries).await
 }
 
+/// Pins a library folder to the top of its list (its group's, or the library's), or unpins it; the sort mode is
+/// kept. Returns the library in the new order.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_library_folder_pinned(
+    state: State<'_, AppState>,
+    folder_id: i64,
+    pinned: bool,
+) -> AppResult<Vec<LibraryEntry>> {
+    folder_order::set_folder_pinned(&state.db, folder_id, pinned).await
+}
+
+/// Pins a group to the top of the library, or unpins it; the sort mode is kept. Returns the library in the new
+/// order.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_library_group_pinned(
+    state: State<'_, AppState>,
+    group_id: i64,
+    pinned: bool,
+) -> AppResult<Vec<LibraryEntry>> {
+    folder_order::set_group_pinned(&state.db, group_id, pinned).await
+}
+
 /// Whether each library folder is reachable and how changes in it are followed. Empty until the first check, a few
 /// seconds after startup.
 #[tauri::command]

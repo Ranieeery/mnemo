@@ -163,6 +163,48 @@ fn groups_round_trip_and_older_or_broken_ones_import_without_groups() {
     assert_eq!(folders::list(&target).unwrap()[0].group_id, None);
 }
 
+#[test]
+fn pins_round_trip_and_invalid_ones_import_unpinned() {
+    let source = test_support::connection();
+    let a = folders::add(&source, "A").unwrap().id;
+    let b = folders::add(&source, "B").unwrap().id;
+    let c = folders::add(&source, "C").unwrap().id;
+    let series = groups::create(&source, "Series").unwrap().id;
+    folders::move_to_group(&source, c, Some(series)).unwrap();
+    folders::set_pinned(&source, b, true).unwrap();
+    groups::set_pinned(&source, series, true).unwrap();
+    folders::set_pinned(&source, c, true).unwrap();
+    let mut exported = export(&source).unwrap();
+
+    let mut target = test_support::connection();
+    import(&mut target, &parse(&serde_json::to_string(&exported).unwrap())).unwrap();
+    assert_eq!(layout::read(&target).unwrap(), layout::read(&source).unwrap());
+    assert_eq!(folders::list(&target).unwrap(), folders::list(&source).unwrap());
+    assert_eq!(groups::list(&target).unwrap(), groups::list(&source).unwrap());
+
+    // Values that are not a whole number import unpinned.
+    let mut json = serde_json::to_value(&exported).unwrap();
+    json["libraryFolders"][1]["pin_order"] = "x".into();
+    json["libraryFolders"][2]["pin_order"] = 1.5.into();
+    json["libraryGroups"][0]["pin_order"] = true.into();
+    import(&mut target, &parse(&json.to_string())).unwrap();
+    assert!(folders::list(&target).unwrap().iter().all(|folder| !folder.pinned));
+    assert!(!groups::list(&target).unwrap()[0].pinned);
+
+    // A folder whose group is left out keeps its pin, among the pinned items of the list.
+    exported.library_groups[0].name = "  ".into();
+    import(&mut target, &exported).unwrap();
+    let imported = folders::list(&target).unwrap();
+    assert_eq!(
+        imported
+            .iter()
+            .map(|folder| (folder.id, folder.pinned, folder.group_id))
+            .collect::<Vec<_>>(),
+        [(a, false, None), (b, true, None), (c, true, None)]
+    );
+    assert_eq!(layout::read(&target).unwrap()[2], LayoutEntry::Folder { id: a });
+}
+
 /// The folders in the custom order.
 fn folder_paths(connection: &Connection) -> Vec<String> {
     let layout = layout::read(connection).unwrap();
@@ -215,6 +257,7 @@ fn exports_without_an_order_or_a_mode_keep_the_previous_behavior() {
         sort_order: None,
         custom_name: None,
         group_id: None,
+        pin_order: None,
     })
     .collect();
     import(&mut connection, &file).unwrap();
@@ -317,12 +360,13 @@ fn hidden_folders_round_trip_and_older_exports_hide_nothing() {
     assert!(hidden::list(&target).unwrap().is_empty());
 }
 
-/// Exports written by each 2.x minor before this one (2.0–2.2 share a shape; 2.5 is what `export` writes now), with
-/// the `watchFolders` each should import: files from before 2.3 have none and import the default.
+/// Exports written by each 2.x minor before this one (2.0–2.2 share a shape, and so do 2.5–2.6; 2.7 is what `export`
+/// writes now), with the `watchFolders` each should import: files from before 2.3 have none and import the default.
 const EXPORTS_BY_VERSION: &[(&str, &str, bool)] = &[
     ("2.2", include_str!("fixtures/2.2.json"), true),
     ("2.3", include_str!("fixtures/2.3.json"), false),
     ("2.4", include_str!("fixtures/2.4.json"), false),
+    ("2.6", include_str!("fixtures/2.6.json"), false),
 ];
 
 #[test]
@@ -334,7 +378,7 @@ fn imports_exports_from_every_2_x_minor() {
     let all = EXPORTS_BY_VERSION
         .iter()
         .copied()
-        .chain([("2.5", current.as_str(), false)]);
+        .chain([("2.7", current.as_str(), false)]);
 
     for (version, json, watch_folders) in all {
         let mut connection = test_support::connection();
@@ -354,6 +398,12 @@ fn imports_exports_from_every_2_x_minor() {
         assert!(videos::get(&connection, 1).unwrap().is_watched, "{version}");
         assert_eq!(tags::for_video(&connection, 1).unwrap()[0].name, "anime", "{version}");
         assert_eq!(folders::view_modes(&connection).unwrap().len(), 1, "{version}");
+        // Nothing was pinned before 2.7.
+        assert!(!folders::list(&connection).unwrap()[0].pinned, "{version}");
+        assert!(
+            groups::list(&connection).unwrap().iter().all(|group| !group.pinned),
+            "{version}"
+        );
         assert_eq!(
             history::list_page(&connection, None, 10).unwrap().entries.len(),
             1,
