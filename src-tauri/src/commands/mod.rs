@@ -23,6 +23,7 @@ use crate::domain::shortcuts::{KeyboardShortcuts, MAX_KEYS_PER_SHORTCUT, NAMED_S
 use crate::domain::subtitle_style::{
     MAX_SUBTITLE_POSITION, MAX_SUBTITLE_SIZE, MIN_SUBTITLE_SIZE, SUBTITLE_SIZE_STEP, SubtitleStyle,
 };
+use crate::domain::tags::MAX_TAG_NAME_CHARS;
 use crate::domain::watch::{
     DEFAULT_WATCHED_THRESHOLD, MAX_WATCHED_THRESHOLD, MIN_WATCHED_THRESHOLD, WATCHED_THRESHOLD_STEP,
 };
@@ -124,6 +125,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("DEFAULT_PLAYER_PREFERENCES", PlayerPreferences::default())
         .constant("FOLDER_COLORS", FolderColor::ALL)
         .constant("MAX_FOLDER_NAME_CHARS", MAX_FOLDER_NAME_CHARS)
+        .constant("MAX_TAG_NAME_CHARS", MAX_TAG_NAME_CHARS)
         .constant("DEFAULT_SIDEBAR_WIDTH", DEFAULT_SIDEBAR_WIDTH)
         .constant("MIN_SIDEBAR_WIDTH", MIN_SIDEBAR_WIDTH)
         .constant("MAX_SIDEBAR_WIDTH", MAX_SIDEBAR_WIDTH)

@@ -232,6 +232,8 @@ export const MAX_SUBTITLE_POSITION = 40 as const;
 
 export const MAX_SUBTITLE_SIZE = 200 as const;
 
+export const MAX_TAG_NAME_CHARS = 100 as const;
+
 export const MAX_UP_NEXT_WIDTH = 800 as const;
 
 export const MAX_WATCHED_THRESHOLD = 1.0 as const;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
     DEFAULT_WATCHED_THRESHOLD,
     MAX_WATCHED_THRESHOLD,
@@ -16,13 +16,8 @@ const toPercent = (fraction: number) => Math.round(fraction * 100);
 export function PlaybackTab() {
     const settings = useAppSettings();
     const updateSettings = useUpdateSettings();
-    const [percent, setPercent] = useState(toPercent(DEFAULT_WATCHED_THRESHOLD));
-
-    useEffect(() => {
-        if (settings.data) {
-            setPercent(toPercent(settings.data.watchedThreshold));
-        }
-    }, [settings.data]);
+    // The value being dragged, shown until the setting is saved (or fails to save).
+    const [draft, setDraft] = useState<number | null>(null);
 
     if (settings.isPending) {
         return <Skeleton className="h-20 w-full" />;
@@ -36,6 +31,8 @@ export function PlaybackTab() {
             />
         );
     }
+
+    const percent = draft ?? toPercent(settings.data.watchedThreshold);
 
     return (
         <div className="flex flex-col gap-8">
@@ -61,9 +58,12 @@ export function PlaybackTab() {
                             max={toPercent(MAX_WATCHED_THRESHOLD)}
                             step={toPercent(WATCHED_THRESHOLD_STEP)}
                             valueText={`${percent}%`}
-                            onValueChange={setPercent}
+                            onValueChange={setDraft}
                             onValueCommit={(value) =>
-                                updateSettings.mutate({ ...settings.data, watchedThreshold: value / 100 })
+                                updateSettings.mutate(
+                                    { ...settings.data, watchedThreshold: value / 100 },
+                                    { onSettled: () => setDraft(null) }
+                                )
                             }
                             className="w-48"
                         />

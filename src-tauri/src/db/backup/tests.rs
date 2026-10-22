@@ -440,3 +440,26 @@ fn rejects_files_that_are_not_library_exports() {
     foreign.format = Some("other-app".into());
     assert!(matches!(foreign.validate(), Err(AppError::ImportFormat(_))));
 }
+
+#[test]
+fn imported_tags_keep_long_names_and_lose_control_characters() {
+    let long = "a".repeat(crate::domain::tags::MAX_TAG_NAME_CHARS + 20);
+    let mut file = parse(EXPORTS_BY_VERSION[1].1);
+    file.tags[0].name = long.clone();
+    file.tags.push(super::format::TagRecord {
+        id: 8,
+        name: "Sci\nFi".into(),
+        created_at: None,
+    });
+
+    let mut connection = test_support::connection();
+    import(&mut connection, &file).unwrap();
+
+    let names: Vec<String> = tags::list_with_usage(&connection)
+        .unwrap()
+        .into_iter()
+        .map(|tag| tag.name)
+        .collect();
+    assert!(names.contains(&long), "{names:?}");
+    assert!(names.contains(&"sci fi".to_owned()), "{names:?}");
+}

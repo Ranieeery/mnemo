@@ -226,6 +226,8 @@ teclado e mouse (ver `CLAUDE.md`).
 - Operações em massa por pasta: adicionar tag a todos os vídeos, remover todas as tags.
 - Gerenciamento em Settings: criar, listar com uso, excluir tag, remover de todos os vídeos, excluir todas, excluir
   não usadas.
+- Nomes guardados sem espaços nas pontas e em minúsculas (" Anime " e "anime" são a mesma tag); quebras de linha e
+  outros caracteres de controle viram espaço; no máximo 100 caracteres (`MAX_TAG_NAME_CHARS`) ao criar ou adicionar.
 
 ## Busca
 - Na home: no banco, por título, descrição e tags.

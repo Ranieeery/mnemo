@@ -2,11 +2,10 @@ use std::path::{Path, PathBuf};
 
 use tauri::State;
 
-use crate::db::folders;
 use crate::domain::models::{MediaToolsStatus, MediaTracks, ProcessingStatus, SubtitleFile, Video};
 use crate::domain::paths::is_within;
 use crate::error::AppResult;
-use crate::services::library::ensure_in_library;
+use crate::services::library::ensure_all_in_library;
 use crate::services::media::processing::Priority;
 use crate::services::{media, subtitles};
 use crate::state::AppState;
@@ -25,11 +24,11 @@ pub async fn media_tools_status() -> MediaToolsStatus {
 #[tauri::command]
 #[specta::specta]
 pub async fn process_folders(state: State<'_, AppState>, paths: Vec<String>, report: bool) -> AppResult<Vec<u64>> {
-    let library = state.db.call(|connection| folders::paths(connection)).await?;
-    for path in &paths {
-        ensure_in_library(Path::new(path), &library)?;
+    if paths.is_empty() {
+        return Ok(Vec::new());
     }
     let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    ensure_all_in_library(&state.db, paths.clone()).await?;
     let new_files = state.sync.reconcile_now(paths.clone()).await?;
     let mut jobs: Vec<u64> = paths
         .into_iter()

@@ -7,8 +7,9 @@ import { commandForKey, type PlayerCommand } from "../lib/shortcuts";
 export function usePlayerShortcuts(onCommand: (command: PlayerCommand) => void) {
     const handler = useRef(onCommand);
     handler.current = onCommand;
-    const shortcuts = useRef(useKeyboardShortcuts());
-    shortcuts.current = useKeyboardShortcuts();
+    const keys = useKeyboardShortcuts();
+    const shortcuts = useRef(keys);
+    shortcuts.current = keys;
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {

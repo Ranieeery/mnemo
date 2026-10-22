@@ -15,6 +15,8 @@ use crate::services::library::{ensure_in_library, records_in, video_entry};
 use crate::services::scanner;
 
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+/// Most videos one library search returns.
+const MAX_SEARCH_RESULTS: i64 = 500;
 
 /// Lets a new folder search supersede the running one: each search takes a ticket and stops as soon as a newer
 /// ticket exists, so typing quickly never leaves stale disk scans behind.
@@ -33,7 +35,13 @@ impl SearchGate {
     }
 }
 
+/// Videos whose title, description or tags match `query`, at most `limit` (1 to 500).
 pub async fn search_library(db: &Db, query: String, limit: i64) -> AppResult<Vec<Video>> {
+    if !(1..=MAX_SEARCH_RESULTS).contains(&limit) {
+        return Err(AppError::InvalidInput(format!(
+            "a search returns 1 to {MAX_SEARCH_RESULTS} videos, not {limit}"
+        )));
+    }
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -187,6 +195,23 @@ mod tests {
         })
         .await;
         assert!(matches!(result, Err(AppError::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn library_searches_are_bounded() {
+        let db = Db::open_in_memory().unwrap();
+        for limit in [0, MAX_SEARCH_RESULTS + 1] {
+            assert!(matches!(
+                search_library(&db, "anime".into(), limit).await,
+                Err(AppError::InvalidInput(_))
+            ));
+        }
+        assert!(
+            search_library(&db, "anime".into(), MAX_SEARCH_RESULTS)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

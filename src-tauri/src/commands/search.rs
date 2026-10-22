@@ -10,7 +10,7 @@ use crate::state::AppState;
 #[tauri::command]
 #[specta::specta]
 pub async fn search_library(state: State<'_, AppState>, query: String, limit: i64) -> AppResult<Vec<Video>> {
-    search::search_library(&state.db, query, limit.clamp(1, 500)).await
+    search::search_library(&state.db, query, limit).await
 }
 
 /// Searches file names below a folder on disk, streaming progress. A newer search cancels this one, which then

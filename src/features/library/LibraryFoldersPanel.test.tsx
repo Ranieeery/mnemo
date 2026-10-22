@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { libraryFolderFixture } from "../../shared/test/fixtures";
-import { mockCommands } from "../../shared/test/ipc";
+import { commandError, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { LibraryFoldersPanel } from "./components/LibraryFoldersPanel";
 
@@ -25,5 +25,33 @@ describe("LibraryFoldersPanel", () => {
         expect(screen.getByText("Checked every 10 minutes")).toBeInTheDocument();
         expect(screen.getByText(": Watching is not supported here")).toBeInTheDocument();
         expect(screen.getByText(/Not connected\. Its videos and progress are kept/)).toBeInTheDocument();
+    });
+
+    it("says when there are no folders yet", async () => {
+        mockCommands({ list_library_folders: [], get_library_folder_statuses: [] });
+        renderScreen(<LibraryFoldersPanel />);
+        expect(await screen.findByText(/No folders yet/)).toBeInTheDocument();
+    });
+
+    // Regression: a failed read showed nothing, as if the library were empty.
+    it("offers to try again when the folders cannot be read", async () => {
+        let fail = true;
+        mockCommands({
+            list_library_folders: () => {
+                if (fail) {
+                    throw commandError("database", "disk I/O error");
+                }
+                return [series];
+            },
+            get_library_folder_statuses: [],
+        });
+        const { user } = renderScreen(<LibraryFoldersPanel />);
+        expect(await screen.findByText("Could not load the library folders")).toBeInTheDocument();
+        expect(screen.getByText("disk I/O error")).toBeInTheDocument();
+        expect(screen.queryByText(/No folders yet/)).not.toBeInTheDocument();
+
+        fail = false;
+        await user.click(screen.getByRole("button", { name: "Try again" }));
+        expect(await screen.findByText("Series")).toBeInTheDocument();
     });
 });

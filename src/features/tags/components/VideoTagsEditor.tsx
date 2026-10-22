@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import { MAX_TAG_NAME_CHARS } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
 import { Button, Input, Skeleton, Tag } from "../../../shared/ui";
 import { useAddTagToVideo, useAllTags, useRemoveTagFromVideo, useVideoTags } from "../queries";
@@ -54,6 +55,7 @@ export function VideoTagsEditor({ videoId }: { videoId: number }) {
                     hideLabel
                     placeholder="Add a tag"
                     value={name}
+                    maxLength={MAX_TAG_NAME_CHARS}
                     onChange={(event) => setName(event.target.value)}
                     className="flex-1"
                 />

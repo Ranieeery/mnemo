@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
-import { callsOf, mockCommands } from "../../shared/test/ipc";
+import { callsOf, commandError, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { SettingsPage, type SettingsTab } from "./components/SettingsPage";
 
@@ -119,6 +119,22 @@ describe("SettingsPage", () => {
         );
     });
 
+    it("shows the saved threshold again when saving it fails", async () => {
+        mockSettings({
+            update_settings: () => {
+                throw commandError("database", "database is locked");
+            },
+        });
+        const { user } = renderSettings();
+        await user.click(await screen.findByRole("tab", { name: "Playback" }));
+        const slider = await screen.findByRole("slider", { name: "Watched threshold" });
+
+        slider.focus();
+        fireEvent.keyDown(slider, { key: "ArrowLeft" });
+        expect(await screen.findByText("Could not save the setting")).toBeInTheDocument();
+        await waitFor(() => expect(slider).toHaveAttribute("aria-valuenow", "90"));
+    });
+
     it("turns folder watching off, keeping the other settings", async () => {
         const calls = mockSettings({ update_settings: { watchedThreshold: 0.9, watchFolders: false } });
         const { user } = renderSettings();
@@ -130,6 +146,19 @@ describe("SettingsPage", () => {
                 { settings: { watchedThreshold: 0.9, watchFolders: false } },
             ])
         );
+    });
+
+    // Regression: a failed read hid the switch without saying why.
+    it("offers to try again when the watch setting cannot be read", async () => {
+        mockSettings({
+            get_settings: () => {
+                throw commandError("database", "database is locked");
+            },
+        });
+        renderSettings();
+        expect(await screen.findByText("Could not load the settings")).toBeInTheDocument();
+        expect(screen.getByText("database is locked")).toBeInTheDocument();
+        expect(screen.queryByRole("switch", { name: "Watch folders for changes" })).not.toBeInTheDocument();
     });
 
     it("lists videos whose file is missing and removes them after confirmation", async () => {

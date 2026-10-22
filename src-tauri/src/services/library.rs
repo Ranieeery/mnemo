@@ -32,12 +32,24 @@ pub fn ensure_in_library(path: &Path, library_folders: &[String]) -> AppResult<(
     }
 }
 
+/// Fails unless every path is a library folder or lies inside one.
+pub async fn ensure_all_in_library(db: &Db, paths: Vec<PathBuf>) -> AppResult<()> {
+    db.call(move |connection| {
+        let library = folders::paths(connection)?;
+        paths.iter().try_for_each(|path| ensure_in_library(path, &library))
+    })
+    .await
+}
+
+/// The paths of the library folders.
+pub async fn folder_paths(db: &Db) -> AppResult<Vec<String>> {
+    db.call(|connection| folders::paths(connection)).await
+}
+
 /// A file that exists inside a library folder, for commands that hand paths to the system or to ffmpeg.
 pub async fn library_file(db: &Db, path: String) -> AppResult<PathBuf> {
-    let checked = path.clone();
-    db.call(move |connection| ensure_in_library(checked.as_ref(), &folders::paths(connection)?))
-        .await?;
     let path = PathBuf::from(path);
+    ensure_all_in_library(db, vec![path.clone()]).await?;
     match tokio::fs::try_exists(&path).await {
         Ok(true) => Ok(path),
         Ok(false) => Err(AppError::NotFound(path.to_string_lossy().into_owned())),
@@ -83,14 +95,15 @@ pub async fn remove_folder(db: &Db, thumbnails_dir: &Path, path: String) -> AppR
     Ok(count as i64)
 }
 
-/// Sets the icon of a library folder and its color (`None` restores each default), and remembers the icon for the
-/// icon picker.
+/// Sets the icon of a library folder and its color (`None`, or a blank icon, restores each default), and remembers the
+/// icon for the icon picker.
 pub async fn set_folder_appearance(
     db: &Db,
     path: String,
     icon: Option<String>,
     color: Option<FolderColor>,
 ) -> AppResult<()> {
+    let icon = icon.filter(|icon| !icon.trim().is_empty());
     db.call(move |connection| {
         let transaction = connection.transaction()?;
         folders::set_appearance(&transaction, &path, icon.as_deref(), color)?;
@@ -223,7 +236,17 @@ pub async fn folder_summary(db: &Db, path: String) -> AppResult<FolderSummary> {
     .await
 }
 
+/// Most videos one home page section holds.
+const MAX_HOME_SECTION: i64 = 50;
+
+/// The home page sections (continue watching, recently watched, suggestions and a preview of each library folder),
+/// each holding at most `limit` videos (1 to 50).
 pub async fn home(db: &Db, limit: i64) -> AppResult<HomeData> {
+    if !(1..=MAX_HOME_SECTION).contains(&limit) {
+        return Err(AppError::InvalidInput(format!(
+            "a home section holds 1 to {MAX_HOME_SECTION} videos, not {limit}"
+        )));
+    }
     db.call(move |connection| {
         let mut folder_previews = Vec::new();
         for folder in folder_order::sorted_folders(connection)? {
@@ -391,6 +414,21 @@ mod tests {
             .unwrap();
         let folders = fixture.db.call(|connection| folders::list(connection)).await.unwrap();
         assert_eq!((folders[0].custom_icon.clone(), folders[0].icon_color), (None, None));
+        assert_eq!(recent_folder_icons(&fixture.db).await.unwrap(), ["film"]);
+    }
+
+    #[tokio::test]
+    async fn a_blank_icon_restores_the_default_without_being_remembered() {
+        // Regression: an empty icon name was stored and offered first in the icon picker.
+        let fixture = Fixture::new().await;
+        set_folder_appearance(&fixture.db, fixture.path(&[]), Some("film".into()), None)
+            .await
+            .unwrap();
+        set_folder_appearance(&fixture.db, fixture.path(&[]), Some(" ".into()), None)
+            .await
+            .unwrap();
+        let folders = fixture.db.call(|connection| folders::list(connection)).await.unwrap();
+        assert_eq!(folders[0].custom_icon, None);
         assert_eq!(recent_folder_icons(&fixture.db).await.unwrap(), ["film"]);
     }
 
@@ -656,6 +694,27 @@ mod tests {
         assert_eq!(fixture.state().await, Default::default());
         assert!(!thumbnail.exists());
         assert!(home(&fixture.db, 5).await.unwrap().suggestions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn home_sections_are_bounded() {
+        let db = Db::open_in_memory().unwrap();
+        for limit in [0, MAX_HOME_SECTION + 1] {
+            assert!(matches!(home(&db, limit).await, Err(AppError::InvalidInput(_))));
+        }
+        assert!(home(&db, MAX_HOME_SECTION).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn every_path_must_be_inside_the_library() {
+        let fixture = Fixture::new().await;
+        let inside = PathBuf::from(fixture.path(&["Season 1"]));
+        assert!(ensure_all_in_library(&fixture.db, vec![]).await.is_ok());
+        assert!(ensure_all_in_library(&fixture.db, vec![inside.clone()]).await.is_ok());
+        assert!(matches!(
+            ensure_all_in_library(&fixture.db, vec![inside, PathBuf::from("Z:\\Elsewhere")]).await,
+            Err(AppError::InvalidInput(_))
+        ));
     }
 
     #[tokio::test]

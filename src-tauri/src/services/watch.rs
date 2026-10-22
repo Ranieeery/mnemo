@@ -14,6 +14,9 @@ const MAX_TOTAL_DAYS: i64 = 366;
 
 /// Saves the playback position using the user's watched threshold. `finished` is set when playback reached the end.
 pub async fn save_progress(db: &Db, video_id: i64, position_seconds: f64, finished: bool) -> AppResult<Video> {
+    if !position_seconds.is_finite() {
+        return Err(AppError::InvalidInput("position must be a finite number".into()));
+    }
     db.call(move |connection| {
         let threshold = settings::load(connection)?.watched_threshold;
         watch_status::save_progress(connection, video_id, position_seconds, threshold, finished)
@@ -155,6 +158,12 @@ mod tests {
         .await
         .unwrap();
         assert!(save_progress(&db, video.id, 80.0, false).await.unwrap().is_watched);
+        for position in [f64::NAN, f64::INFINITY] {
+            assert!(matches!(
+                save_progress(&db, video.id, position, false).await,
+                Err(AppError::InvalidInput(_))
+            ));
+        }
     }
 
     #[tokio::test]

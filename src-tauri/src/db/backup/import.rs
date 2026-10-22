@@ -16,7 +16,7 @@ use crate::domain::folder_view::FolderViewMode;
 use crate::domain::media::display_name;
 use crate::domain::models::ImportSummary;
 use crate::domain::paths::is_within;
-use crate::domain::tags::normalize_tag_name;
+use crate::domain::tags::clean_tag_name;
 use crate::error::AppResult;
 
 /// Replaces the whole library with the file's contents in a single transaction: any failure leaves the current
@@ -152,9 +152,10 @@ fn import_tags(connection: &Connection, tags: &[TagRecord]) -> AppResult<HashMap
     let mut stored_ids = HashMap::new();
     let mut by_name = HashMap::new();
     for tag in tags {
-        let Ok(name) = normalize_tag_name(&tag.name) else {
+        let name = clean_tag_name(&tag.name);
+        if name.is_empty() {
             continue;
-        };
+        }
         if let Some(&stored) = by_name.get(&name) {
             stored_ids.insert(tag.id, stored);
             continue;

@@ -1,6 +1,7 @@
 import { RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { LibraryFolder } from "../../../shared/ipc/bindings";
+import { errorMessage } from "../../../shared/ipc/client";
 import {
     useHiddenFolders,
     useLibraryFolderStatuses,
@@ -8,7 +9,7 @@ import {
     useLibraryLayout,
 } from "../../../shared/ipc/queries";
 import { processFolder } from "../../../shared/stores/processing";
-import { Card, ConfirmDialog, FolderIcon, IconButton, Skeleton } from "../../../shared/ui";
+import { Card, ConfirmDialog, ErrorState, FolderIcon, IconButton, Skeleton } from "../../../shared/ui";
 import { folderVisibility, HiddenFolderMark } from "../../../shared/video";
 import { groupsOf } from "../lib/folderLayout";
 import { useRemoveLibraryFolder } from "../queries";
@@ -37,6 +38,18 @@ export function LibraryFoldersPanel() {
                 <AddFolderButton />
             </div>
             {folders.isPending && <Skeleton className="mx-5 mb-4 h-10" />}
+            {folders.isError && (
+                <ErrorState
+                    title="Could not load the library folders"
+                    message={errorMessage(folders.error)}
+                    onRetry={() => folders.refetch()}
+                />
+            )}
+            {folders.data?.length === 0 && (
+                <p className="border-t border-border px-5 py-4 text-small text-text-subtle">
+                    No folders yet. Add one to browse its videos.
+                </p>
+            )}
             {folders.data && folders.data.length > 0 && (
                 <ul className="divide-y divide-border border-t border-border">
                     {folders.data.map((folder) => {

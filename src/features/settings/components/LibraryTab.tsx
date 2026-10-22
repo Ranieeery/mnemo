@@ -58,8 +58,17 @@ function LibraryStatsGrid() {
 function WatchFoldersSwitch() {
     const settings = useAppSettings();
     const updateSettings = useUpdateSettings();
-    if (!settings.data) {
-        return null;
+    if (settings.isPending) {
+        return <Skeleton className="mx-5 my-4 h-10" />;
+    }
+    if (settings.isError) {
+        return (
+            <ErrorState
+                title="Could not load the settings"
+                message={errorMessage(settings.error)}
+                onRetry={() => settings.refetch()}
+            />
+        );
     }
     const current = settings.data;
     return (

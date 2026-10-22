@@ -1,6 +1,5 @@
 use tauri::{AppHandle, State};
 
-use crate::db::folders;
 use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::folder_view::FolderViewMode;
@@ -84,7 +83,7 @@ pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> 
 /// videos read meanwhile are not stored, as the writer only keeps videos inside library folders. A failure is only
 /// logged, since the change is saved: the jobs left end without storing anything, for that same reason.
 async fn forget_removed_folders(state: &AppState) {
-    match state.db.call(|connection| folders::paths(connection)).await {
+    match library::folder_paths(&state.db).await {
         Ok(library) => state.processor.forget_outside(&library),
         Err(error) => tracing::warn!(%error, "could not stop reading the folders that left the library"),
     }
@@ -183,7 +182,7 @@ pub async fn list_playlist(state: State<'_, AppState>, video_path: String) -> Ap
 #[tauri::command]
 #[specta::specta]
 pub async fn get_home(state: State<'_, AppState>, limit: i64) -> AppResult<HomeData> {
-    library::home(&state.db, limit.clamp(1, 50)).await
+    library::home(&state.db, limit).await
 }
 
 /// The folders hidden from the home page and the history.

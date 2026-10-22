@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useState } from "react";
-import type { FolderSummary } from "../../../shared/ipc/bindings";
+import { type FolderSummary, MAX_TAG_NAME_CHARS } from "../../../shared/ipc/bindings";
 import { plural } from "../../../shared/lib/plural";
 import { Button, ConfirmDialog, Dialog, Input } from "../../../shared/ui";
 import { useAddTagToFolder, useRemoveFolderTags, useSetFolderWatched } from "../queries";
@@ -121,6 +121,7 @@ function AddTagDialog({
                     label="Tag"
                     placeholder="anime"
                     value={name}
+                    maxLength={MAX_TAG_NAME_CHARS}
                     onChange={(event) => setName(event.target.value)}
                     autoFocus
                 />

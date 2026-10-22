@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import { MAX_TAG_NAME_CHARS } from "../../../shared/ipc/bindings";
 import { Button, Input } from "../../../shared/ui";
 import { useCreateTag } from "../queries";
 
@@ -22,6 +23,7 @@ export function CreateTagForm() {
                 hideLabel
                 placeholder="New tag"
                 value={name}
+                maxLength={MAX_TAG_NAME_CHARS}
                 onChange={(event) => setName(event.target.value)}
                 className="max-w-xs flex-1"
             />
