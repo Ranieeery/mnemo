@@ -99,22 +99,24 @@ function HomeContent({ columns, home, hasFolders, addFolderAction }: HomeContent
                     columns={columns}
                     videos={videos}
                     heading={
-                        <Link
-                            to="/folder"
-                            search={{ path: folder.path }}
-                            className="group flex items-center gap-2 self-start rounded-control text-title font-semibold text-text"
-                        >
-                            <FolderIcon
-                                name={folder.customIcon}
-                                color={folder.iconColor}
-                                className="size-5 text-text-muted"
-                            />
-                            {folder.name}
-                            <ChevronRight
-                                className="size-4 text-text-subtle transition-transform duration-(--duration-fast) ease-standard group-hover:translate-x-0.5"
-                                aria-hidden
-                            />
-                        </Link>
+                        <SectionHeading>
+                            <Link
+                                to="/folder"
+                                search={{ path: folder.path }}
+                                className="group inline-flex items-center gap-2 rounded-control"
+                            >
+                                <FolderIcon
+                                    name={folder.customIcon}
+                                    color={folder.iconColor}
+                                    className="size-5 text-text-muted"
+                                />
+                                {folder.name}
+                                <ChevronRight
+                                    className="size-4 text-text-subtle transition-transform duration-(--duration-fast) ease-standard group-hover:translate-x-0.5"
+                                    aria-hidden
+                                />
+                            </Link>
+                        </SectionHeading>
                     }
                 />
             ))}

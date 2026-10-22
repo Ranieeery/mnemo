@@ -1,7 +1,8 @@
+import { useId } from "react";
 import type { VideoEntry } from "../ipc/bindings";
 import { cx } from "../lib/cx";
 import { Badge, Skeleton } from "../ui";
-import { entryTitle, watchedFraction } from "./entry";
+import { entryDescription, entryTitle, watchedFraction } from "./entry";
 import { usePlayVideo } from "./useVideoActions";
 import { VideoContextMenu } from "./VideoContextMenu";
 import { VideoThumbnail } from "./VideoThumbnail";
@@ -18,6 +19,8 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
     const { video } = entry;
     const title = entryTitle(entry);
     const playVideo = usePlayVideo();
+    const descriptionId = useId();
+    const description = entryDescription(entry, detail);
 
     return (
         <VideoContextMenu entry={entry}>
@@ -25,6 +28,7 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
                 type="button"
                 onClick={() => playVideo(entry)}
                 aria-label={video?.isWatched ? `${title}, watched` : title}
+                aria-describedby={description ? descriptionId : undefined}
                 className={cx(
                     "group flex w-full min-w-0 flex-col gap-2 rounded-card text-left",
                     "transition-transform duration-(--duration-fast) ease-standard active:scale-99",
@@ -41,7 +45,7 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
                 <div className="flex min-w-0 flex-col gap-0.5 px-0.5">
                     <span
                         className={cx(
-                            "line-clamp-2 text-body font-medium",
+                            "line-clamp-2 text-body font-medium break-words",
                             video?.isWatched ? "text-text-muted" : "text-text"
                         )}
                         title={title}
@@ -55,6 +59,12 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
                         </Badge>
                     )}
                 </div>
+                {/* The label is only the title (and whether it is watched); the rest of the card is its description. */}
+                {description && (
+                    <span id={descriptionId} hidden>
+                        {description}
+                    </span>
+                )}
             </button>
         </VideoContextMenu>
     );

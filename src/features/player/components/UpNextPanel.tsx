@@ -32,7 +32,9 @@ export function UpNextPanel({ entries, onSelect, scrollsWithPage = false }: UpNe
                         className="w-2/5 max-w-48 shrink-0 rounded-control"
                     />
                     <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="line-clamp-2 text-small font-medium text-text">{entryTitle(entry)}</span>
+                        <span className="line-clamp-2 text-small font-medium break-words text-text">
+                            {entryTitle(entry)}
+                        </span>
                         {entry.video && entry.video.durationSeconds > 0 && (
                             <span className="text-caption text-text-subtle tabular-nums">
                                 {formatDuration(entry.video.durationSeconds)}

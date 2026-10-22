@@ -47,7 +47,7 @@ export function useAddTagToFolder() {
         "Could not add the tag",
         (tagged, { name }) =>
             toast({
-                title: `Tagged ${plural(tagged, "video")} with "${name.trim().toLowerCase()}"`,
+                title: `Tagged ${plural(tagged, "video")} with “${name.trim().toLowerCase()}”`,
                 tone: "success",
             })
     );

@@ -19,6 +19,8 @@ describe("SearchInput", () => {
         const { user } = renderWithUi(<ControlledSearch />);
         await user.type(screen.getByRole("searchbox", { name: "Search videos" }), "pilot");
         expect(screen.getByRole("searchbox")).toHaveValue("pilot");
+        // Regression: the webview's autofill offered past searches under the field.
+        expect(screen.getByRole("searchbox")).toHaveAttribute("autocomplete", "off");
     });
 
     it("clears with the clear button and keeps focus in the field", async () => {

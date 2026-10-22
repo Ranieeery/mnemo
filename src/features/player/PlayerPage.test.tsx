@@ -492,14 +492,15 @@ describe("PlayerPage", () => {
 
     it("shows a toggle that turns green once the video is watched", async () => {
         const { user } = renderPlayer();
-        const toggle = await screen.findByRole("button", { name: "Mark as watched" });
+        const toggle = await screen.findByRole("button", { name: "Watched" });
         expect(toggle).toHaveAttribute("aria-pressed", "false");
+        expect(toggle).toHaveAttribute("title", "Mark as watched");
         await user.click(toggle);
-        const watched = await screen.findByRole("button", { name: "Watched" });
-        expect(watched).toHaveAttribute("aria-pressed", "true");
-        expect(watched).toHaveClass("bg-success");
-        // Regression: the longer label stays in the layout (hidden), so toggling never resizes the button.
-        expect(watched).toHaveTextContent("Mark as watched");
+        // Regression: the label stays the same; only the pressed state (and the color) says it is watched.
+        await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+        expect(toggle).toHaveAccessibleName("Watched");
+        expect(toggle).toHaveClass("bg-success");
+        expect(toggle).toHaveAttribute("title", "Mark as unwatched");
     });
 
     it("switches to theater mode with the button or T, without reloading the video", async () => {

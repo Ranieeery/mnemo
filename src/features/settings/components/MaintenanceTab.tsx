@@ -69,7 +69,7 @@ function CleanupCard({ title, describe, videos = [], pending, hiddenCount = 0, c
 
     return (
         <Card>
-            <SettingRow title={title} description={pending ? "Checking..." : describe(count)}>
+            <SettingRow title={title} description={pending ? "Checking…" : describe(count)}>
                 <Button icon={<Eraser />} disabled={count === 0} onClick={() => setConfirmOpen(true)}>
                     Clean up
                 </Button>

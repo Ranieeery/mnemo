@@ -110,14 +110,14 @@ export function TagManager() {
                             {plural(tag.videoCount, "video")}
                         </span>
                         <IconButton
-                            label={`Remove "${tag.name}" from all videos`}
+                            label={`Remove “${tag.name}” from all videos`}
                             icon={<Unlink />}
                             size="sm"
                             disabled={tag.videoCount === 0}
                             onClick={() => setPending({ kind: "detach", tag })}
                         />
                         <IconButton
-                            label={`Delete tag "${tag.name}"`}
+                            label={`Delete tag “${tag.name}”`}
                             icon={<Trash2 />}
                             size="sm"
                             data-delete-tag
@@ -158,13 +158,13 @@ function describe(pending: PendingAction, unused: number, total: number) {
     switch (pending.kind) {
         case "delete":
             return {
-                title: `Delete tag "${pending.tag.name}"?`,
+                title: `Delete tag “${pending.tag.name}”?`,
                 description: `It is removed from ${plural(pending.tag.videoCount, "video")} and from the tag list.`,
                 confirmLabel: "Delete tag",
             };
         case "detach":
             return {
-                title: `Remove "${pending.tag.name}" from all videos?`,
+                title: `Remove “${pending.tag.name}” from all videos?`,
                 description: `${plural(pending.tag.videoCount, "video")} ${pending.tag.videoCount === 1 ? "loses" : "lose"} this tag. The tag stays in the list.`,
                 confirmLabel: "Remove from videos",
             };

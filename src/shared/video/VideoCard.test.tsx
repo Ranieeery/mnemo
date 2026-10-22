@@ -63,4 +63,14 @@ describe("VideoCard", () => {
         expect(router.state.location.pathname).toBe("/watch");
         expect(router.state.location.search).toEqual({ path: "D:\\Videos\\Movie.mkv" });
     });
+
+    it("describes what the card shows besides the title", async () => {
+        const video = videoFixture({ title: "Pilot", durationSeconds: 1500, watchProgressSeconds: 750 });
+        mockCommands({});
+        renderScreen(<VideoCard entry={toEntry(video)} detail="Show › Season 1" />);
+
+        // Regression: the label used to replace the whole content, so the progress, duration and detail went unread.
+        const card = await screen.findByRole("button", { name: "Pilot" });
+        expect(card).toHaveAccessibleDescription("50% watched, 25:00, Show › Season 1");
+    });
 });

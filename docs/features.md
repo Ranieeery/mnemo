@@ -22,7 +22,10 @@ teclado e mouse (ver `CLAUDE.md`).
   escolha) ou, no gráfico, a coluna mais recente. Em "All icons" a linha do ícone escolhido fica sempre renderizada
   (`VirtualList` `keepMounted`), para o `Tab` chegar a ela.
 - Anúncios para leitor de tela: o player anuncia o que um atalho fez (o mesmo texto do flash, numa região `status`);
-  a barra de leitura de vídeos anuncia só o início (o fim e as falhas chegam pelos toasts), nunca cada arquivo.
+  a barra de leitura de vídeos anuncia só o início (o fim e as falhas chegam pelos toasts), nunca cada arquivo. O
+  card de vídeo tem como nome o título (e ", watched") e como descrição o resto do que mostra: progresso, duração,
+  linha de detalhe e "Not processed". O botão "Watched" do player é um toggle de texto fixo (`aria-pressed`; o
+  tooltip diz a ação). As prévias de pasta da home são cabeçalhos, como as outras seções.
 - Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências
   entre sessões (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e
   salvas 400 ms após a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada

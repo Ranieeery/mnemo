@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { HomeData } from "../../shared/ipc/bindings";
 import { libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
@@ -31,7 +31,11 @@ describe("HomePage", () => {
         expect(screen.getByRole("heading", { name: "Recently watched" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Halfway there" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Seen it, watched" })).toBeInTheDocument();
-        const folderIcon = screen.getByRole("link", { name: /Videos/ }).querySelector("svg");
+        // Regression: folder previews are headings too, so heading navigation reaches them.
+        const folderHeading = screen.getByRole("heading", { level: 2, name: /Videos/ });
+        const folderIcon = within(folderHeading)
+            .getByRole("link", { name: /Videos/ })
+            .querySelector("svg");
         expect(folderIcon).toHaveClass("lucide-film");
         expect(folderIcon).toHaveStyle({ color: "var(--color-folder-amber)" });
         expect(screen.getByRole("button", { name: "From the folder" })).toBeInTheDocument();

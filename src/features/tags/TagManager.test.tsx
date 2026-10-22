@@ -15,7 +15,7 @@ describe("TagManager", () => {
         renderScreen(<TagManager />);
         expect(await screen.findByText("2 tags, 1 unused")).toBeInTheDocument();
         expect(screen.getByText("12 videos")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: 'Remove "old" from all videos' })).toHaveAttribute(
+        expect(screen.getByRole("button", { name: "Remove “old” from all videos" })).toHaveAttribute(
             "aria-disabled",
             "true"
         );
@@ -34,9 +34,9 @@ describe("TagManager", () => {
     it("removes a tag from every video, keeping the tag", async () => {
         const calls = mockCommands({ list_tags: tags, remove_tag_from_all_videos: 12 });
         const { user } = renderScreen(<TagManager />);
-        await user.click(await screen.findByRole("button", { name: 'Remove "anime" from all videos' }));
+        await user.click(await screen.findByRole("button", { name: "Remove “anime” from all videos" }));
         await user.click(await screen.findByRole("button", { name: "Remove from videos" }));
-        expect(await screen.findByText('Removed "anime" from 12 videos')).toBeInTheDocument();
+        expect(await screen.findByText("Removed “anime” from 12 videos")).toBeInTheDocument();
         expect(callsOf(calls, "remove_tag_from_all_videos")).toEqual([{ tagId: 1 }]);
     });
 
@@ -50,9 +50,9 @@ describe("TagManager", () => {
             },
         });
         const { user } = renderScreen(<TagManager />);
-        await user.click(await screen.findByRole("button", { name: 'Delete tag "anime"' }));
+        await user.click(await screen.findByRole("button", { name: "Delete tag “anime”" }));
         await user.click(await screen.findByRole("button", { name: "Delete tag" }));
-        await waitFor(() => expect(screen.getByRole("button", { name: 'Delete tag "old"' })).toHaveFocus());
+        await waitFor(() => expect(screen.getByRole("button", { name: "Delete tag “old”" })).toHaveFocus());
 
         await user.keyboard("{Enter}");
         await user.click(await screen.findByRole("button", { name: "Delete tag" }));
@@ -63,7 +63,7 @@ describe("TagManager", () => {
         const calls = mockCommands({ list_tags: [], create_tag: { id: 3, name: "documentary" } });
         const { user } = renderScreen(<TagManager />);
         await user.type(await screen.findByRole("textbox", { name: "New tag" }), "Documentary{Enter}");
-        expect(await screen.findByText('Created tag "documentary"')).toBeInTheDocument();
+        expect(await screen.findByText("Created tag “documentary”")).toBeInTheDocument();
         expect(callsOf(calls, "create_tag")).toEqual([{ name: "Documentary" }]);
         expect(screen.getByRole("textbox", { name: "New tag" })).toHaveValue("");
     });

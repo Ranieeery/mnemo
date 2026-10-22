@@ -29,6 +29,8 @@ export function Input({ label, hideLabel = false, hint, error, id, className, ..
             </label>
             <input
                 id={inputId}
+                // The webview's autofill would offer past entries (tag names, titles) as if this were a web form.
+                autoComplete="off"
                 aria-invalid={error ? true : undefined}
                 aria-describedby={message ? hintId : undefined}
                 className={inputClasses}

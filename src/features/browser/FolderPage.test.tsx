@@ -277,7 +277,7 @@ describe("FolderPage", () => {
         await user.click(await screen.findByRole("menuitem", { name: "Add tag to all videos" }));
         await user.type(await screen.findByRole("textbox", { name: "Tag" }), "Anime{Enter}");
 
-        expect(await screen.findByText('Tagged 19 videos with "anime"')).toBeInTheDocument();
+        expect(await screen.findByText("Tagged 19 videos with “anime”")).toBeInTheDocument();
         expect(callsOf(calls, "add_tag_to_folder")).toEqual([{ path: SHOW, name: "Anime" }]);
     });
 

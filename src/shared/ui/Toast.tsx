@@ -101,7 +101,9 @@ export function Toaster() {
                     </Primitive.Close>
                 </Primitive.Root>
             ))}
-            <Primitive.Viewport className="fixed right-0 bottom-0 z-50 m-0 flex w-96 max-w-[100vw] list-none flex-col gap-2 p-4 outline-none" />
+            {/* F8 focuses the viewport, so it keeps the focus ring (inset, as it sits on the window's edge). Empty, it
+                is hidden: nothing to focus, and its padding no longer covers the corner of the screen. */}
+            <Primitive.Viewport className="fixed right-0 bottom-0 z-50 m-0 flex w-96 max-w-[100vw] list-none flex-col gap-2 rounded-card p-4 -outline-offset-2 empty:hidden" />
         </Primitive.Provider>
     );
 }

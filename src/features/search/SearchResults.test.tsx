@@ -16,7 +16,7 @@ describe("LibrarySearchResults", () => {
         });
         renderScreen(<LibrarySearchResults query="fin" />);
 
-        expect(await screen.findByText(/1 video matches/)).toHaveTextContent('1 video matches "fin"');
+        expect(await screen.findByText(/1 video matches/)).toHaveTextContent("1 video matches “fin”");
         const card = screen.getByRole("button", { name: "Finale" });
         expect(card).toHaveTextContent("Season 2");
     });
@@ -24,7 +24,7 @@ describe("LibrarySearchResults", () => {
     it("explains what search looks at when nothing matches", async () => {
         mockCommands({ search_library: [] });
         renderScreen(<LibrarySearchResults query="zzz" />);
-        expect(await screen.findByRole("heading", { name: 'No videos match "zzz"' })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "No videos match “zzz”" })).toBeInTheDocument();
         expect(screen.getByText(/titles, descriptions and tags/)).toBeInTheDocument();
     });
 });

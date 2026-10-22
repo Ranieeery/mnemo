@@ -13,13 +13,13 @@ function ResultCount({ count, query, capped = false }: { count: number; query: s
     return (
         <p className="text-body text-text-muted" role="status">
             {capped ? `First ${count}` : count} {count === 1 ? "video matches" : "videos match"}{" "}
-            <span className="text-text">"{query}"</span>
+            <span className="text-text">“{query}”</span>
         </p>
     );
 }
 
 function NoMatches({ query, hint }: { query: string; hint: string }) {
-    return <EmptyState icon={SearchX} title={`No videos match "${query}"`} description={hint} />;
+    return <EmptyState icon={SearchX} title={`No videos match “${query}”`} description={hint} />;
 }
 
 /** Results of a library-wide search by title, description and tags. */

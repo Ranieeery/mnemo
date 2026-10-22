@@ -18,7 +18,7 @@ export function useCreateTag() {
     return useLibraryMutation(
         (name: string) => call(commands.createTag(name)),
         "Could not create the tag",
-        (tag) => toast({ title: `Created tag "${tag.name}"`, tone: "success" })
+        (tag) => toast({ title: `Created tag “${tag.name}”`, tone: "success" })
     );
 }
 
@@ -37,7 +37,7 @@ export function useDeleteTag() {
     return useLibraryMutation(
         ({ id }: { id: number; name: string }) => call(commands.deleteTag(id)),
         "Could not delete the tag",
-        (_result, { name }) => toast({ title: `Deleted tag "${name}"`, tone: "success" })
+        (_result, { name }) => toast({ title: `Deleted tag “${name}”`, tone: "success" })
     );
 }
 
@@ -45,7 +45,7 @@ export function useRemoveTagFromAllVideos() {
     return useLibraryMutation(
         ({ id }: { id: number; name: string }) => call(commands.removeTagFromAllVideos(id)),
         "Could not remove the tag",
-        (removed, { name }) => toast({ title: `Removed "${name}" from ${plural(removed, "video")}`, tone: "success" })
+        (removed, { name }) => toast({ title: `Removed “${name}” from ${plural(removed, "video")}`, tone: "success" })
     );
 }
 

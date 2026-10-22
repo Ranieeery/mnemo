@@ -37,6 +37,7 @@ export function SearchInput({ value, onValueChange, label, placeholder, busy = f
             <input
                 ref={inputRef}
                 type="search"
+                autoComplete="off"
                 aria-label={label}
                 aria-busy={busy || undefined}
                 value={value}
