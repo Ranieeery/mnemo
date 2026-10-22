@@ -7,6 +7,7 @@
 
 mod native;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
 pub use native::NativeWindow;
@@ -44,6 +45,8 @@ struct State {
 
 pub struct WindowControl {
     state: Mutex<State>,
+    /// A resize of the user's waits for [`WindowControl::settle_resize`]: a drag reports many, one settle is enough.
+    settle_pending: AtomicBool,
     on_top_supported: bool,
     /// The window's configured minimum size, given back after the mini player.
     normal_min_size: Option<LogicalSize>,
@@ -56,6 +59,7 @@ impl WindowControl {
     pub fn new(on_top_supported: bool, normal_min_size: Option<LogicalSize>) -> Self {
         Self {
             state: Mutex::new(State::default()),
+            settle_pending: AtomicBool::new(false),
             on_top_supported,
             normal_min_size,
         }
@@ -194,8 +198,9 @@ impl WindowControl {
         Ok(self.mode_of(&state))
     }
 
-    /// Follows a resize reported by the window, on the main thread. Returns whether it was the user's (to be settled
-    /// with [`Self::settle_resize`] off the main thread); the app's own resizes are ignored.
+    /// Follows a resize reported by the window, on the main thread. Returns whether to run [`Self::settle_resize`]
+    /// off the main thread: the resize was the user's and no settle is waiting yet (it reads the size when it runs).
+    /// The app's own resizes are ignored.
     pub fn note_resize(&self, size: Size) -> bool {
         let Ok(state) = self.state.try_lock() else {
             return false;
@@ -203,6 +208,7 @@ impl WindowControl {
         state
             .mini
             .is_some_and(|session| !is_programmatic(session.expected, size))
+            && !self.settle_pending.swap(true, Ordering::AcqRel)
     }
 
     /// A monitor with another DPI: lengths the user chose keep their logical size.
@@ -217,6 +223,8 @@ impl WindowControl {
     /// After the user resized the mini player: maximizing it means "expand", any other size becomes the width the
     /// mini player keeps for the rest of the session. Returns the new mode when the mini player ended.
     pub fn settle_resize(&self, window: &impl NativeWindow) -> AppResult<Option<WindowMode>> {
+        // Cleared before reading the window, so a resize from now on asks for another settle.
+        self.settle_pending.store(false, Ordering::Release);
         let mut state = self.lock()?;
         let Some(session) = state.mini else {
             return Ok(None);
@@ -601,6 +609,7 @@ mod tests {
             width: 700,
             height: 400
         }));
+        control.settle_resize(&window).unwrap();
         // While a command holds the state, the main thread skips the resizes it causes.
         let held = control.lock().unwrap();
         assert!(!control.note_resize(Size {
@@ -608,6 +617,21 @@ mod tests {
             height: 400
         }));
         drop(held);
+    }
+
+    #[test]
+    fn a_drag_asks_for_one_settle_at_a_time() {
+        let control = control();
+        let window = FakeWindow::new();
+        control.enter_mini(&window, DEFAULT_ASPECT).unwrap();
+        let dragged = |width| Size { width, height: 400 };
+        assert!(control.note_resize(dragged(700)));
+        // The settle already asked for reads the latest size: the rest of the drag adds none.
+        assert!(!control.note_resize(dragged(710)));
+        assert!(!control.note_resize(dragged(720)));
+
+        control.settle_resize(&window).unwrap();
+        assert!(control.note_resize(dragged(730)));
     }
 
     #[test]
