@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::sync::Notify;
 
@@ -158,6 +158,19 @@ impl Harness {
     }
 }
 
+/// Waits until `condition` holds, failing after a few seconds.
+pub(crate) async fn eventually<F, Fut>(what: &str, mut condition: F)
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = bool>,
+{
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !condition().await {
+        assert!(Instant::now() < deadline, "timed out waiting until {what}");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
 fn names(count: usize) -> Vec<String> {
     (1..=count).map(|index| format!("Ep {index}.mkv")).collect()
 }
@@ -255,8 +268,10 @@ async fn cancelling_a_job_stops_it_without_leaving_anything_halfway() {
     let dir = library(&names(10));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(150)), 2);
     harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    assert_eq!(harness.processor.status().in_flight.len(), 2);
+    eventually("two files are being read", || async {
+        harness.processor.status().in_flight.len() == 2
+    })
+    .await;
 
     harness.processor.cancel(Some(dir.path()));
     let outcome = harness.outcomes(1).await.remove(0);
@@ -289,10 +304,16 @@ async fn cancelling_one_job_keeps_the_others_going() {
     harness.processor.cancel(Some(first.path()));
 
     let outcomes = harness.outcomes(2).await;
-    let finished_second = outcomes
-        .iter()
-        .find(|outcome| Path::new(&outcome.folder) == second.path())
-        .unwrap();
+    let outcome_of = |folder: &Path| {
+        outcomes
+            .iter()
+            .find(|outcome| Path::new(&outcome.folder) == folder)
+            .unwrap()
+    };
+    let cancelled = outcome_of(first.path());
+    assert!(cancelled.cancelled);
+    assert!(cancelled.summary.processed < 6);
+    let finished_second = outcome_of(second.path());
     assert!(!finished_second.cancelled);
     assert_eq!(finished_second.summary.processed, 3);
 }
@@ -308,7 +329,10 @@ async fn cancelling_everything_empties_the_queue() {
     harness
         .enqueue(second.path().to_path_buf(), Priority::Normal, false)
         .await;
-    tokio::time::sleep(Duration::from_millis(30)).await;
+    eventually("a file is being read", || async {
+        !harness.processor.status().in_flight.is_empty()
+    })
+    .await;
     harness.processor.cancel(None);
 
     let outcomes = harness.outcomes(2).await;
@@ -347,8 +371,11 @@ async fn serves_normal_jobs_before_low_priority_ones() {
     let normal = library(&names(3));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(20)), 1);
     harness.enqueue(low.path().to_path_buf(), Priority::Low, false).await;
-    // Let the low job list its files before the normal one arrives.
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    // The low job is already reading when the normal one arrives, and still yields to it.
+    eventually("the low job is reading", || async {
+        !harness.toolkit().probed.lock().unwrap().is_empty()
+    })
+    .await;
     harness
         .enqueue(normal.path().to_path_buf(), Priority::Normal, false)
         .await;
@@ -376,7 +403,10 @@ async fn status_shows_the_jobs_and_the_files_being_read() {
     let dir = library(&names(4));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 2);
     harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    eventually("two files are being read", || async {
+        harness.processor.status().in_flight.len() == 2
+    })
+    .await;
 
     let status = harness.processor.status();
     assert_eq!(status.jobs.len(), 1);
@@ -403,7 +433,10 @@ async fn forgetting_stops_the_jobs_of_folders_that_left_the_library_only() {
     ] {
         harness.enqueue(folder, Priority::Normal, false).await;
     }
-    tokio::time::sleep(Duration::from_millis(30)).await;
+    eventually("the first job is reading", || async {
+        !harness.processor.status().in_flight.is_empty()
+    })
+    .await;
 
     // `Show` was removed from the library, `Show/Season 1` stays in it.
     let kept =
@@ -424,8 +457,12 @@ async fn videos_whose_folder_left_the_library_are_not_stored() {
     let dir = library(&names(4));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(10)), 4);
     harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
-    // Every file is read and waits in the writer's batch.
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    // Every file is read and waits in the writer's batch, stored only a second after the first arrives.
+    eventually("every file is read", || async {
+        let toolkit = harness.toolkit();
+        toolkit.probed.lock().unwrap().len() == 4 && toolkit.reading.load(Ordering::SeqCst) == 0
+    })
+    .await;
     let path = dir.path().to_string_lossy().into_owned();
     harness
         .db
@@ -467,13 +504,10 @@ async fn new_files_of_a_folder_being_read_join_its_job() {
     let dir = library(&names(2));
     let harness = Harness::new(FakeToolkit::slow(Duration::from_millis(100)), 1);
     harness.enqueue(dir.path().to_path_buf(), Priority::Normal, false).await;
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while harness.toolkit().probed.lock().unwrap().is_empty() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+    eventually("the job is reading", || async {
+        !harness.toolkit().probed.lock().unwrap().is_empty()
     })
-    .await
-    .unwrap();
+    .await;
 
     let late = dir.path().join("Ep 9.mkv");
     std::fs::write(&late, b"late").unwrap();

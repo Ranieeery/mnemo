@@ -101,13 +101,15 @@ describe("app shell", () => {
     });
 
     it("goes back with a reassigned key", async () => {
-        const { user } = renderApp("/", {
+        const { user, router } = renderApp("/", {
             get_keyboard_shortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS, historyBack: ["Alt+Backspace"] },
         });
         await openSeries(user);
+        // The keys move the (memory) history at once; the screen follows later.
         await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
-        expect(screen.getByRole("heading", { name: "Series", level: 1 })).toBeInTheDocument();
+        expect(router.history.location.pathname).toBe("/folder");
         await user.keyboard("{Alt>}{Backspace}{/Alt}");
+        expect(router.history.location.pathname).toBe("/");
         expect(await screen.findByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument();
     });
 
@@ -206,9 +208,8 @@ describe("app shell", () => {
 
         await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
         fireEvent.mouseUp(window, { button: 3 });
-        await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+        expect(router.history.location.pathname).toBe("/folder");
         expect(help).toBeInTheDocument();
-        expect(router.state.location.search).toEqual({ path: "D:\\Series" });
 
         await user.click(within(help).getByText("Close", { selector: "button" }));
         await waitFor(() => expect(help).not.toBeInTheDocument());

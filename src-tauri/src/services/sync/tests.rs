@@ -9,7 +9,7 @@ use crate::db::videos::{self, NewVideo};
 use crate::db::{backup, folders, hidden, presence, tags};
 use crate::domain::folder_view::FolderViewMode;
 use crate::services::media::processing::Priority;
-use crate::services::media::processing::tests::{FakeToolkit, Harness};
+use crate::services::media::processing::tests::{FakeToolkit, Harness, eventually};
 
 const TEST_TIMING: Timing = Timing {
     start_delay: Duration::ZERO,
@@ -162,6 +162,14 @@ impl Fixture {
             .unwrap()
     }
 
+    /// Gives the watcher's debounce and every periodic check the time to fire, then waits until the loop has handled
+    /// all it received (a comparison of no paths answers only after what came before it). Whatever has not happened
+    /// by then was not going to happen.
+    async fn catch_up(&self) {
+        tokio::time::sleep(TEST_TIMING.debounce + TEST_TIMING.settle + TEST_TIMING.poll_interval).await;
+        self.sync.reconcile_now(Vec::new()).await.unwrap();
+    }
+
     fn watch_of(&self, relative: &str) -> Option<FolderWatch> {
         let path = self.text(relative);
         self.sync
@@ -169,19 +177,6 @@ impl Fixture {
             .into_iter()
             .find(|status| status.path == path)
             .map(|status| status.watch)
-    }
-}
-
-/// Waits until `condition` holds, failing after a few seconds.
-async fn eventually<F, Fut>(what: &str, mut condition: F)
-where
-    F: FnMut() -> Fut,
-    Fut: Future<Output = bool>,
-{
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !condition().await {
-        assert!(Instant::now() < deadline, "timed out waiting until {what}");
-        tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
 
@@ -228,6 +223,10 @@ async fn a_failed_startup_comparison_is_reported() {
 #[tokio::test]
 async fn follows_renames_deletions_and_new_files_as_they_happen() {
     let fixture = Fixture::new(&["Library/Show/Ep 1.mkv", "Library/Show/Ep 2.mkv"], true).await;
+    // Identical copies: a comparison never pairs them (even once fingerprinted), so only the watcher's rename event
+    // can carry the video to its new name.
+    fixture.write("Library/Show/Ep 1.mkv", b"same");
+    fixture.write("Library/Show/Ep 2.mkv", b"same");
     let first = fixture.store_legacy("Library/Show/Ep 1.mkv").await;
     fixture.store_legacy("Library/Show/Ep 2.mkv").await;
     fixture.sync.start();
@@ -321,7 +320,7 @@ async fn an_unplugged_folder_keeps_its_videos_and_is_compared_when_it_comes_back
         fixture.watch_of("Library") == Some(FolderWatch::Unavailable)
     })
     .await;
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    fixture.catch_up().await;
     assert_eq!(fixture.missing("Library/Ep 1.mkv").await, Some(false));
 
     std::fs::remove_file(fixture.path("Unplugged/Ep 2.mkv")).unwrap();
@@ -348,7 +347,7 @@ async fn with_watching_off_changes_wait_for_a_sync() {
     .await;
 
     std::fs::remove_file(fixture.path("Library/Ep 1.mkv")).unwrap();
-    tokio::time::sleep(Duration::from_millis(400)).await;
+    fixture.catch_up().await;
     assert_eq!(fixture.missing("Library/Ep 1.mkv").await, Some(false));
 
     fixture.sync.reconcile_now(vec![fixture.path("Library")]).await.unwrap();
@@ -366,7 +365,7 @@ async fn turning_watching_on_compares_what_changed_while_off() {
     })
     .await;
     std::fs::remove_file(fixture.path("Library/Ep 1.mkv")).unwrap();
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    fixture.catch_up().await;
     assert_eq!(fixture.missing("Library/Ep 1.mkv").await, Some(false));
 
     fixture.sync.set_enabled(true);
@@ -422,8 +421,9 @@ async fn a_folder_past_the_watch_limit_is_compared_periodically() {
         Some("limit reached")
     );
 
-    // Nothing watches the folder anymore: only the periodic comparison can find this.
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    // Nothing watches the folder anymore: only the periodic comparison can find this. The loop first ends the
+    // comparison the failure asked for, which would find it too.
+    fixture.sync.reconcile_now(Vec::new()).await.unwrap();
     std::fs::remove_file(fixture.path("Library/Ep 1.mkv")).unwrap();
     eventually("the periodic comparison finds the change", || async {
         fixture.missing("Library/Ep 1.mkv").await == Some(true)

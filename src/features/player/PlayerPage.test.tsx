@@ -1,3 +1,4 @@
+import { useSearch } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -41,6 +42,12 @@ type Options = {
     subtitleStyle?: SubtitleStyle;
     extractFails?: boolean;
 };
+
+/** The player as the app's watch route mounts it: a new one for each video. */
+function WatchScreen() {
+    const { path }: { path?: unknown } = useSearch({ strict: false });
+    return typeof path === "string" ? <PlayerPage key={path} path={path} /> : null;
+}
 
 function renderPlayer({
     video = current,
@@ -96,7 +103,7 @@ function renderPlayer({
             watchProgressSeconds: positionSeconds,
         }),
     });
-    const rendered = renderScreen(<PlayerPage path={path} />, ["/", `/watch?path=${encodeURIComponent(path)}`]);
+    const rendered = renderScreen(<WatchScreen />, ["/", `/watch?path=${encodeURIComponent(path)}`]);
     /** Changes the record the backend keeps, as reading the video does. */
     const storeVideo = (record: Video) => {
         stored = record;
@@ -186,7 +193,9 @@ describe("PlayerPage", () => {
         const { user } = renderPlayer();
         const element = await videoElement();
         act(() => loadMetadata(element, 1500));
-        element.currentTime = 100;
+        act(() => {
+            element.currentTime = 100;
+        });
 
         await user.keyboard(" ");
         expect(element.paused).toBe(false);
@@ -488,6 +497,7 @@ describe("PlayerPage", () => {
         expect(callsOf(calls, "save_progress")).toContainEqual({ id: 1, positionSeconds: 1500, finished: true });
         await user.click(screen.getByRole("button", { name: "Play now" }));
         await waitFor(() => expect(router.state.location.search).toEqual({ path: next.filePath }));
+        await waitFor(() => expect(callsOf(calls, "get_video")).toContainEqual({ path: next.filePath }));
     });
 
     it("shows a toggle that turns green once the video is watched", async () => {
@@ -595,9 +605,13 @@ describe("PlayerPage", () => {
         await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}]");
 
         await waitFor(() => expect(callsOf(calls, "update_player_preferences")).toHaveLength(1));
-        expect(callsOf(calls, "update_player_preferences")[0]).toEqual({
-            preferences: { ...DEFAULT_PLAYER_PREFERENCES, volume: 0.85, speed: 1.25 },
-        });
+        // One more change after it: had the burst saved again later, that save would come before this one's.
+        await user.keyboard("{ArrowUp}");
+        await waitFor(() => expect(callsOf(calls, "update_player_preferences")).toHaveLength(2));
+        expect(callsOf(calls, "update_player_preferences")).toEqual([
+            { preferences: { ...DEFAULT_PLAYER_PREFERENCES, volume: 0.85, speed: 1.25 } },
+            { preferences: { ...DEFAULT_PLAYER_PREFERENCES, volume: 0.9, speed: 1.25 } },
+        ]);
     });
 
     it("saves pending changes when the player closes, and the next video keeps them", async () => {
@@ -625,9 +639,7 @@ describe("PlayerPage", () => {
 
     it("makes the current frame the video's thumbnail", async () => {
         const { user, calls } = renderPlayer();
-        const element = await videoElement();
-        loadMetadata(element, 1500);
-        element.currentTime = 754.2;
+        await playingAt(754.2);
 
         await user.click(screen.getByRole("button", { name: "Use frame as thumbnail" }));
         expect(await screen.findByText("Thumbnail updated")).toBeInTheDocument();

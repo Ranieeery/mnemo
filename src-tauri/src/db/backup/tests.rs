@@ -246,34 +246,57 @@ fn an_unknown_sort_mode_is_ignored_on_import() {
 
 #[test]
 fn export_then_import_round_trips_everything() {
+    // Every table and setting away from its default, so a field the import drops shows up below.
     let mut source = test_support::connection();
     import(&mut source, &parse(LEGACY_EXPORT)).unwrap();
     watch::mark_watched(&mut source, 2).unwrap();
+    let rewatch = tags::find_or_create(&source, "rewatch").unwrap();
+    tags::add_to_video(&source, 2, rewatch.id).unwrap();
     folders::set_view_mode(
         &source,
         "D:\\Videos",
         Some(crate::domain::folder_view::FolderViewMode::Continuous),
     )
     .unwrap();
+    folders::set_appearance(&source, "D:\\Videos", Some("tv"), Some(FolderColor::Teal)).unwrap();
+    folders::set_custom_name(&source, "D:\\Videos", Some("Movies")).unwrap();
+    let folder = folders::list(&source).unwrap().remove(0);
+    let other = folders::add(&source, "E:\\Other").unwrap();
+    let group = groups::create(&source, "Series").unwrap();
+    groups::set_collapsed(&source, group.id, true).unwrap();
+    folders::move_to_group(&source, folder.id, Some(group.id)).unwrap();
+    layout::write(
+        &source,
+        &[
+            LayoutEntry::Folder { id: other.id },
+            LayoutEntry::Group {
+                id: group.id,
+                folders: vec![folder.id],
+            },
+        ],
+    )
+    .unwrap();
+    hidden::hide(&source, "D:\\Videos\\Private").unwrap();
+    settings::set::<settings::FolderSort>(&source, LibraryFolderSort::NameDescending).unwrap();
     settings::save(
         &source,
         &AppSettings {
             watched_threshold: 0.8,
-            watch_folders: true,
+            watch_folders: false,
         },
     )
     .unwrap();
-    let exported = export(&source).unwrap();
+    let mut exported = export(&source).unwrap();
     assert_eq!(exported.format_version, Some(FORMAT_VERSION));
     assert_eq!(exported.watch_history.len(), 1);
 
     let json = serde_json::to_string(&exported).unwrap();
     let mut target = test_support::connection();
     import(&mut target, &parse(&json)).unwrap();
-    assert_eq!(export(&target).unwrap().videos, exported.videos);
-    assert_eq!(export(&target).unwrap().watch_history, exported.watch_history);
-    assert_eq!(folders::view_modes(&target).unwrap().len(), 1);
-    assert_eq!(settings::load(&target).unwrap().watched_threshold, 0.8);
+    let mut again = export(&target).unwrap();
+    exported.exported_at = None;
+    again.exported_at = None;
+    assert_eq!(again, exported);
 }
 
 #[test]
