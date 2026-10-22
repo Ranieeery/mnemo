@@ -7,7 +7,7 @@ use super::hidden::VISIBLE;
 use super::like_pattern;
 use crate::domain::media::FileIdentity;
 use crate::domain::models::{FolderStats, Video};
-use crate::domain::natural_order::reading_order_cmp;
+use crate::domain::natural_order::ReadingKey;
 use crate::domain::paths::FolderBounds;
 use crate::error::{AppError, AppResult};
 
@@ -232,18 +232,21 @@ pub fn folder_preview(connection: &Connection, folder: &str, limit: i64) -> AppR
     let mut statement = connection.prepare_cached(&sql)?;
     let mut keys = statement
         .query_map(params![bounds.lower, bounds.upper], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
+            let key = (
+                row.get::<_, i64>(0)?,
+                ReadingKey::new(Path::new(&row.get::<_, String>(1)?)),
+            );
+            Ok((key, row.get::<_, i64>(2)?))
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    keys.sort_by(|(a_status, a_path, _), (b_status, b_path, _)| {
-        a_status
-            .cmp(b_status)
-            .then_with(|| reading_order_cmp(Path::new(a_path), Path::new(b_path)))
-    });
-    keys.into_iter()
-        .take(usize::try_from(limit).unwrap_or(0))
-        .map(|(_, _, id)| get(connection, id))
-        .collect()
+    // Only the first `limit` need an order: set them apart, then sort just those.
+    let limit = usize::try_from(limit).unwrap_or(0).min(keys.len());
+    if limit < keys.len() {
+        keys.select_nth_unstable(limit);
+        keys.truncate(limit);
+    }
+    keys.sort_unstable();
+    keys.into_iter().map(|(_, id)| get(connection, id)).collect()
 }
 
 pub fn continue_watching(connection: &Connection, limit: i64) -> AppResult<Vec<Video>> {

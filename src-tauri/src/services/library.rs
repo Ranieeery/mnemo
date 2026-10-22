@@ -13,7 +13,7 @@ use crate::domain::models::{
     FileEntry, FolderContents, FolderPreview, FolderSummary, HomeData, LibraryFolder, SubfolderEntry, Video,
     VideoEntry, VideoGroup,
 };
-use crate::domain::natural_order::reading_order_cmp;
+use crate::domain::natural_order::ReadingKey;
 use crate::domain::paths::{is_within, relative_to};
 use crate::error::{AppError, AppResult};
 use crate::services::folder_order;
@@ -316,7 +316,7 @@ pub(crate) fn video_entry(file: PathBuf, records: &mut HashMap<String, Video>) -
 
 /// The files in reading order (the same order as the home previews), one group per run of files sharing a folder.
 fn group_by_folder(root: &Path, mut files: Vec<PathBuf>, mut records: HashMap<String, Video>) -> Vec<VideoGroup> {
-    files.sort_by(|a, b| reading_order_cmp(a, b));
+    files.sort_by_cached_key(|file| ReadingKey::new(file));
     let mut groups: Vec<VideoGroup> = Vec::new();
     for file in files {
         let folder = file.parent().unwrap_or(root).to_path_buf();

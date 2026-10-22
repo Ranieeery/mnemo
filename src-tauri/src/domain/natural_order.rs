@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 use std::path::Path;
 
+use super::media::display_name;
+
 /// Orders strings the way people expect file names to be ordered: runs of digits compare by numeric value
 /// ("Ep 2" before "Ep 10") and letters compare case-insensitively. Ties fall back to a plain comparison so the
 /// order is total and stable.
@@ -42,16 +44,58 @@ pub fn natural_path_cmp(a: &Path, b: &Path) -> Ordering {
     }
 }
 
-/// Orders files the way the continuous view reads a tree: a folder's own files first, by name, then each subfolder
-/// followed by its own subfolders (folders compared with [`natural_path_cmp`], file names with [`natural_cmp`]).
-pub fn reading_order_cmp(a: &Path, b: &Path) -> Ordering {
-    let folder = |path: &Path| path.parent().map(Path::to_path_buf).unwrap_or_default();
-    let name = |path: &Path| {
-        path.file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_default()
-    };
-    natural_path_cmp(&folder(a), &folder(b)).then_with(|| natural_cmp(&name(a), &name(b)))
+/// A file's place in the order the continuous view reads a tree: a folder's own files first, by name, then each
+/// subfolder followed by its own subfolders (folders compared as in [`natural_path_cmp`], names with
+/// [`natural_cmp`]). Built once per file, so sorting many files does not rebuild the strings at every comparison.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ReadingKey {
+    folders: Vec<String>,
+    name: String,
+}
+
+impl ReadingKey {
+    pub fn new(path: &Path) -> Self {
+        let folders = path
+            .parent()
+            .map(|parent| {
+                parent
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy().into_owned())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self {
+            folders,
+            name: display_name(path),
+        }
+    }
+}
+
+impl Ord for ReadingKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Folder by folder, a folder before its subfolders: the order `natural_path_cmp` gives.
+        let mut left = self.folders.iter();
+        let mut right = other.folders.iter();
+        loop {
+            match (left.next(), right.next()) {
+                (None, None) => return natural_cmp(&self.name, &other.name),
+                (None, Some(_)) => return Ordering::Less,
+                (Some(_), None) => return Ordering::Greater,
+                (Some(x), Some(y)) => {
+                    let ordering = natural_cmp(x, y);
+                    if ordering != Ordering::Equal {
+                        return ordering;
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl PartialOrd for ReadingKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 fn compare_chunks(a: &str, b: &str) -> Ordering {
@@ -171,7 +215,7 @@ mod tests {
             "Root 10.mkv",
             "Root 2.mkv",
         ]);
-        sorted.sort_by(|a, b| reading_order_cmp(a, b));
+        sorted.sort_by_cached_key(|path| ReadingKey::new(path));
         assert_eq!(
             sorted,
             paths(&[

@@ -211,7 +211,7 @@ teclado e mouse (ver `CLAUDE.md`).
 - Continuar assistindo, sugestões (não assistidos), assistidos recentemente e prévia de cada pasta da biblioteca.
   O número de cards se adapta à largura da tela.
 - Prévia de pasta (`db/videos.rs` `folder_preview`; as pastas na ordem da sidebar, sem as vazias): vídeos não
-  iniciados, depois em andamento, depois assistidos, cada grupo na ordem do modo contínuo (`reading_order_cmp`: os
+  iniciados, depois em andamento, depois assistidos, cada grupo na ordem do modo contínuo (`ReadingKey`: os
   vídeos da pasta, depois cada subpasta seguida das suas), cortados no número de cards. Sem sumidos nem pastas
   escondidas; uma pasta desconectada continua com a prévia.
 
@@ -365,6 +365,7 @@ teclado e mouse (ver `CLAUDE.md`).
   uma vez por versão, também depois de reiniciar. Quem já viu a versão em Settings não recebe o toast.
 - "Check now" (com carregamento) mostra numa região `status` (polite): "Checking for updates…", "You're up to date
   (X.Y.Z)", "Version X.Y.Z is available" ou o erro, com "Retry". Abaixo, "Last checked: …" (data e hora locais) ou
-  "Not checked yet"; "View release" aparece enquanto houver versão mais nova que a em execução. As notas da release
+  "Not checked yet"; "View release" aparece enquanto houver versão mais nova que a em execução. Uma verificação que
+  não encontra versão mais nova esquece a encontrada antes (release removida), que volta a ser avisada se reaparecer. As notas da release
   não são mostradas no app.
 - Para testar sem publicar: em build de debug, `MNEMO_FAKE_LATEST_RELEASE=2.99.0` (ou `fail`) substitui o GitHub.
