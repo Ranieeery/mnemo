@@ -24,6 +24,7 @@ export {
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
     DropdownMenuSeparator,
+    DropdownMenuSortItem,
     DropdownMenuTrigger,
 } from "./DropdownMenu";
 export { EmptyState } from "./EmptyState";

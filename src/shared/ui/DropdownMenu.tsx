@@ -1,7 +1,8 @@
-import { Check } from "lucide-react";
+import { ArrowDown, ArrowUp, Check } from "lucide-react";
 import { DropdownMenu as Primitive } from "radix-ui";
 import type { ComponentProps, ReactNode } from "react";
 import { cx } from "../lib/cx";
+import type { SortDirection } from "../lib/sortDirection";
 import {
     menuContentClasses,
     menuDangerItemClasses,
@@ -59,6 +60,47 @@ export function DropdownMenuRadioItem({ className, children, ...props }: Compone
             </Primitive.ItemIndicator>
             {children}
         </Primitive.RadioItem>
+    );
+}
+
+type DropdownMenuSortItemProps = {
+    value: string;
+    /** The direction when this is the field sorted by; null when it is not. */
+    direction: SortDirection | null;
+    /** What the direction means for this field ("A to Z"), read after its name. */
+    directionLabel: string;
+    onChoose: () => void;
+    children: ReactNode;
+};
+
+/**
+ * A field to sort by, inside a radio group whose value is the current field. Choosing it keeps the menu open, so
+ * choosing it again reverses the direction right away; an arrow shows the direction of the current field.
+ */
+export function DropdownMenuSortItem({
+    value,
+    direction,
+    directionLabel,
+    onChoose,
+    children,
+}: DropdownMenuSortItemProps) {
+    const DirectionIcon = direction === "desc" ? ArrowDown : ArrowUp;
+    return (
+        <DropdownMenuRadioItem
+            value={value}
+            onSelect={(event) => {
+                event.preventDefault();
+                onChoose();
+            }}
+        >
+            {children}
+            {direction && (
+                <span className="ml-auto flex items-center">
+                    <DirectionIcon aria-hidden />
+                    <span className="sr-only">, {directionLabel}</span>
+                </span>
+            )}
+        </DropdownMenuRadioItem>
     );
 }
 

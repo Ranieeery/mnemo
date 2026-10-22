@@ -7,6 +7,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
+    DropdownMenuSortItem,
     DropdownMenuTrigger,
 } from "../../../shared/ui";
 import {
@@ -53,7 +54,8 @@ type VideoOrderMenusProps = {
 /** Sort and status filter for a folder's videos, next to its view mode. */
 export function VideoOrderMenus({ order, onChange }: VideoOrderMenusProps) {
     const field = sortField(order.sort);
-    const DirectionIcon = sortDirection(order.sort) === "asc" ? ArrowUp : ArrowDown;
+    const direction = sortDirection(order.sort);
+    const DirectionIcon = direction === "asc" ? ArrowUp : ArrowDown;
     const filtered = order.status !== "all";
 
     return (
@@ -71,23 +73,15 @@ export function VideoOrderMenus({ order, onChange }: VideoOrderMenusProps) {
                     <DropdownMenuLabel>Sort by (choose again to reverse)</DropdownMenuLabel>
                     <DropdownMenuRadioGroup value={field}>
                         {SORT_FIELDS.map((option) => (
-                            <DropdownMenuRadioItem
+                            <DropdownMenuSortItem
                                 key={option}
                                 value={option}
-                                onSelect={(event) => {
-                                    // Stays open, so choosing the field again reverses it right away.
-                                    event.preventDefault();
-                                    onChange({ ...order, sort: nextSort(order.sort, option) });
-                                }}
+                                direction={option === field ? direction : null}
+                                directionLabel={directionLabels[order.sort]}
+                                onChoose={() => onChange({ ...order, sort: nextSort(order.sort, option) })}
                             >
                                 {fieldLabels[option]}
-                                {option === field && (
-                                    <span className="ml-auto flex items-center">
-                                        <DirectionIcon aria-hidden />
-                                        <span className="sr-only">, {directionLabels[order.sort]}</span>
-                                    </span>
-                                )}
-                            </DropdownMenuRadioItem>
+                            </DropdownMenuSortItem>
                         ))}
                     </DropdownMenuRadioGroup>
                 </DropdownMenuContent>

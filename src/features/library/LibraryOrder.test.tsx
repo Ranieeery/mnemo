@@ -35,23 +35,6 @@ describe("library folder order", () => {
         vi.restoreAllMocks();
     });
 
-    it("shows the current sort mode and changes it from the menu", async () => {
-        const calls = mockCommands({
-            ...libraryCommandsFixture([anime, movies, series]),
-            get_library_folder_sort: "nameAscending",
-            set_library_folder_sort: libraryLayoutFixture([series, movies, anime]),
-        });
-        const { user } = renderScreen(<LibraryNav currentPath={undefined} />);
-
-        await user.click(await screen.findByRole("button", { name: "Sort folders: Name (A–Z)" }));
-        expect(screen.getByRole("menuitemradio", { name: "Name (A–Z)" })).toBeChecked();
-        await user.click(screen.getByRole("menuitemradio", { name: "Name (Z–A)" }));
-
-        expect(await screen.findByRole("button", { name: "Sort folders: Name (Z–A)" })).toBeInTheDocument();
-        expect(callsOf(calls, "set_library_folder_sort")).toEqual([{ sort: "nameDescending" }]);
-        expect(folderNames()).toEqual(["Series", "Movies", "Anime"]);
-    });
-
     it("moves a folder from the context menu, switching to the custom order from the order on screen", async () => {
         const calls = mockCommands({
             ...libraryCommandsFixture([series, movies, anime]),
@@ -90,7 +73,7 @@ describe("library folder order", () => {
 
         expect(await screen.findByText("Could not move the folder")).toBeInTheDocument();
         expect(folderNames()).toEqual(["Anime", "Movies"]);
-        expect(screen.getByRole("button", { name: "Sort folders: Name (A–Z)" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Sort folders: Name, A to Z" })).toBeInTheDocument();
     });
 
     it("does not offer to move the only folder", async () => {

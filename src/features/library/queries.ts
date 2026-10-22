@@ -159,6 +159,8 @@ export function useSetLibraryFolderSort() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (sort: LibraryFolderSort) => call(commands.setLibraryFolderSort(sort)),
+        // Choosing again before the last choice is saved saves both in order, so the last one chosen stays.
+        scope: { id: "libraryFolderSort" },
         onSuccess: (entries, sort) => showLibraryOrder(queryClient, sort, entries),
         onError: (error) => {
             toast({ title: "Could not sort the folders", description: errorMessage(error), tone: "danger" });

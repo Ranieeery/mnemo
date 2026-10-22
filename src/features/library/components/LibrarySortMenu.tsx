@@ -17,39 +17,77 @@ import {
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
     DropdownMenuSeparator,
+    DropdownMenuSortItem,
     DropdownMenuTrigger,
     IconButton,
 } from "../../../shared/ui";
+import { chosenSort, type FolderSortOption, sortState } from "../lib/folderSort";
 import { useLibraryFolderSort, useSetLibraryFolderSort } from "../queries";
 import { useNewGroup } from "./NewGroupContext";
 
-type SortOption = { value: LibraryFolderSort; label: string; icon: ReactNode };
+const optionLabels: Record<FolderSortOption, string> = {
+    custom: "Custom order",
+    name: "Name",
+    added: "Date added",
+    recentlyWatched: "Recently watched",
+};
 
-const customOrder: SortOption = { value: "custom", label: "Custom order", icon: <ListOrdered /> };
+/** What the direction of each mode means, read after the option's name. */
+const directionLabels: Record<LibraryFolderSort, string> = {
+    custom: "",
+    nameAscending: "A to Z",
+    nameDescending: "Z to A",
+    oldestFirst: "oldest first",
+    newestFirst: "newest first",
+    recentlyWatched: "",
+};
 
-const sortOptions: SortOption[] = [
-    customOrder,
-    { value: "nameAscending", label: "Name (A–Z)", icon: <ArrowDownAZ /> },
-    { value: "nameDescending", label: "Name (Z–A)", icon: <ArrowDownZA /> },
-    { value: "newestFirst", label: "Newest first", icon: <CalendarArrowDown /> },
-    { value: "oldestFirst", label: "Oldest first", icon: <CalendarArrowUp /> },
-    { value: "recentlyWatched", label: "Recently watched", icon: <History /> },
-];
+const sortIcons: Record<LibraryFolderSort, ReactNode> = {
+    custom: <ListOrdered />,
+    nameAscending: <ArrowDownAZ />,
+    nameDescending: <ArrowDownZA />,
+    oldestFirst: <CalendarArrowUp />,
+    newestFirst: <CalendarArrowDown />,
+    recentlyWatched: <History />,
+};
 
 /** Chooses how the library folders are sorted (the button's icon and name tell the current mode) and creates groups. */
 export function LibrarySortMenu({ compact = false }: { compact?: boolean }) {
     const sort = useLibraryFolderSort();
     const setSort = useSetLibraryFolderSort();
-    const current = sortOptions.find((option) => option.value === sort.data) ?? customOrder;
+    // Shows a choice while it is saved, so choosing Name or Date added again right away reverses that choice.
+    const current = (setSort.isPending ? setSort.variables : sort.data) ?? "custom";
+    const { option: currentOption, direction } = sortState(current);
+    const currentLabel = direction
+        ? `${optionLabels[currentOption]}, ${directionLabels[current]}`
+        : optionLabels[currentOption];
     const newGroup = useNewGroup();
     const newGroupChosen = useRef(false);
+
+    const choose = (option: FolderSortOption) => {
+        const next = chosenSort(current, option);
+        if (next !== current) {
+            setSort.mutate(next);
+        }
+    };
+
+    const sortItem = (option: "name" | "added") => (
+        <DropdownMenuSortItem
+            value={option}
+            direction={currentOption === option ? direction : null}
+            directionLabel={directionLabels[current]}
+            onChoose={() => choose(option)}
+        >
+            {optionLabels[option]}
+        </DropdownMenuSortItem>
+    );
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <IconButton
-                    label={`Sort folders: ${current.label}`}
-                    icon={current.icon}
+                    label={`Sort folders: ${currentLabel}`}
+                    icon={sortIcons[current]}
                     size="sm"
                     tooltipSide={compact ? "right" : undefined}
                     disabled={sort.isPending}
@@ -67,21 +105,16 @@ export function LibrarySortMenu({ compact = false }: { compact?: boolean }) {
                     }
                 }}
             >
-                <DropdownMenuLabel>Sort folders by</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                    value={current.value}
-                    onValueChange={(value) => {
-                        const option = sortOptions.find((candidate) => candidate.value === value);
-                        if (option && option.value !== current.value) {
-                            setSort.mutate(option.value);
-                        }
-                    }}
-                >
-                    {sortOptions.map((option) => (
-                        <DropdownMenuRadioItem key={option.value} value={option.value}>
-                            {option.label}
-                        </DropdownMenuRadioItem>
-                    ))}
+                <DropdownMenuLabel>Sort folders by (choose again to reverse)</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={currentOption}>
+                    <DropdownMenuRadioItem value="custom" onSelect={() => choose("custom")}>
+                        {optionLabels.custom}
+                    </DropdownMenuRadioItem>
+                    {sortItem("name")}
+                    {sortItem("added")}
+                    <DropdownMenuRadioItem value="recentlyWatched" onSelect={() => choose("recentlyWatched")}>
+                        {optionLabels.recentlyWatched}
+                    </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

@@ -1,5 +1,6 @@
 import { Check, Eye, FolderOpen, Info, Play, Tag as TagIcon, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { nextDirection, type SortDirection } from "../../../shared/lib/sortDirection";
 import {
     Button,
     Card,
@@ -16,6 +17,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
+    DropdownMenuSortItem,
     DropdownMenuTrigger,
     Input,
     Popover,
@@ -30,6 +32,7 @@ import {
 import { CatalogSection, Specimen } from "./CatalogSection";
 
 const speeds = ["0.5", "0.75", "1", "1.25", "1.5", "2"];
+const sortFields = ["Name", "Size"];
 
 const failFirstConfirm = (() => {
     let attempts = 0;
@@ -49,6 +52,8 @@ export function OverlaysSection() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [dangerOpen, setDangerOpen] = useState(false);
     const [speed, setSpeed] = useState("1");
+    const [sortField, setSortField] = useState("Name");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
     return (
         <CatalogSection
@@ -116,6 +121,33 @@ export function OverlaysSection() {
                                 <DropdownMenuRadioItem key={value} value={value}>
                                     {value}×
                                 </DropdownMenuRadioItem>
+                            ))}
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </Specimen>
+
+            <Specimen label="Dropdown menu with sort fields (choose again to reverse)">
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button>Sort by {sortField}</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuLabel>Sort by (choose again to reverse)</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup value={sortField}>
+                            {sortFields.map((field) => (
+                                <DropdownMenuSortItem
+                                    key={field}
+                                    value={field}
+                                    direction={field === sortField ? sortDirection : null}
+                                    directionLabel={sortDirection === "asc" ? "ascending" : "descending"}
+                                    onChoose={() => {
+                                        setSortDirection(nextDirection(field === sortField ? sortDirection : null));
+                                        setSortField(field);
+                                    }}
+                                >
+                                    {field}
+                                </DropdownMenuSortItem>
                             ))}
                         </DropdownMenuRadioGroup>
                     </DropdownMenuContent>

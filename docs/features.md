@@ -80,7 +80,7 @@ teclado e mouse (ver `CLAUDE.md`).
   - otimista, com rollback e toast; invalida `["library"]` (home, escondidas, ordem por nome);
   - "Reset to folder name" no menu só com nome personalizado. Com ele, o tooltip da pasta (sempre visível nesse
     caso, também no rail) mostra "Folder: …" e a tela da pasta mostra "Folder on disk: …";
-  - "Name (A–Z/Z–A)" ordena pelo nome exibido; o nome fica na linha (por `id`): sobrevive à realocação e à pasta
+  - a ordem por nome ("Name") usa o nome exibido; o nome fica na linha (por `id`): sobrevive à realocação e à pasta
     renomeada no disco (o watcher não move pastas da biblioteca: ela fica desconectada até "Locate folder…").
 - Ícones personalizados para pastas da biblioteca: qualquer ícone do lucide, salvo pelo nome em `custom_icon`. O
   seletor tem a aba "Suggested" (até 40: os 8 últimos usados, guardados em `app_settings`, e uma lista curada) e
@@ -94,8 +94,13 @@ teclado e mouse (ver `CLAUDE.md`).
 - Ordem das pastas da biblioteca (`services/folder_order`, regras puras em `domain/folder_order.rs`), aplicada na
   sidebar, no rail, na home e em Settings → Library:
   - o botão de ordenação no cabeçalho "Library" (no rail, abaixo do "Add folder") abre um menu com "Custom order",
-    "Name (A–Z)", "Name (Z–A)" (ordem natural), "Newest first", "Oldest first" (data de adição) e "Recently watched";
-    o ícone e o nome do botão mostram o modo atual, salvo em `library_folder_sort`;
+    "Name" (ordem natural), "Date added" e "Recently watched". Como na tela da pasta, escolher "Name" ou "Date added"
+    ordena de forma crescente (A–Z; a mais antiga primeiro), escolhê-lo de novo inverte, e uma seta mostra a direção
+    (`shared/ui` `DropdownMenuSortItem`, com a direção no nome acessível: "Name, A to Z"); o menu fica aberto para
+    inverter na hora. "Custom order" e "Recently watched" não têm direção e fecham o menu. O ícone e o nome do botão
+    mostram o modo atual ("Sort folders: Date added, newest first"), salvo em `library_folder_sort` com os mesmos
+    valores de antes (`features/library/lib/folderSort.ts` liga cada valor à opção e à direção). Escolhas rápidas são
+    gravadas em ordem, e a seta já mostra a que está sendo gravada;
   - "Recently watched": o `last_watched_at` mais recente dos vídeos de cada pasta (uma faixa sobre o índice de
     `file_path` por pasta, inclusive sumidos e marcações em massa); pastas nunca assistidas ficam no fim, por nome;
   - empates: nome, depois caminho, pasta antes de grupo e id; data de adição, depois pasta antes de grupo e id;

@@ -1,9 +1,9 @@
 import type { VideoEntry, VideoGroup } from "../../../shared/ipc/bindings";
+import { nextDirection, type SortDirection } from "../../../shared/lib/sortDirection";
 
 /** What the folder sorts its videos by. "added" is when the video joined the library. */
 export const SORT_FIELDS = ["name", "duration", "added"] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
-type SortDirection = "asc" | "desc";
 
 /** A field and a direction, as kept in the URL: "duration-desc". */
 export type VideoSort = `${SortField}-${SortDirection}`;
@@ -20,8 +20,7 @@ export function sortDirection(sort: VideoSort): SortDirection {
 
 /** Choosing a field sorts ascending; choosing the current field again flips the direction. */
 export function nextSort(current: VideoSort, field: SortField): VideoSort {
-    const direction = sortField(current) === field && sortDirection(current) === "asc" ? "desc" : "asc";
-    return `${field}-${direction}`;
+    return `${field}-${nextDirection(sortField(current) === field ? sortDirection(current) : null)}`;
 }
 
 export const STATUS_FILTERS = ["all", "unwatched", "in-progress", "watched"] as const;
