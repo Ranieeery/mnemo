@@ -542,14 +542,15 @@ fn the_update_settings_stay_on_this_machine() {
     let source = test_support::connection();
     settings::set::<settings::CheckForUpdates>(&source, false).unwrap();
     settings::set::<settings::LastUpdateCheck>(&source, Some(1_800_000_000_000)).unwrap();
-    settings::set::<settings::NotifiedUpdateVersion>(&source, Some("2.7.0".into())).unwrap();
+    // Never the running version, which the export carries as `appVersion`.
+    settings::set::<settings::NotifiedUpdateVersion>(&source, Some("99.0.0".into())).unwrap();
     let json = serde_json::to_string(&export(&source).unwrap()).unwrap();
     for key in [
         "check_for_updates",
         "checkForUpdates",
         "last_update_check",
         "notified_update_version",
-        "2.7.0",
+        "99.0.0",
     ] {
         assert!(!json.contains(key), "{key} is in the export");
     }
