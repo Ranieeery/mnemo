@@ -207,6 +207,31 @@ async fn the_status_keeps_the_newer_version_until_the_app_is_updated() {
 }
 
 #[tokio::test]
+async fn a_release_taken_down_is_no_longer_offered() {
+    let db = Db::open_in_memory().unwrap();
+    let source = FakeSource::new(Answer::Tag("2.8.0"));
+    let updates = checker(&db, &source);
+    updates.check_now(NOW).await.unwrap();
+    assert_eq!(updates.status().await.unwrap().available.as_deref(), Some("2.8.0"));
+
+    // 2.8.0 was deleted: the latest release is the running version again.
+    source.answer(Answer::Tag("2.6.0"));
+    assert_eq!(updates.check_now(NOW + 1000).await.unwrap(), up_to_date());
+    assert_eq!(updates.status().await.unwrap().available, None);
+    assert!(matches!(updates.release_page_url().await, Err(AppError::NotFound(_))));
+
+    // Published again, it is news again.
+    source.answer(Answer::Tag("2.8.0"));
+    assert_eq!(
+        updates
+            .check_at_startup(NOW + 1000 + CHECK_INTERVAL_MS)
+            .await
+            .as_deref(),
+        Some("2.8.0")
+    );
+}
+
+#[tokio::test]
 async fn there_is_no_release_page_before_a_newer_version_is_found() {
     let db = Db::open_in_memory().unwrap();
     let source = FakeSource::new(Answer::Tag("2.6.0"));

@@ -188,6 +188,8 @@ impl UpdateChecker {
                         },
                     }
                 } else {
+                    // A newer release found before may have been taken down: stop offering it.
+                    settings::set::<NotifiedUpdateVersion>(&transaction, None)?;
                     Found {
                         first_notice: false,
                         check: UpdateCheck::UpToDate {
