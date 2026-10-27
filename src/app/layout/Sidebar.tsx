@@ -1,10 +1,11 @@
 import { Link, useRouterState, useSearch } from "@tanstack/react-router";
 import { History, House, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { LibraryNav } from "../../features/library";
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "../../shared/ipc/bindings";
 import { cx } from "../../shared/lib/cx";
 import { IconButton, ResizablePanel, sidebarItemClasses, Tooltip } from "../../shared/ui";
+import type { SidebarDrawer } from "./useSidebarDrawer";
 import { useSidebarPreferences } from "./useSidebarPreferences";
 
 const SIDEBAR_ID = "sidebar";
@@ -49,19 +50,26 @@ function NavLink({ to, label, icon, active, collapsed, className }: NavLinkProps
 
 /**
  * Navigation and library folders. Its edge can be dragged to change its width, and it collapses to a rail of icons,
- * so every screen and folder stays one click away; both are kept between sessions.
+ * so every screen and folder stays one click away; both are kept between sessions. In a narrow window it is always a
+ * rail, and expanding it opens it over the screen until `Esc`, a click outside or another screen closes it.
  */
-export function Sidebar() {
+export function Sidebar({ drawer }: { drawer: SidebarDrawer }) {
     const pathname = useRouterState({ select: (state) => state.location.pathname });
     const search = useSearch({ strict: false });
     const sidebar = useSidebarPreferences();
+    const toggleRef = useRef<HTMLButtonElement>(null);
 
     if (!sidebar.preferences) {
         return null;
     }
-    const { collapsed, width } = sidebar.preferences;
+    const { width } = sidebar.preferences;
+    const collapsed = drawer.narrow ? !drawer.open : sidebar.preferences.collapsed;
+    const closeDrawer = () => {
+        drawer.setOpen(false);
+        toggleRef.current?.focus();
+    };
 
-    return (
+    const panel = (
         <ResizablePanel
             id={SIDEBAR_ID}
             aria-label="Sidebar"
@@ -75,10 +83,22 @@ export function Sidebar() {
             resizeLabel="Resize sidebar"
             collapsed={collapsed}
             collapsedClassName="w-14"
+            onKeyDown={
+                drawer.open
+                    ? (event) => {
+                          if (event.key === "Escape") {
+                              event.preventDefault();
+                              closeDrawer();
+                          }
+                      }
+                    : undefined
+            }
             className={cx(
                 // Set apart from the screen by its layer; the transparent edge shows in Windows high contrast mode.
                 "relative flex shrink-0 flex-col border-r border-transparent bg-surface",
-                !collapsed && "max-w-[calc(100vw/3)] min-w-50"
+                !collapsed && "max-w-[calc(100vw/3)] min-w-50",
+                drawer.narrow && "absolute inset-y-0 left-0 z-40",
+                drawer.open && "shadow-overlay"
             )}
         >
             {/* Clips the contents while the width animates, without clipping the edge's handle. */}
@@ -101,12 +121,13 @@ export function Sidebar() {
                     )}
                     {/* The same element in both states, so it keeps the focus after a click. */}
                     <IconButton
+                        ref={toggleRef}
                         label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                         icon={collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
                         tooltipSide="right"
                         aria-expanded={!collapsed}
                         aria-controls={SIDEBAR_ID}
-                        onClick={sidebar.toggleCollapsed}
+                        onClick={drawer.narrow ? () => drawer.setOpen(!drawer.open) : sidebar.toggleCollapsed}
                     />
                 </div>
                 <nav aria-label="Main" className="flex flex-col gap-0.5">
@@ -130,5 +151,19 @@ export function Sidebar() {
                 />
             </div>
         </ResizablePanel>
+    );
+
+    if (!drawer.narrow) {
+        return panel;
+    }
+    // The rail keeps its place in the layout; the open drawer spreads over the screen from it.
+    return (
+        <div className="relative w-14 shrink-0">
+            {drawer.open && (
+                // A pointer shortcut, hidden from assistive technology; `Esc` closes the drawer from the keyboard.
+                <div aria-hidden className="fixed inset-0 z-30 animate-appear bg-overlay" onClick={closeDrawer} />
+            )}
+            {panel}
+        </div>
     );
 }

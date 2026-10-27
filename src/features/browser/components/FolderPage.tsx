@@ -52,7 +52,7 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
     }, [path, toolsReady]);
 
     return (
-        <div className="flex flex-col gap-8 px-8 py-8">
+        <div className="flex flex-col gap-8 px-page py-8">
             <FolderHeader
                 breadcrumbs={<Breadcrumbs crumbs={breadcrumbs(path, folders.data ?? [])} />}
                 name={name}

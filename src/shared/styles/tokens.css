@@ -80,6 +80,9 @@
     --text-display--line-height: 2.125rem;
     --text-display--letter-spacing: -0.022em;
 
+    /* Side margin of the screens (`px-page`): tight in a half-screen window, roomier on a wide monitor. */
+    --spacing-page: clamp(1rem, 2.5vw, 2.5rem);
+
     /* Radius: grows with the size of the surface. */
     --radius-badge: 4px;
     --radius-control: 6px;

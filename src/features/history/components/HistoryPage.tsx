@@ -5,7 +5,7 @@ import { WatchStatistics } from "./WatchStatistics";
 /** What was watched and when: the list of watched videos, and watched time statistics on their own tab. */
 export function HistoryPage() {
     return (
-        <div className="flex max-w-5xl flex-col gap-6 px-8 py-8">
+        <div className="flex max-w-5xl flex-col gap-6 px-page py-8">
             <h1 className="text-display font-semibold text-text">History</h1>
             <Tabs defaultValue="watched">
                 <TabsList>

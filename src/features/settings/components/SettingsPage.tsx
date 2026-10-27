@@ -25,7 +25,7 @@ type SettingsPageProps = {
 
 export function SettingsPage({ tab, onTabChange, foldersPanel, shortcuts, tagManager }: SettingsPageProps) {
     return (
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 py-8">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-page py-8">
             <h1 className="text-display font-semibold text-text">Settings</h1>
             <Tabs value={tab} onValueChange={(value) => isSettingsTab(value) && onTabChange(value)}>
                 <TabsList>

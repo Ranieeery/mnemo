@@ -4,11 +4,13 @@ import { MediaToolsNotice, ProcessingBar } from "../../features/library";
 import { ScrollContainer, ScrollToTopButton } from "../../shared/ui";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { useSidebarDrawer } from "./useSidebarDrawer";
 
 /** Layout of the new interface: sidebar, top bar, status banners and the scrolling screen. */
 export function AppShell() {
     const mainRef = useRef<HTMLElement>(null);
     useScreenChange(mainRef);
+    const drawer = useSidebarDrawer();
 
     return (
         <div className="flex h-screen bg-background text-text">
@@ -20,8 +22,9 @@ export function AppShell() {
             >
                 Skip to content
             </button>
-            <Sidebar />
-            <div className="flex min-w-0 flex-1 flex-col">
+            <Sidebar drawer={drawer} />
+            {/* Under the open drawer, the screen is out of reach of the keyboard and assistive technology. */}
+            <div className="flex min-w-0 flex-1 flex-col" inert={drawer.open}>
                 <TopBar />
                 <MediaToolsNotice />
                 <ProcessingBar />

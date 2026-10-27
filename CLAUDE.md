@@ -134,7 +134,7 @@ src/
 │   └── <feature>/      # components/, hooks/, lib/, queries.ts, index.ts e testes ao lado (*.test.ts[x])
 └── shared/
     ├── ui/             # design system (agnóstico de domínio) + ScrollContainer, VirtualList, useColumns, useIsTruncated,
-    │                   # useFocusAfterRemoval, useRovingFocus
+    │                   # useFocusAfterRemoval, useRovingFocus, useMediaQuery
     ├── video/          # UI e ações de vídeo usadas por várias features (card, thumbnail, grade, menu de contexto,
     │                   # visibilidade de pastas escondidas)
     ├── ipc/            # bindings gerados, client (`call()` → CommandError), queryKeys, queryClient, queries comuns
@@ -270,7 +270,8 @@ Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Ta
   a Inter do fontsource não traz as variantes `cv*`): `text-caption` 12/16 · `text-small` 13/20 · `text-body` 14/20 · `text-lead` 16/24 ·
   `text-title` 18/26 · `text-heading` 22/28 · `text-display` 28/34.
 - Raio: `rounded-badge` 4 · `rounded-control` 6 · `rounded-card` 10 · `rounded-dialog` 14. Sombras: `shadow-raised`,
-  `shadow-overlay`, `shadow-dialog`. Espaçamento: escala do Tailwind (base 4px).
+  `shadow-overlay`, `shadow-dialog`. Espaçamento: escala do Tailwind (base 4px) e `px-page`
+  (`--spacing-page`, margem lateral fluida das telas).
 - Movimento: `duration-(--duration-fast|base|slow)` (120/200/320ms), `ease-standard|out|in`, animações
   `animate-appear|disappear|pop-in|pop-out|slide-in|pulse-soft|indeterminate|spin|hold-fill` (`hold-fill` recebe a duração de quem usa). Com `prefers-reduced-motion` as
   durações vão a zero; animações em loop usam `motion-reduce:animate-none`.
@@ -343,7 +344,8 @@ Catálogo do design system em `/dev/catalog` (só em dev): `Ctrl+Shift+D` altern
   stub de `<video>`, limpeza dos singletons: cache, processamento, toasts e diálogos; espera os cleanups assíncronos
   de eventos antes de limpar os mocks). Helpers: `renderWithUi`, `renderScreen` (roteador, cache novo e providers),
   `mockCommands`/`callsOf` (comandos não mockados falham; também simula eventos do backend, enviados nos testes com
-  `emit` de `@tauri-apps/api/event`), fixtures e `app/testApp.tsx` (app inteiro).
+  `emit` de `@tauri-apps/api/event`), fixtures, `setWindowWidth` (largura da janela vista pelas media queries, `shared/test/window`) e
+  `app/testApp.tsx` (app inteiro).
   Componentes que suspendem (como `FolderIcon` com um ícone fora da lista curada) só re-renderizam dentro de
   `act()` nos testes. Em JSX, caminhos do Windows vão entre chaves (`path={"D:\\Videos"}`): atributos com aspas não processam escapes.
 - Atalhos do player e da navegação, retomada e gravação de progresso têm testes.

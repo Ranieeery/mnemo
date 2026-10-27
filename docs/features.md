@@ -71,7 +71,14 @@ teclado e mouse (ver `CLAUDE.md`).
     contexto mantido; os fixados primeiro, separados por uma linha) e Settings. O rail mantém toda a navegação a um
     clique;
   - a transição da largura usa `--duration-base` (zerada com `prefers-reduced-motion`);
-  - largura e estado ficam salvos entre sessões; na primeira abertura ela começa expandida, com 240 px.
+  - largura e estado ficam salvos entre sessões; na primeira abertura ela começa expandida, com 240 px;
+  - com a janela abaixo de 1000 px (`app/layout/useSidebarDrawer`) ela é sempre o rail, sem mudar o estado salvo, e
+    "Expand sidebar" a abre por cima da tela, como gaveta (sombra e `bg-overlay` sobre a tela, que fica `inert`).
+    Fecham a gaveta `Esc` (o foco volta ao botão), o clique fora, ir para outra tela e alargar a janela, que volta ao
+    estado salvo. A borda continua redimensionável, e a largura escolhida é salva.
+- A janela abre com 1280×800 (cabe "Also in progress" ao lado do vídeo em destaque da home com a sidebar padrão) e
+  a mínima é 640×480 (metade de uma tela de 1366 px). A margem lateral das telas é o token `--spacing-page`
+  (`px-page`): 16 px na janela estreita até 40 px em telas largas.
 - Nomes longos de pastas e de grupos na sidebar expandida quebram em até duas linhas e terminam com reticências. Só
   quando o nome está cortado (medido de novo ao redimensionar) um tooltip mostra o nome completo (da pasta, também o
   caminho), ao passar o mouse ou focar pelo teclado; sem corte, o caminho da pasta continua no `title`.
@@ -302,7 +309,7 @@ teclado e mouse (ver `CLAUDE.md`).
   - Tamanho (`domain/window.rs`, funções puras em pixels físicos): o vídeo começa com 25% da largura da área de
     trabalho (320–560 lógicos, escalados pelo DPI do monitor), na proporção do vídeo, com no máximo metade da altura
     da área e margem de 16; tudo cabe na área, mesmo em monitores minúsculos. Mínimo 256×144 enquanto dura (o mínimo
-    normal, 900×600 do `tauri.conf.json`, volta depois). A largura que o usuário der arrastando a borda vale até o
+    normal, 640×480 do `tauri.conf.json`, volta depois). A largura que o usuário der arrastando a borda vale até o
     fim da sessão (em pixels lógicos, então passa de um monitor a outro com outro DPI). O próximo vídeo com outra
     proporção mantém a largura e muda a altura, presa ao canto da área mais próximo.
   - Só o vídeo e os controles essenciais (`MiniPlayerControls`: barra de progresso, play/pause, tempo, "Expand" e

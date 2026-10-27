@@ -7,6 +7,7 @@ import { resetDialogs } from "../stores/dialogs";
 import { resetProcessingSession } from "../stores/processing";
 import { resetToasts } from "../ui";
 import { installMediaElementStub } from "./media";
+import { installMatchMedia, resetWindowWidth } from "./window";
 
 beforeEach(() => {
     mockConvertFileSrc("windows");
@@ -22,6 +23,7 @@ afterEach(async () => {
     resetProcessingSession();
     resetToasts();
     resetDialogs();
+    resetWindowWidth();
 });
 
 installMediaElementStub();
@@ -38,13 +40,4 @@ Element.prototype.scrollIntoView ??= () => {};
 Element.prototype.scrollTo ??= () => {};
 Element.prototype.hasPointerCapture ??= () => false;
 Element.prototype.releasePointerCapture ??= () => {};
-window.matchMedia ??= (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-});
+installMatchMedia();

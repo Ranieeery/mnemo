@@ -25,7 +25,7 @@ export function HomePage({ addFolderAction }: HomePageProps) {
     const folders = useLibraryFolders();
 
     return (
-        <div ref={containerRef} className="flex flex-col gap-10 px-8 py-8">
+        <div ref={containerRef} className="flex flex-col gap-10 px-page py-8">
             {/* Screen readers get the screen's name, which focus moves to on navigation; the eye gets a greeting. */}
             <h1 className="sr-only">Home</h1>
             <p className="text-display font-semibold text-text" aria-hidden>

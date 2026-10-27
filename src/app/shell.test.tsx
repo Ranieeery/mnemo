@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_SIDEBAR_PREFERENCES } from "../shared/ipc/bindings";
 import { entryFixture, folderContentsFixture, videoFixture } from "../shared/test/fixtures";
 import { callsOf, commandError } from "../shared/test/ipc";
+import { setWindowWidth } from "../shared/test/window";
 import { normalWindow, renderApp } from "./testApp";
 
 async function openSeries(user: ReturnType<typeof userEvent.setup>) {
@@ -316,6 +317,49 @@ describe("sidebar", () => {
 
         await user.dblClick(edge);
         expect(sidebar).toHaveStyle({ width: `${DEFAULT_SIDEBAR_PREFERENCES.width}px` });
+    });
+
+    it("is a rail in a narrow window, opening over the screen without changing the saved layout", async () => {
+        setWindowWidth(800);
+        const { user, calls } = renderApp("/", { get_sidebar_preferences: { collapsed: false, width: 280 } });
+        const toggle = await screen.findByRole("button", { name: "Expand sidebar" });
+        const sidebar = screen.getByRole("complementary", { name: "Sidebar" });
+        expect(sidebar).toHaveClass("w-14");
+        expect(document.querySelector("main")?.closest("[inert]")).toBeNull();
+
+        await user.click(toggle);
+        expect(toggle).toHaveAccessibleName("Collapse sidebar");
+        expect(toggle).toHaveAttribute("aria-expanded", "true");
+        expect(sidebar).toHaveStyle({ width: "280px" });
+        // The screen under the drawer is out of reach until it closes.
+        expect(document.querySelector("main")?.closest("[inert]")).not.toBeNull();
+
+        await user.keyboard("{Escape}");
+        expect(toggle).toHaveAccessibleName("Expand sidebar");
+        expect(toggle).toHaveFocus();
+        expect(document.querySelector("main")?.closest("[inert]")).toBeNull();
+
+        // Going to another screen closes it too.
+        await user.click(toggle);
+        await user.click(screen.getByRole("link", { name: "History" }));
+        expect(await screen.findByRole("heading", { name: "History", level: 1 })).toBeInTheDocument();
+        expect(toggle).toHaveAccessibleName("Expand sidebar");
+
+        expect(callsOf(calls, "update_sidebar_preferences")).toEqual([]);
+    });
+
+    it("goes back to the saved layout when the window widens", async () => {
+        setWindowWidth(800);
+        const { user } = renderApp("/", { get_sidebar_preferences: { collapsed: false, width: 280 } });
+        await user.click(await screen.findByRole("button", { name: "Expand sidebar" }));
+
+        act(() => setWindowWidth(1280));
+        expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+        expect(document.querySelector("main")?.closest("[inert]")).toBeNull();
+
+        // Narrowing again shows the rail, not the drawer left open before.
+        act(() => setWindowWidth(800));
+        expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
     });
 
     it("uses the defaults when the saved layout cannot be read", async () => {
