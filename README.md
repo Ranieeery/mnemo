@@ -5,7 +5,7 @@
 <h1 align="center">Mnemo: Local Video Library</h1>
 
 <p align="center">
-  <strong>Version 2.7.1</strong> - Desktop application for managing and watching your local video collection
+  <strong>Version 2.8.0</strong> - Desktop application for managing and watching your local video collection
 </p>
 
 <p align="center">
@@ -52,17 +52,23 @@ thumbnails, tags and watch progress in a local SQLite database.
   group, out of it or between groups (holding a folder over a collapsed group opens it), collapse a group to its
   name and folder count, and move groups by dragging their headers. Deleting a group never removes its folders: they
   stay where the group was (pinned ones stay pinned). With no groups, the sidebar looks as it always did.
-- **Home:** continue watching, suggestions, recently watched and a preview of each library folder.
+- **Home:** the video to resume first, large, with the others in progress beside it, then suggestions, recently
+  watched and a preview of each library folder.
+- **Any window size:** from 640×480 (half a laptop screen) up; in a narrow window the sidebar becomes a rail that opens
+  over the screen and the player's playlist moves under the video.
+- **Zoom:** `Ctrl +`, `Ctrl -` and `Ctrl 0` (or `Ctrl` and the mouse wheel) zoom the interface from 67% to 300%,
+  kept between sessions.
 - **Hidden folders:** hide any folder from the home page, search and history (right-click it and choose "Hide from
   home and history"). Its videos still play normally when you open the folder, progress is still saved, and
   Settings lists every hidden folder to show it again.
 - **Built-in player:** resumes where you stopped, subtitles from a file next to the video (`.srt`, `.vtt`, `.sub`,
   `.ass`) or embedded in it (text tracks of MKV and MP4), switching between audio tracks where the system's webview
-  can play them, speeds from 0.25× to 2×, an "Up next" list and a countdown to the next video, plus keyboard and
-  mouse shortcuts. Volume, speed, subtitles and theater mode are remembered between sessions.
+  can play them, speeds from 0.25× to 2×, the folder's playlist beside the video (or under it in a narrow window), a
+  countdown to the next video, the description and tags under it, plus keyboard and mouse shortcuts. Volume, speed,
+  subtitles and theater mode are remembered between sessions.
 - **Mini player:** shrink the window to a small video that stays on top of other apps in a corner of the screen, with
-  just the essential controls; subtitles, "Up next" and every shortcut keep working, and expanding it puts the window
-  back exactly as it was.
+  just the essential controls; subtitles, the countdown to the next video and every shortcut keep working, and
+  expanding it puts the window back exactly as it was.
 - **Pin window:** keep the whole Mnemo window on top of other apps at any size, from the player's controls or a key
   of your choice that works on every screen (until you unpin it or close the app).
 - **Subtitle style:** size, color, background and its opacity, outline, position and font, with a live preview.
@@ -107,6 +113,7 @@ key until you give it one.
 | `?` | Show the keyboard shortcuts |
 | `F2` on a library folder in the sidebar | Rename it in the app |
 | `Esc` in the search field | Clear the search |
+| `Ctrl +` / `Ctrl -` / `Ctrl 0` | Zoom in / out / back to 100% |
 
 ### Player
 

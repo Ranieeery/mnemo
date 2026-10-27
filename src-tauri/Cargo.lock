@@ -2220,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "mnemo"
-version = "2.7.1"
+version = "2.8.0"
 dependencies = [
  "notify-debouncer-full",
  "rusqlite",
