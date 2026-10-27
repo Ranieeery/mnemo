@@ -37,10 +37,11 @@ function isGroupRow(item: Active | Over | null): boolean {
     return item?.data.current?.type === "group";
 }
 
-/** While the item cannot go where it is over (past the edge of the pinned items), nothing makes room for it. */
+/** While the item cannot go where it is over (see `atEdge`), nothing makes room for it. */
 const stayInPlace: SortingStrategy = () => null;
 
 const PIN_EDGE_MESSAGE = "Pinned items stay above the others.";
+const GROUP_EDGE_MESSAGE = "A group goes before or after another group, never inside it.";
 
 /**
  * Dragging folders and groups in the library list (see `libraryRows`). While something is dragged, the list follows
@@ -58,7 +59,8 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
     // A collapsed group shown open while a folder is dragged over it; it stays collapsed.
     const [openedId, setOpenedId] = useState<number | null>(null);
     const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-    // The item is over a place past the edge of the pinned items, so it stays where it is.
+    // The item is over a place it cannot go (past the edge of the pinned items, or a group inside another), so it
+    // stays where it is.
     const [atEdge, setAtEdge] = useState(false);
     const sensors = useSensors(
         // Moving the pointer more than a few pixels while holding gives up (a click still opens the folder).
@@ -78,8 +80,10 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
     const rowsOf = (list: readonly LibraryEntry[]): LibraryRow[] =>
         libraryRows(list, { expanded, skipEmptyGroups: compact });
     const rows = rowsOf(shown);
+    const movedRows = (list: readonly LibraryEntry[], active: Active, over: Over) =>
+        entriesOf(moveRow(rowsOf(list), active.id, over.id), list);
     const moved = (list: readonly LibraryEntry[], active: Active, over: Over) =>
-        pinnedFirst(entriesOf(moveRow(rowsOf(list), active.id, over.id), list));
+        pinnedFirst(movedRows(list, active, over));
 
     const nameOf = (id: UniqueIdentifier) =>
         typeof id === "number"
@@ -119,7 +123,11 @@ export function useLibraryDrag(entries: LibraryEntry[], compact: boolean) {
             }
             const next = moved(shown, active, over);
             if (!arrangementChanged(shown, next)) {
-                return `${nameOf(active.id)} stays at ${describe(shown, active.id)}. ${PIN_EDGE_MESSAGE}`;
+                // Moved, then put back by the pins; or a group over another group's folders.
+                const reason = arrangementChanged(shown, movedRows(shown, active, over))
+                    ? PIN_EDGE_MESSAGE
+                    : GROUP_EDGE_MESSAGE;
+                return `${nameOf(active.id)} stays at ${describe(shown, active.id)}. ${reason}`;
             }
             const from = placeOf(shown, active.id).group;
             const { at, group: to } = placeOf(next, active.id);

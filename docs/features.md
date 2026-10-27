@@ -179,8 +179,10 @@ teclado e mouse (ver `CLAUDE.md`).
     grupo cujo cabeçalho vem antes dela, até o fim dele: soltar antes do fim põe no grupo, depois dele tira. Grupo
     vazio mostra "Drag folders here". Uma pasta segura 500 ms sobre o cabeçalho de um grupo recolhido abre o grupo
     só durante o arraste (`OPEN_GROUP_DELAY_MS`). Segurar o cabeçalho 400 ms arrasta o grupo: só as pastas dele
-    somem (o resto fica no lugar, sob o ponteiro), e ele nunca cai dentro de outro grupo (vai para antes ou depois
-    dele). Os anúncios dizem quando a pasta entra ou sai de um grupo;
+    somem (o resto fica no lugar, sob o ponteiro), e ele nunca cai dentro de outro grupo: sobre as pastas de um grupo
+    expandido fica onde está e só passa dele pela borda oposta (o cabeçalho subindo, o fim descendo), senão a vaga
+    pularia para o outro lado, o ponteiro voltaria a ficar sobre o grupo e o arraste oscilaria. Os anúncios dizem
+    quando a pasta entra ou sai de um grupo;
   - rail: cada grupo começa com uma linha discreta (`RailGroupSeparator`, tooltip "Series · 3 folders") e termina
     com outra quando vem algo depois, mostra as pastas mesmo recolhido (navegação a um clique), some quando vazio
     (sem perder o lugar na lista); o tooltip da pasta diz "Group: …";

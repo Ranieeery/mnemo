@@ -100,7 +100,9 @@ function openGroupAt(rows: readonly LibraryRow[], index: number): number | null 
 
 /**
  * Moves the row `activeId` to where `overId` is, as sorting a list does (after it when moving down, before it when
- * moving up). A group never lands inside another one: it goes past that group, before or after it.
+ * moving up). A group never lands inside an expanded one: over its folders it stays where it is, and it goes past
+ * that group only over its far edge (its header moving up, its end moving down). Jumping past it from anywhere inside
+ * would move the slot out from under the pointer, which would then be over the group again, and back.
  */
 export function moveRow(rows: readonly LibraryRow[], activeId: string | number, overId: string | number): LibraryRow[] {
     const from = rows.findIndex((row) => row.id === activeId);
@@ -110,16 +112,8 @@ export function moveRow(rows: readonly LibraryRow[], activeId: string | number, 
         return [...rows];
     }
     const moved = arrayMove([...rows], from, to);
-    const header = active.kind === "group" ? openGroupAt(moved, to) : null;
-    if (header === null) {
-        return moved;
-    }
-    moved.splice(to, 1);
-    if (to < from) {
-        moved.splice(header, 0, active);
-    } else {
-        const end = moved.findIndex((row, index) => index > header && row.kind === "end");
-        moved.splice(end + 1, 0, active);
+    if (active.kind === "group" && openGroupAt(moved, to) !== null) {
+        return [...rows];
     }
     return moved;
 }

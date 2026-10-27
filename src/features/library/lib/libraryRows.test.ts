@@ -75,13 +75,29 @@ describe("library rows", () => {
         expect(dragged(1, "group:20")).toEqual(["Series [Dark, Wire]", "Courses [Intro]", "Loose", "Last"]);
     });
 
-    it("never drops a group inside another one", () => {
-        // Up over a folder of Series: before Series.
-        expect(dragged("group:20", 3)).toEqual(["Loose", "Courses [Intro]", "Series [Dark, Wire]", "Last"]);
-        // Down over Series' header: after Series.
-        expect(
-            dragged("group:20", "group:10", [library[0], library[2], library[1], library[3]] as LibraryEntry[])
-        ).toEqual(["Loose", "Series [Dark, Wire]", "Courses [Intro]", "Last"]);
+    it("never drops a group inside another one, passing it only over its far edge", () => {
+        const unchanged = names(library);
+        // Up over Series' end or folders: it stays below Series; over its header: before it.
+        expect(dragged("group:20", "end:10")).toEqual(unchanged);
+        expect(dragged("group:20", 3)).toEqual(unchanged);
+        expect(dragged("group:20", 2)).toEqual(unchanged);
+        expect(dragged("group:20", "group:10")).toEqual(["Loose", "Courses [Intro]", "Series [Dark, Wire]", "Last"]);
+        // Down over Series' header or folders: it stays above Series; over its end: after it.
+        const above = [library[0], library[2], library[1], library[3]] as LibraryEntry[];
+        expect(dragged("group:20", "group:10", above)).toEqual(names(above));
+        expect(dragged("group:20", 2, above)).toEqual(names(above));
+        expect(dragged("group:20", 3, above)).toEqual(names(above));
+        expect(dragged("group:20", "end:10", above)).toEqual(unchanged);
         expect(dragged("group:20", 1)).toEqual(["Courses [Intro]", "Loose", "Series [Dark, Wire]", "Last"]);
+    });
+
+    it("does not bounce a group back and forth over an expanded group (regression)", () => {
+        // Passing Series up shifts Series down under the pointer: being over its folders must not move Courses back.
+        let entries = library;
+        for (const over of ["group:10", 2, 3]) {
+            const rows = libraryRows(entries, expandUnlessCollapsed);
+            entries = entriesOf(moveRow(rows, "group:20", over), entries);
+        }
+        expect(names(entries)).toEqual(["Loose", "Courses [Intro]", "Series [Dark, Wire]", "Last"]);
     });
 });
