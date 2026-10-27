@@ -18,9 +18,9 @@ export function Textarea({ label, hint, id, className, ...props }: TextareaProps
                 id={textareaId}
                 aria-describedby={hint ? `${textareaId}-hint` : undefined}
                 className={cx(
-                    "min-h-24 w-full resize-y rounded-control border border-border bg-surface px-3 py-2 text-body text-text",
+                    "min-h-24 w-full resize-y rounded-control border border-control-border bg-surface px-3 py-2 text-body text-text",
                     "placeholder:text-text-subtle transition-colors duration-(--duration-fast) ease-standard",
-                    "hover:border-border-strong focus-visible:border-focus-ring"
+                    "hover:border-text-subtle focus-visible:border-focus-ring"
                 )}
                 {...props}
             />

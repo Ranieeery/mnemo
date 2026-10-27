@@ -16,21 +16,30 @@
     --ease-*: initial;
     --animate-*: initial;
 
-    /* Color: a cool neutral chrome that stays out of the way of the thumbnails. */
-    --color-background: #0d0f13;
-    --color-surface: #151922;
-    --color-surface-raised: #1d222d;
-    --color-surface-hover: #242a36;
-    --color-border: #272d39;
-    --color-border-strong: #353c4a;
-    --color-text: #e8ebf1;
-    --color-text-muted: #9aa3b2;
+    /*
+     * Color: a graphite chrome with almost no hue, as in video editing software, so it never tints the thumbnails.
+     * Depth comes from the steps between these layers rather than from borders.
+     */
+    --color-background: #101012;
+    --color-surface: #19191c;
+    --color-surface-raised: #222226;
+    --color-surface-hover: #2c2c31;
+    /* Hairlines that separate content; the edge of a control uses `control-border`. */
+    --color-border: #2a2a2f;
+    --color-border-strong: #3c3c43;
+    /* The edge of a field: at least 3:1 (WCAG non-text contrast) on the surfaces fields sit on. */
+    --color-control-border: #6e6e78;
+    --color-text: #eeeef0;
+    --color-text-muted: #a9a9b2;
     /* The quietest text that still reads: at least 4.5:1 on every surface up to `surface-hover`. */
-    --color-text-subtle: #8a93a3;
-    /* Fills and indicators only: white on it is 5.2:1, but as small text on the background it is too dark. */
-    --color-accent: #2563eb;
-    --color-accent-hover: #3b74f0;
-    --color-accent-foreground: #ffffff;
+    --color-text-subtle: #9898a2;
+    /*
+     * The chrome's one color, kept for where the user is: progress, the current item, the main action. It is light,
+     * so it keeps 3:1 as an indicator on every surface, and text on it is dark.
+     */
+    --color-accent: #8b8ff0;
+    --color-accent-hover: #9fa3f4;
+    --color-accent-foreground: #121226;
     --color-success: #22c55e;
     --color-success-foreground: #04170b;
     --color-warning: #f59e0b;
@@ -40,7 +49,7 @@
     --color-danger-foreground: #ffffff;
     /* Error text and destructive menu items: `danger` is a fill, too dark for small text on these surfaces. */
     --color-danger-text: #f87171;
-    --color-focus-ring: #60a5fa;
+    --color-focus-ring: #c3c5fb;
     --color-overlay: rgb(5 6 8 / 0.72);
     /* Behind the video picture, so letterboxing is true black. */
     --color-backdrop: #000000;
@@ -48,7 +57,10 @@
     /* The bright scene behind the subtitle preview in Settings, to check readability over light footage. */
     --color-preview-bright: #d6d9de;
 
-    /* Type: one family; hierarchy comes from size and weight. Desktop density, so the body is 14px. */
+    /*
+     * Type: one family; hierarchy comes from size and weight. Optical sizing (base.css) draws the large sizes with
+     * Inter's tighter display cut. Desktop density, so the body is 14px.
+     */
     --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
     --text-caption: 0.75rem;
     --text-caption--line-height: 1rem;
@@ -60,12 +72,13 @@
     --text-lead--line-height: 1.5rem;
     --text-title: 1.125rem;
     --text-title--line-height: 1.625rem;
+    --text-title--letter-spacing: -0.01em;
     --text-heading: 1.375rem;
     --text-heading--line-height: 1.75rem;
-    --text-heading--letter-spacing: -0.01em;
+    --text-heading--letter-spacing: -0.015em;
     --text-display: 1.75rem;
     --text-display--line-height: 2.125rem;
-    --text-display--letter-spacing: -0.02em;
+    --text-display--letter-spacing: -0.022em;
 
     /* Radius: grows with the size of the surface. */
     --radius-badge: 4px;
@@ -73,8 +86,11 @@
     --radius-card: 10px;
     --radius-dialog: 14px;
 
-    /* Elevation, tuned for a dark background: depth comes from the shadow plus a hairline border. */
-    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4);
+    /*
+     * Elevation, tuned for a dark background. A raised surface catches a faint light on its top edge instead of
+     * carrying a border; overlays keep a hairline, since they float over any content.
+     */
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.04);
     --shadow-overlay: 0 8px 24px -6px rgb(0 0 0 / 0.55), 0 0 0 1px var(--color-border);
     --shadow-dialog: 0 24px 48px -12px rgb(0 0 0 / 0.65), 0 0 0 1px var(--color-border);
 

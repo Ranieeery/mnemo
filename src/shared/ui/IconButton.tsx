@@ -7,7 +7,7 @@ type IconButtonSize = "sm" | "md" | "lg";
 
 const variantClasses: Record<IconButtonVariant, { base: string; hover: string }> = {
     ghost: { base: "text-text-muted", hover: "hover:bg-surface-hover hover:text-text" },
-    secondary: { base: "border border-border bg-surface-raised text-text", hover: "hover:bg-surface-hover" },
+    secondary: { base: "border border-transparent bg-surface-raised text-text", hover: "hover:bg-surface-hover" },
     // For controls drawn over video: no fill until hovered.
     overlay: { base: "text-text", hover: "hover:bg-surface-hover/60" },
 };

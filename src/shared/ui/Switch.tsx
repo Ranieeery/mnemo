@@ -32,11 +32,14 @@ export function Switch({ checked, onCheckedChange, label, description, disabled,
                 disabled={disabled}
                 aria-describedby={description ? `${id}-description` : undefined}
                 className={cx(
-                    "relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-surface-hover transition-colors",
-                    "duration-(--duration-fast) ease-standard data-[state=checked]:bg-accent disabled:opacity-50"
+                    // Off, the track is outlined so it reads on any surface; on, the light accent fills it and the
+                    // thumb turns dark to stand out against it.
+                    "relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-surface-hover ring-1 ring-control-border ring-inset",
+                    "transition-colors duration-(--duration-fast) ease-standard",
+                    "data-[state=checked]:bg-accent data-[state=checked]:ring-transparent disabled:opacity-50"
                 )}
             >
-                <Primitive.Thumb className="block size-4 translate-x-0.5 rounded-full bg-text shadow-raised transition-transform duration-(--duration-fast) ease-standard data-[state=checked]:translate-x-4.5" />
+                <Primitive.Thumb className="block size-4 translate-x-0.5 rounded-full bg-text shadow-raised transition-[translate,background-color] duration-(--duration-fast) ease-standard data-[state=checked]:translate-x-4.5 data-[state=checked]:bg-accent-foreground" />
             </Primitive.Root>
         </div>
     );

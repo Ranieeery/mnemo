@@ -44,6 +44,37 @@ describe("text colors", () => {
             expect(contrast(color, surface), `${color} on ${surface}`).toBeGreaterThanOrEqual(4.5);
         }
     });
+
+    it.each(["accent", "accent-hover"])("accent-foreground keeps 4.5:1 on %s", (name) => {
+        const foreground = variable(darkBlock, "color-accent-foreground");
+        const fill = variable(darkBlock, `color-${name}`);
+        expect(contrast(foreground, fill)).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+describe("surfaces", () => {
+    it("get lighter as they rise, so layers read without borders", () => {
+        const luminances = darkSurfaces.map(luminance);
+        expect(luminances).toEqual([...luminances].sort((a, b) => a - b));
+        expect(new Set(luminances).size).toBe(luminances.length);
+    });
+});
+
+describe("indicators and control edges", () => {
+    it.each(["accent", "focus-ring"])("%s keeps 3:1 on every surface", (name) => {
+        const color = variable(darkBlock, `color-${name}`);
+        for (const surface of darkSurfaces) {
+            expect(contrast(color, surface), `${color} on ${surface}`).toBeGreaterThanOrEqual(3);
+        }
+    });
+
+    it("control-border keeps 3:1 on the surfaces fields sit on", () => {
+        const color = variable(darkBlock, "color-control-border");
+        // Fields sit on the page, cards and dialogs; `surface-hover` is only ever a fill under the pointer.
+        for (const surface of darkSurfaces.slice(0, 3)) {
+            expect(contrast(color, surface), `${color} on ${surface}`).toBeGreaterThanOrEqual(3);
+        }
+    });
 });
 
 describe("library folder colors", () => {

@@ -10,7 +10,8 @@ export function Card({ tone = "surface", className, ...props }: CardProps) {
     return (
         <div
             className={cx(
-                "rounded-card border border-border",
+                // The edge comes from the layer; the transparent border only shows in Windows high contrast mode.
+                "rounded-card border border-transparent",
                 tone === "raised" ? "bg-surface-raised shadow-raised" : "bg-surface",
                 className
             )}

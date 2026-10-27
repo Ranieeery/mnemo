@@ -2,9 +2,9 @@ import { type ComponentProps, useId } from "react";
 import { cx } from "../lib/cx";
 
 export const inputClasses = cx(
-    "h-9 w-full rounded-control border border-border bg-surface px-3 text-body text-text",
+    "h-9 w-full rounded-control border border-control-border bg-surface px-3 text-body text-text",
     "placeholder:text-text-subtle transition-colors duration-(--duration-fast) ease-standard",
-    "hover:border-border-strong focus-visible:border-focus-ring disabled:opacity-50",
+    "hover:border-text-subtle focus-visible:border-focus-ring disabled:opacity-50",
     "aria-[invalid=true]:border-danger"
 );
 

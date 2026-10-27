@@ -6,10 +6,21 @@ import { CatalogSection } from "./CatalogSection";
 const colorGroups: { name: string; tokens: string[] }[] = [
     {
         name: "Surfaces",
-        tokens: ["background", "surface", "surface-raised", "surface-hover", "border", "border-strong"],
+        tokens: [
+            "background",
+            "surface",
+            "surface-raised",
+            "surface-hover",
+            "border",
+            "border-strong",
+            "control-border",
+        ],
     },
     { name: "Text", tokens: ["text", "text-muted", "text-subtle"] },
-    { name: "Accent and status", tokens: ["accent", "accent-hover", "success", "warning", "danger", "focus-ring"] },
+    {
+        name: "Accent and status",
+        tokens: ["accent", "accent-hover", "accent-foreground", "success", "warning", "danger", "focus-ring"],
+    },
 ];
 
 // Literal class names so Tailwind generates them.
@@ -20,11 +31,13 @@ const swatchClasses: Record<string, string> = {
     "surface-hover": "bg-surface-hover",
     border: "bg-border",
     "border-strong": "bg-border-strong",
+    "control-border": "bg-control-border",
     text: "bg-text",
     "text-muted": "bg-text-muted",
     "text-subtle": "bg-text-subtle",
     accent: "bg-accent",
     "accent-hover": "bg-accent-hover",
+    "accent-foreground": "bg-accent-foreground",
     success: "bg-success",
     warning: "bg-warning",
     danger: "bg-danger",

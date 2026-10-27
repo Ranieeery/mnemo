@@ -255,13 +255,19 @@ src/
 Em `src/shared/styles/tokens.css` (`@theme` do Tailwind 4, com os padrões do Tailwind desligados) e `base.css`
 (estilos globais e `prefers-reduced-motion`). Nunca use valores soltos (hex, px arbitrários, durações avulsas).
 
-- Cores: `background`, `surface`, `surface-raised`, `surface-hover`, `border`, `border-strong`, `text`, `text-muted`,
-  `text-subtle`, `accent`, `accent-hover`, `success`, `warning`, `danger`, `danger-text`, `focus-ring`, `overlay`,
-  `scrim`, `backdrop` e `*-foreground` para texto sobre cores sólidas. O `accent` e o `danger` são para
-  preenchimentos e indicadores, nunca para texto pequeno (texto de erro usa `danger-text`). `text`, `text-muted`,
-  `text-subtle` e `danger-text` têm pelo menos 4,5:1 sobre `background`, `surface`, `surface-raised` e
-  `surface-hover` (`shared/styles/colors.test.ts`).
-- Tipografia (Inter Variable): `text-caption` 12/16 · `text-small` 13/20 · `text-body` 14/20 · `text-lead` 16/24 ·
+- Cores: `background`, `surface`, `surface-raised`, `surface-hover`, `border`, `border-strong`, `control-border`,
+  `text`, `text-muted`, `text-subtle`, `accent`, `accent-hover`, `success`, `warning`, `danger`, `danger-text`,
+  `focus-ring`, `overlay`, `scrim`, `backdrop` e `*-foreground` para texto sobre cores sólidas. Neutros grafite quase
+  sem matiz (não tingem as thumbnails); a profundidade vem do degrau entre as camadas, e `border` fica para separar
+  conteúdo (em `shared/ui`, cards e botões usam `border-transparent`, que só aparece no alto contraste do Windows).
+  O `accent` (claro, com `accent-foreground` escuro) e o `danger` são para preenchimentos e indicadores, nunca para
+  texto pequeno (texto de erro usa `danger-text`). `shared/styles/colors.test.ts` confere: `text`, `text-muted`,
+  `text-subtle` e `danger-text` com pelo menos 4,5:1 sobre `background`, `surface`, `surface-raised` e
+  `surface-hover`; `accent-foreground` com 4,5:1 sobre `accent` e `accent-hover`; `accent` e `focus-ring` com 3:1
+  nas quatro superfícies; `control-border` (borda de campos) com 3:1 nas três primeiras; superfícies em ordem
+  crescente de luminosidade.
+- Tipografia (Inter Variable com o eixo `opsz`: tamanhos grandes usam o corte display via `font-optical-sizing`;
+  a Inter do fontsource não traz as variantes `cv*`): `text-caption` 12/16 · `text-small` 13/20 · `text-body` 14/20 · `text-lead` 16/24 ·
   `text-title` 18/26 · `text-heading` 22/28 · `text-display` 28/34.
 - Raio: `rounded-badge` 4 · `rounded-control` 6 · `rounded-card` 10 · `rounded-dialog` 14. Sombras: `shadow-raised`,
   `shadow-overlay`, `shadow-dialog`. Espaçamento: escala do Tailwind (base 4px).
