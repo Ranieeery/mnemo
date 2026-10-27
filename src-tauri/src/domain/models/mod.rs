@@ -101,19 +101,23 @@ pub enum LayoutEntry {
     Group { id: i64, folders: Vec<i64> },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderStats {
     pub total_videos: i64,
     pub watched_videos: i64,
+    #[specta(type = Number)]
+    pub total_duration_seconds: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SubfolderEntry {
     pub name: String,
     pub path: String,
     pub stats: FolderStats,
+    /// Thumbnail of the folder's first video (in reading order) that has one: the cover of its card.
+    pub cover_thumbnail_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
@@ -145,13 +149,17 @@ pub struct FolderContents {
     pub other_files: Vec<FileEntry>,
 }
 
-/// Data for the folder context menu.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+/// Data for the folder header and its context menu.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderSummary {
     pub total_videos: i64,
     pub watched_videos: i64,
     pub tagged_videos: i64,
+    #[specta(type = Number)]
+    pub total_duration_seconds: f64,
+    /// The video "Continue" plays; `None` when everything is watched.
+    pub next_video: Option<Video>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]

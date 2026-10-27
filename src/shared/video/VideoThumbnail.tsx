@@ -1,6 +1,6 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Film } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { cx } from "../lib/cx";
 import { formatDuration } from "../lib/formatDuration";
 
@@ -11,8 +11,14 @@ type VideoThumbnailProps = {
     progress?: number;
     /** A watched video is dimmed and gets a full strip in the watched color. */
     watched?: boolean;
+    /** Drawn over the picture but under the progress strip, so the strip is never covered. */
+    children?: ReactNode;
     className?: string;
 };
+
+/** For a thumbnail that is a card's picture: hovering the card (a `group`) lifts it a little off the page. */
+export const thumbnailLiftClasses =
+    "transition-[translate,box-shadow] duration-(--duration-base) ease-out group-hover:-translate-y-0.5 group-hover:shadow-overlay";
 
 /**
  * 16:9 thumbnail with fixed dimensions (no layout shift), lazy loading and a placeholder when missing. The caller sets
@@ -24,6 +30,7 @@ export function VideoThumbnail({
     durationSeconds,
     progress = 0,
     watched = false,
+    children,
     className,
 }: VideoThumbnailProps) {
     // Remembers which path failed, so a new thumbnail (another frame, a regenerated one) gets its own chance to load.
@@ -57,6 +64,7 @@ export function VideoThumbnail({
                     {formatDuration(durationSeconds)}
                 </span>
             )}
+            {children}
             {(inProgress || watched) && (
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-scrim transition-[height] duration-(--duration-fast) ease-standard group-hover:h-1.5">
                     {watched ? (

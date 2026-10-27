@@ -192,16 +192,70 @@ pub fn in_folder(connection: &Connection, folder: &str, recursive: bool) -> AppR
 
 pub fn stats_in_folder(connection: &Connection, folder: &str) -> AppResult<FolderStats> {
     let bounds = FolderBounds::new(folder);
-    let (total, watched) = connection.query_row(
-        "SELECT COUNT(*), COALESCE(SUM(is_watched = 1), 0) FROM videos
+    let (total, watched, duration) = connection.query_row(
+        "SELECT COUNT(*), COALESCE(SUM(is_watched = 1), 0), COALESCE(SUM(duration_seconds), 0) FROM videos
          WHERE file_path >= ?1 AND file_path < ?2 AND missing_since IS NULL",
         params![bounds.lower, bounds.upper],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
     Ok(FolderStats {
         total_videos: total,
         watched_videos: watched,
+        total_duration_seconds: duration,
     })
+}
+
+/// The thumbnail of a folder's first video, in the reading order of the continuous view, that has one. It is the
+/// cover of the folder's card, so it stays the same however much of the folder is watched.
+pub fn cover_thumbnail(connection: &Connection, folder: &str) -> AppResult<Option<String>> {
+    let bounds = FolderBounds::new(folder);
+    let mut statement = connection.prepare_cached(
+        "SELECT file_path, thumbnail_path FROM videos
+         WHERE file_path >= ?1 AND file_path < ?2 AND missing_since IS NULL
+           AND thumbnail_path IS NOT NULL AND thumbnail_path <> ''",
+    )?;
+    let candidates = statement
+        .query_map(params![bounds.lower, bounds.upper], |row| {
+            Ok((
+                ReadingKey::new(Path::new(&row.get::<_, String>(0)?)),
+                row.get::<_, String>(1)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(candidates.into_iter().min().map(|(_, thumbnail)| thumbnail))
+}
+
+/// The video "Continue" plays in a folder: the one in progress watched most recently, otherwise the first not
+/// started one in reading order. `None` when every video of the folder is watched.
+pub fn next_in_folder(connection: &Connection, folder: &str) -> AppResult<Option<Video>> {
+    let bounds = FolderBounds::new(folder);
+    let in_folder = "v.file_path >= ?1 AND v.file_path < ?2 AND v.missing_since IS NULL AND v.is_watched = 0";
+    let in_progress = format!(
+        "SELECT {COLUMNS} FROM videos v WHERE {in_folder} AND v.watch_progress_seconds > 0
+         ORDER BY v.last_watched_at DESC LIMIT 1"
+    );
+    if let Some(video) = connection
+        .query_row(&in_progress, params![bounds.lower, bounds.upper], map_row)
+        .optional()?
+    {
+        return Ok(Some(video));
+    }
+    // SQLite has no natural order: the keys of the unstarted videos are compared here, then one record is read.
+    let unstarted = format!(
+        "SELECT v.file_path, v.id FROM videos v WHERE {in_folder} AND COALESCE(v.watch_progress_seconds, 0) = 0"
+    );
+    let mut statement = connection.prepare_cached(&unstarted)?;
+    let first = statement
+        .query_map(params![bounds.lower, bounds.upper], |row| {
+            Ok((
+                ReadingKey::new(Path::new(&row.get::<_, String>(0)?)),
+                row.get::<_, i64>(1)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .min();
+    first.map(|(_, id)| get(connection, id)).transpose()
 }
 
 pub fn tagged_count_in_folder(connection: &Connection, folder: &str) -> AppResult<i64> {
@@ -415,6 +469,79 @@ pub(crate) mod tests {
         let direct = in_folder(&connection, "Show", false).unwrap();
         assert_eq!(paths(&direct), vec![path(&["Show", "e1.mkv"])]);
         assert_eq!(stats_in_folder(&connection, "Show").unwrap().total_videos, 2);
+    }
+
+    #[test]
+    fn folder_stats_add_up_the_duration_of_present_videos() {
+        let connection = test_support::connection();
+        add_video(&connection, &path(&["Show", "e1.mkv"]), 600.0);
+        add_video(&connection, &path(&["Show", "Season 2", "e2.mkv"]), 300.0);
+        let gone = add_video(&connection, &path(&["Show", "e3.mkv"]), 900.0);
+        presence::mark_missing(&connection, gone.id).unwrap();
+
+        let stats = stats_in_folder(&connection, "Show").unwrap();
+        assert_eq!((stats.total_videos, stats.total_duration_seconds), (2, 900.0));
+        assert_eq!(
+            stats_in_folder(&connection, "Empty").unwrap().total_duration_seconds,
+            0.0
+        );
+    }
+
+    #[test]
+    fn the_cover_is_the_first_thumbnail_in_reading_order() {
+        let connection = test_support::connection();
+        course_library(&connection);
+        // The first video of the tree has no thumbnail, so the next one gives the cover.
+        insert(
+            &connection,
+            &NewVideo {
+                file_path: &lib(&["Root 1.mkv"]),
+                title: "Root 1",
+                duration_seconds: 10.0,
+                thumbnail_path: None,
+                identity: None,
+            },
+        )
+        .unwrap();
+        connection
+            .execute(
+                "UPDATE videos SET thumbnail_path = 'cover.jpg' WHERE file_path = ?1",
+                [lib(&["Root 2.mkv"])],
+            )
+            .unwrap();
+
+        assert_eq!(
+            cover_thumbnail(&connection, "Lib").unwrap().as_deref(),
+            Some("cover.jpg")
+        );
+        assert_eq!(cover_thumbnail(&connection, "Nothing here").unwrap(), None);
+    }
+
+    #[test]
+    fn next_in_folder_resumes_the_last_video_in_progress_before_starting_a_new_one() {
+        let mut connection = test_support::connection();
+        let videos = course_library(&connection);
+        let id_of = |parts: &[&str]| videos.iter().find(|video| video.file_path == lib(parts)).unwrap().id;
+        let next = |connection: &Connection| next_in_folder(connection, "Lib").unwrap().map(|video| video.file_path);
+        assert_eq!(next(&connection), Some(course_tree()[0].clone()));
+
+        watch::mark_watched(&mut connection, id_of(&["Root 2.mkv"])).unwrap();
+        assert_eq!(next(&connection), Some(course_tree()[1].clone()));
+
+        watch::save_progress(
+            &mut connection,
+            id_of(&["Course", "Module 2", "Video 1.mkv"]),
+            5.0,
+            0.9,
+            false,
+        )
+        .unwrap();
+        assert_eq!(next(&connection), Some(lib(&["Course", "Module 2", "Video 1.mkv"])));
+
+        for video in &videos {
+            watch::mark_watched(&mut connection, video.id).unwrap();
+        }
+        assert_eq!(next(&connection), None);
     }
 
     #[test]

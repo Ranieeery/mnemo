@@ -1,13 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, EyeOff, File, Folder, FolderSearch, Unplug } from "lucide-react";
+import { FolderSearch, Unplug } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { errorMessage, isErrorKind } from "../../../shared/ipc/client";
 import { useLibraryFolderStatus, useLibraryFolders, useMediaTools } from "../../../shared/ipc/queries";
 import { folderName } from "../../../shared/lib/folderName";
-import { plural } from "../../../shared/lib/plural";
 import { openFolderRelocation } from "../../../shared/stores/dialogs";
 import { processFolder } from "../../../shared/stores/processing";
-import { Button, buttonClasses, EmptyState, ErrorState, Skeleton, scrollBehavior } from "../../../shared/ui";
+import { Button, buttonClasses, EmptyState, ErrorState, scrollBehavior } from "../../../shared/ui";
 import { hiddenFolderLabel, useFolderVisibility, VideoGridSkeleton } from "../../../shared/video";
 import { breadcrumbs } from "../lib/breadcrumbs";
 import { DEFAULT_ORDER, type VideoOrder } from "../lib/videoOrder";
@@ -16,6 +15,7 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { useFolderActionDialogs } from "./FolderActionDialog";
 import { FolderActionsDropdown } from "./FolderActionMenus";
 import { FolderContentsView, OTHER_FILES_HEADING_ID } from "./FolderContentsView";
+import { FolderHeader } from "./FolderHeader";
 import { VideoOrderMenus } from "./VideoOrderMenus";
 import { ViewModeMenu } from "./ViewModeMenu";
 
@@ -53,53 +53,27 @@ export function FolderPage({ path, content, order = DEFAULT_ORDER, onOrderChange
 
     return (
         <div className="flex flex-col gap-8 px-8 py-8">
-            <header className="flex flex-col gap-3">
-                <Breadcrumbs crumbs={breadcrumbs(path, folders.data ?? [])} />
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div className="flex min-w-0 flex-col gap-1">
-                        <h1 className="truncate text-display font-semibold text-text" title={path}>
-                            {name}
-                        </h1>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            {summary.data ? (
-                                <p className="text-body text-text-muted tabular-nums">
-                                    {plural(summary.data.totalVideos, "video")}, {summary.data.watchedVideos} watched
-                                </p>
-                            ) : (
-                                <Skeleton className="h-5 w-40" />
-                            )}
-                            {renamedFolder && (
-                                <p className="flex items-center gap-1.5 text-small text-text-subtle">
-                                    <Folder aria-hidden className="size-3.5" />
-                                    Folder on disk: {renamedFolder.folderName}
-                                </p>
-                            )}
-                            {hiddenLabel && (
-                                <p className="flex items-center gap-1.5 text-small text-text-subtle">
-                                    <EyeOff aria-hidden className="size-3.5" />
-                                    {hiddenLabel}
-                                </p>
-                            )}
-                            {otherFiles > 0 && (
-                                <Button variant="secondary" size="sm" icon={<File />} onClick={jumpToOtherFiles}>
-                                    {plural(otherFiles, "other file")}
-                                    {/* The arrow says the button jumps further down the page. */}
-                                    <ArrowDown aria-hidden className="text-text-muted" />
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                    {contents.data && (
-                        <div className="flex flex-wrap items-center gap-2">
+            <FolderHeader
+                breadcrumbs={<Breadcrumbs crumbs={breadcrumbs(path, folders.data ?? [])} />}
+                name={name}
+                path={path}
+                summary={summary.data}
+                folderOnDisk={renamedFolder?.folderName ?? null}
+                hiddenLabel={hiddenLabel}
+                otherFiles={otherFiles}
+                onJumpToOtherFiles={jumpToOtherFiles}
+                actions={
+                    contents.data && (
+                        <>
                             {!content && hasVideos && onOrderChange && (
                                 <VideoOrderMenus order={order} onChange={onOrderChange} />
                             )}
                             <ViewModeMenu path={path} viewMode={contents.data.viewMode} />
                             <FolderActionsDropdown target={{ path, name }} onAction={actions.request} />
-                        </div>
-                    )}
-                </div>
-            </header>
+                        </>
+                    )
+                }
+            />
 
             {content ?? (
                 <FolderBody

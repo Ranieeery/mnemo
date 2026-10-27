@@ -68,7 +68,8 @@ export function FolderContentsView({ contents, onFolderAction, order, onShowAll 
             {subfolders.length > 0 && !continuous && (
                 <section className="flex flex-col gap-3">
                     <SectionTitle>Folders</SectionTitle>
-                    <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3">
+                    {/* Same rhythm as the video grid below, since the cards now share its shape. */}
+                    <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-x-4 gap-y-6">
                         {subfolders.map((folder) => (
                             <li key={folder.path}>
                                 <FolderContextMenu target={folder} onAction={onFolderAction}>

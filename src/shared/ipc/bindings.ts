@@ -355,13 +355,17 @@ export type FolderPreview = {
 export type FolderStats = {
 	totalVideos: number,
 	watchedVideos: number,
+	totalDurationSeconds: number,
 };
 
-/**  Data for the folder context menu. */
+/**  Data for the folder header and its context menu. */
 export type FolderSummary = {
 	totalVideos: number,
 	watchedVideos: number,
 	taggedVideos: number,
+	totalDurationSeconds: number,
+	/**  The video "Continue" plays; `None` when everything is watched. */
+	nextVideo: Video | null,
 };
 
 /**  How a folder lists its videos. Set per folder and inherited by its descendants until overridden. */
@@ -679,6 +683,8 @@ export type SubfolderEntry = {
 	name: string,
 	path: string,
 	stats: FolderStats,
+	/**  Thumbnail of the folder's first video (in reading order) that has one: the cover of its card. */
+	coverThumbnailPath: string | null,
 };
 
 export type SubtitleColor = "white" | "yellow" | "green" | "cyan" | "magenta";

@@ -14,8 +14,24 @@ function contents(overrides: Partial<FolderContents> = {}): FolderContents {
     return folderContentsFixture({
         path: SHOW,
         subfolders: [
-            { name: "Season 1", path: `${SHOW}\\Season 1`, stats: { totalVideos: 10, watchedVideos: 10 } },
-            { name: "Season 2", path: `${SHOW}\\Season 2`, stats: { totalVideos: 8, watchedVideos: 2 } },
+            {
+                name: "Season 1",
+                path: `${SHOW}\\Season 1`,
+                stats: { totalVideos: 10, watchedVideos: 10, totalDurationSeconds: 5 * 3600 },
+                coverThumbnailPath: "s1.jpg",
+            },
+            {
+                name: "Season 2",
+                path: `${SHOW}\\Season 2`,
+                stats: { totalVideos: 8, watchedVideos: 2, totalDurationSeconds: 1560 },
+                coverThumbnailPath: null,
+            },
+            {
+                name: "Season 3",
+                path: `${SHOW}\\Season 3`,
+                stats: { totalVideos: 4, watchedVideos: 0, totalDurationSeconds: 2 * 3600 + 5 * 60 },
+                coverThumbnailPath: null,
+            },
         ],
         groups: [
             {
@@ -36,7 +52,13 @@ function mockFolder(folderContents: FolderContents, extra: Record<string, unknow
     return mockCommands({
         list_library_folders: [libraryFolderFixture()],
         browse_folder: folderContents,
-        get_folder_summary: { totalVideos: 19, watchedVideos: 12, taggedVideos: 3 },
+        get_folder_summary: {
+            totalVideos: 19,
+            watchedVideos: 12,
+            taggedVideos: 3,
+            totalDurationSeconds: 10 * 3600 + 42 * 60,
+            nextVideo: null,
+        },
         media_tools_status: { ffmpeg: true, ffprobe: true },
         process_folders: [],
         ...extra,
@@ -79,13 +101,49 @@ describe("FolderPage", () => {
         expect(await screen.findByRole("heading", { name: "Show", level: 1 })).toBeInTheDocument();
         const path = screen.getByRole("navigation", { name: "Folder path" });
         expect(await within(path).findByRole("link", { name: "Videos" })).toBeInTheDocument();
-        expect(await screen.findByText("19 videos, 12 watched")).toBeInTheDocument();
+        expect(await screen.findByText("19 videos")).toBeInTheDocument();
+        expect(screen.getByText("10 h 42 min")).toBeInTheDocument();
+        expect(screen.getByText("12 of 19 watched")).toBeInTheDocument();
 
-        expect(screen.getByRole("link", { name: /Season 1/ })).toHaveTextContent("10 of 10 watched");
-        expect(screen.getByLabelText("Fully watched")).toBeInTheDocument();
+        // Each subfolder says how many videos it has and how long it lasts; progress only once it was started.
+        const seasonOne = screen.getByRole("link", { name: /Season 1/ });
+        expect(seasonOne).toHaveTextContent("10 videos");
+        expect(seasonOne).toHaveTextContent("5 h, all watched");
+        expect(seasonOne.querySelector("img")).toHaveAttribute("src", expect.stringContaining("s1.jpg"));
+        expect(screen.getByRole("link", { name: /Season 2/ })).toHaveTextContent("26 min, 2 of 8 watched");
+        const seasonThree = screen.getByRole("link", { name: /Season 3/ });
+        expect(seasonThree).toHaveTextContent("2 h 5 min");
+        expect(seasonThree).not.toHaveTextContent("watched");
         expect(screen.getByRole("button", { name: "Trailer" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Extra" })).toHaveTextContent("Not processed");
         expect(screen.getByRole("button", { name: "cover.jpg" })).toBeInTheDocument();
+    });
+
+    it("plays the folder's next video from the header", async () => {
+        const next = videoFixture({ id: 5, title: "Episode 5", filePath: `${SHOW}\\Episode 5.mkv` });
+        const summary = { totalVideos: 19, taggedVideos: 0, totalDurationSeconds: 600, nextVideo: next };
+        mockFolder(contents(), { get_folder_summary: { ...summary, watchedVideos: 12 } });
+        const { user, router } = renderScreen(<FolderPage path={SHOW} />);
+
+        await user.click(await screen.findByRole("button", { name: "Continue: Episode 5" }));
+        expect(router.state.location.pathname).toBe("/watch");
+        expect(router.state.location.search).toEqual({ path: `${SHOW}\\Episode 5.mkv` });
+    });
+
+    it("says play for a folder not started yet", async () => {
+        const next = videoFixture({ id: 5, title: "Episode 1" });
+        const summary = { totalVideos: 3, watchedVideos: 0, taggedVideos: 0, totalDurationSeconds: 600 };
+        mockFolder(contents(), { get_folder_summary: { ...summary, nextVideo: next } });
+        renderScreen(<FolderPage path={SHOW} />);
+        expect(await screen.findByRole("button", { name: "Play: Episode 1" })).toBeInTheDocument();
+    });
+
+    it("offers nothing to play once everything is watched", async () => {
+        const summary = { totalVideos: 3, watchedVideos: 3, taggedVideos: 0, totalDurationSeconds: 600 };
+        mockFolder(contents(), { get_folder_summary: { ...summary, nextVideo: null } });
+        renderScreen(<FolderPage path={SHOW} />);
+        expect(await screen.findByText("3 of 3 watched")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /^(Continue|Play)/ })).not.toBeInTheDocument();
     });
 
     it("names a library folder renamed in the app and tells its folder on disk", async () => {

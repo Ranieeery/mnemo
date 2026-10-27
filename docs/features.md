@@ -173,7 +173,20 @@ teclado e mouse (ver `CLAUDE.md`).
     com outra quando vem algo depois, mostra as pastas mesmo recolhido (navegação a um clique), some quando vazio
     (sem perder o lugar na lista); o tooltip da pasta diz "Group: …";
   - pastas desconectadas, escondidas, renomeadas ou realocadas continuam no grupo; pastas novas entram sem grupo.
-- Estatísticas por pasta: total, assistidos e percentual de progresso.
+- Estatísticas por pasta: total, assistidos e duração somada (vídeos sumidos não contam).
+- Cabeçalho da pasta (`FolderHeader`): título, chips com a contagem de vídeos, a duração total
+  (`shared/lib/formatTotalDuration`: "10 h 42 min") e o progresso ("9 of 77 watched", com mini barra), o botão dos
+  outros arquivos e, abaixo, "Folder on disk" e o aviso de pasta escondida. As ações ficam sempre à direita, mesmo
+  quebrando linha. "Continue" (ou "Play", se nada da pasta foi visto; nome acessível "Continue: <título>") toca o
+  vídeo em andamento assistido por último na árvore da pasta ou, sem nenhum, o primeiro não iniciado na ordem de
+  leitura (`videos::next_in_folder`, no `get_folder_summary`); com tudo assistido, o botão não aparece.
+- Card de subpasta: capa com a thumbnail do primeiro vídeo da árvore, na ordem de leitura, que tenha uma
+  (`videos::cover_thumbnail`; fixa, não muda com o progresso), sobre duas folhas empilhadas que aparecem no topo (o
+  que separa uma pasta de um vídeo à primeira vista), ícone de pasta e "N videos" numa aba no canto inferior esquerdo,
+  na cor da folha da frente (o canto direito é da duração nos vídeos), barra de progresso (por cima da aba, sempre
+  inteira) só depois de
+  iniciada (verde e esmaecida quando tudo foi assistido), nome e a linha "26 min", "26 min, 1 of 2 watched" ou
+  "26 min, all watched" com ✓; "No videos read yet" sem vídeos lidos. Mesmo hover do card de vídeo.
 - A biblioteca acompanha o disco sozinha (ver "Sincronização com o disco"):
   - vídeos novos são lidos;
   - renomeados e movidos mantêm progresso, tags, título e histórico;

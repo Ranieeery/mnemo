@@ -160,27 +160,37 @@ pub async fn browse_folder(db: &Db, path: String) -> AppResult<FolderContents> {
         .iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect();
-    let (stats, library) = db
+    let (details, library) = db
         .call(move |connection| {
-            let stats = subfolder_paths
+            let details = subfolder_paths
                 .iter()
-                .map(|path| videos::stats_in_folder(connection, path))
+                .map(|path| {
+                    Ok((
+                        videos::stats_in_folder(connection, path)?,
+                        videos::cover_thumbnail(connection, path)?,
+                    ))
+                })
                 .collect::<AppResult<Vec<_>>>()?;
-            Ok((stats, folders::list(connection)?))
+            Ok((details, folders::list(connection)?))
         })
         .await?;
     let subfolders = listing
         .folders
         .iter()
-        .zip(stats)
-        .map(|(path, stats)| {
+        .zip(details)
+        .map(|(path, (stats, cover_thumbnail_path))| {
             let path = path.to_string_lossy().into_owned();
             // A library folder inside the browsed one shows the name it has in the app.
             let name = library
                 .iter()
                 .find(|folder| folder.path == path)
                 .map_or_else(|| display_name(Path::new(&path)), |folder| folder.name.clone());
-            SubfolderEntry { name, path, stats }
+            SubfolderEntry {
+                name,
+                path,
+                stats,
+                cover_thumbnail_path,
+            }
         })
         .collect();
 
@@ -231,6 +241,8 @@ pub async fn folder_summary(db: &Db, path: String) -> AppResult<FolderSummary> {
             total_videos: stats.total_videos,
             watched_videos: stats.watched_videos,
             tagged_videos: videos::tagged_count_in_folder(connection, &path)?,
+            total_duration_seconds: stats.total_duration_seconds,
+            next_video: videos::next_in_folder(connection, &path)?,
         })
     })
     .await
@@ -902,12 +914,10 @@ mod tests {
 
         let summary = folder_summary(&fixture.db, fixture.path(&[])).await.unwrap();
         assert_eq!(
-            summary,
-            FolderSummary {
-                total_videos: 1,
-                watched_videos: 0,
-                tagged_videos: 0
-            }
+            (summary.total_videos, summary.watched_videos, summary.tagged_videos),
+            (1, 0, 0)
         );
+        // The only video has not been started, so "Continue" plays it.
+        assert_eq!(summary.next_video.map(|video| video.id), Some(home.suggestions[0].id));
     }
 }

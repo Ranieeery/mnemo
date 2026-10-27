@@ -6,7 +6,7 @@ import { Badge, Skeleton } from "../ui";
 import { entryDescription, entryTitle, watchedFraction } from "./entry";
 import { usePlayVideo } from "./useVideoActions";
 import { VideoContextMenu } from "./VideoContextMenu";
-import { VideoThumbnail } from "./VideoThumbnail";
+import { thumbnailLiftClasses, VideoThumbnail } from "./VideoThumbnail";
 
 type VideoCardProps = {
     entry: VideoEntry;
@@ -46,13 +46,7 @@ export function VideoCard({ entry, detail, orientation = "vertical", className }
                     durationSeconds={video?.durationSeconds}
                     progress={video ? watchedFraction(video) : 0}
                     watched={video?.isWatched}
-                    className={cx(
-                        // Hovered, a card's thumbnail lifts a little off the page.
-                        "transition-[translate,box-shadow] duration-(--duration-base) ease-out",
-                        horizontal
-                            ? "w-32 shrink-0 rounded-control"
-                            : "w-full group-hover:-translate-y-0.5 group-hover:shadow-overlay"
-                    )}
+                    className={horizontal ? "w-32 shrink-0 rounded-control" : cx("w-full", thumbnailLiftClasses)}
                 />
                 <div className="flex min-w-0 flex-col gap-0.5 px-0.5">
                     <span

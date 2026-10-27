@@ -14,4 +14,4 @@ export {
 export { VideoCard, VideoCardSkeleton } from "./VideoCard";
 export { VideoContextMenu } from "./VideoContextMenu";
 export { VIDEO_CARD_MIN_WIDTH, VIDEO_GRID_GAP, VideoGrid, VideoGridSkeleton } from "./VideoGrid";
-export { VideoThumbnail } from "./VideoThumbnail";
+export { thumbnailLiftClasses, VideoThumbnail } from "./VideoThumbnail";
