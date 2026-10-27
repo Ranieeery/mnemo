@@ -1,10 +1,18 @@
 import { type ComponentProps, useId } from "react";
 import { cx } from "../lib/cx";
 
+/**
+ * Focus of a text field: one 2px edge in the accent, inside the field, instead of the page's ring around it. The ring
+ * stays as a transparent outline, which Windows high contrast mode paints, since it drops the colored edge.
+ */
+export const fieldFocusClasses =
+    "focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent focus-visible:ring-inset focus-visible:outline-hidden";
+
 export const inputClasses = cx(
     "h-9 w-full rounded-control border border-control-border bg-surface px-3 text-body text-text",
     "placeholder:text-text-subtle transition-colors duration-(--duration-fast) ease-standard",
-    "hover:border-text-subtle focus-visible:border-focus-ring disabled:opacity-50",
+    "hover:border-text-subtle disabled:opacity-50",
+    fieldFocusClasses,
     "aria-[invalid=true]:border-danger"
 );
 

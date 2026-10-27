@@ -12,6 +12,8 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
     ContextMenuTrigger,
+    Tooltip,
+    useIsTruncated,
 } from "../../../shared/ui";
 import { useDeleteLibraryGroup, useRenameLibraryGroup, useSetLibraryGroupCollapsed } from "../groupQueries";
 import { groupRowId } from "../lib/libraryRows";
@@ -68,6 +70,8 @@ export function LibraryGroupHeader({
     const deleteGroup = useDeleteLibraryGroup();
     const { focusGroupId, clearFocusGroup } = useNewGroup();
     const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const nameRef = useRef<HTMLSpanElement>(null);
+    const nameTruncated = useIsTruncated(nameRef, group.name);
     const focusAfterRename = useRef(false);
     // Renaming starts once the menu is gone, or the menu would take the focus back from the field.
     const renameChosen = useRef(false);
@@ -131,52 +135,57 @@ export function LibraryGroupHeader({
                 </div>
             ) : (
                 <ContextMenu>
-                    <ContextMenuTrigger asChild>
-                        <button
-                            ref={(node) => {
-                                setActivatorNodeRef(node);
-                                buttonRef.current = node;
-                            }}
-                            type="button"
-                            aria-expanded={!group.collapsed}
-                            aria-controls={group.collapsed ? undefined : listId}
-                            // Only the pointer drags a group; the keyboard moves it with "Move up"/"Move down".
-                            onPointerDown={(event) => listeners?.onPointerDown?.(event)}
-                            onKeyDown={handleKeyDown}
-                            onClick={() => setCollapsed.mutate({ group, collapsed: !group.collapsed })}
-                            className={cx(
-                                "relative flex min-h-8 w-full items-center gap-1.5 rounded-control px-2.5 py-1 text-left",
-                                "text-small font-medium text-text-muted transition-colors duration-(--duration-fast) ease-standard",
-                                "hover:bg-surface-hover hover:text-text",
-                                holdsCurrent &&
-                                    "before:absolute before:inset-y-1.5 before:left-0 before:w-0.75 before:rounded-full before:bg-accent",
-                                folderOver && "bg-surface-hover text-text"
-                            )}
-                        >
-                            <ChevronRight
-                                aria-hidden
+                    {/* Like a folder, a name cut after two lines shows whole in a tooltip, on hover and on focus. */}
+                    <Tooltip content={group.name} side="right" disabled={!nameTruncated}>
+                        <ContextMenuTrigger asChild>
+                            <button
+                                ref={(node) => {
+                                    setActivatorNodeRef(node);
+                                    buttonRef.current = node;
+                                }}
+                                type="button"
+                                aria-expanded={!group.collapsed}
+                                aria-controls={group.collapsed ? undefined : listId}
+                                // Only the pointer drags a group; the keyboard moves it with "Move up"/"Move down".
+                                onPointerDown={(event) => listeners?.onPointerDown?.(event)}
+                                onKeyDown={handleKeyDown}
+                                onClick={() => setCollapsed.mutate({ group, collapsed: !group.collapsed })}
                                 className={cx(
-                                    "size-3.5 shrink-0 transition-transform duration-(--duration-fast) ease-standard",
-                                    !group.collapsed && "rotate-90"
+                                    "relative flex min-h-8 w-full items-center gap-1.5 rounded-control px-2.5 py-1 text-left",
+                                    "text-small font-medium text-text-muted transition-colors duration-(--duration-fast) ease-standard",
+                                    "hover:bg-surface-hover hover:text-text",
+                                    holdsCurrent &&
+                                        "before:absolute before:inset-y-1.5 before:left-0 before:w-0.75 before:rounded-full before:bg-accent",
+                                    folderOver && "bg-surface-hover text-text"
                                 )}
-                            />
-                            <span className="line-clamp-2 min-w-0 flex-1 break-words">{group.name}</span>
-                            {group.pinned && <Pin aria-hidden className="size-3 shrink-0 text-text-subtle" />}
-                            <span aria-hidden className="text-caption text-text-subtle tabular-nums">
-                                {count}
-                            </span>
-                            <span className="sr-only">
-                                {group.pinned && ", pinned"}, {plural(count, "folder")}
-                            </span>
-                            {held && (
-                                <span
+                            >
+                                <ChevronRight
                                     aria-hidden
-                                    className="absolute inset-x-1.5 bottom-0.5 h-0.5 origin-left animate-hold-fill rounded-full bg-accent motion-reduce:animate-none"
-                                    style={{ animationDuration: `${HOLD_TO_DRAG_MS}ms` }}
+                                    className={cx(
+                                        "size-3.5 shrink-0 transition-transform duration-(--duration-fast) ease-standard",
+                                        !group.collapsed && "rotate-90"
+                                    )}
                                 />
-                            )}
-                        </button>
-                    </ContextMenuTrigger>
+                                <span ref={nameRef} className="line-clamp-2 min-w-0 flex-1 break-words">
+                                    {group.name}
+                                </span>
+                                {group.pinned && <Pin aria-hidden className="size-3 shrink-0 text-text-subtle" />}
+                                <span aria-hidden className="text-caption text-text-subtle tabular-nums">
+                                    {count}
+                                </span>
+                                <span className="sr-only">
+                                    {group.pinned && ", pinned"}, {plural(count, "folder")}
+                                </span>
+                                {held && (
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-x-1.5 bottom-0.5 h-0.5 origin-left animate-hold-fill rounded-full bg-accent motion-reduce:animate-none"
+                                        style={{ animationDuration: `${HOLD_TO_DRAG_MS}ms` }}
+                                    />
+                                )}
+                            </button>
+                        </ContextMenuTrigger>
+                    </Tooltip>
                     <ContextMenuContent
                         onCloseAutoFocus={(event) => {
                             if (renameChosen.current) {

@@ -72,9 +72,13 @@ teclado e mouse (ver `CLAUDE.md`).
     clique;
   - a transição da largura usa `--duration-base` (zerada com `prefers-reduced-motion`);
   - largura e estado ficam salvos entre sessões; na primeira abertura ela começa expandida, com 240 px.
-- Nomes longos de pastas na sidebar expandida quebram em até duas linhas e terminam com reticências. Só quando o nome
-  está cortado (medido de novo ao redimensionar) um tooltip mostra o nome completo e o caminho, ao passar o mouse ou
-  focar pelo teclado; sem corte, o caminho continua no `title`.
+- Nomes longos de pastas e de grupos na sidebar expandida quebram em até duas linhas e terminam com reticências. Só
+  quando o nome está cortado (medido de novo ao redimensionar) um tooltip mostra o nome completo (da pasta, também o
+  caminho), ao passar o mouse ou focar pelo teclado; sem corte, o caminho da pasta continua no `title`.
+- O item atual da sidebar (`sidebarItemClasses`) é uma pílula elevada com a barra `accent` à esquerda; em Home,
+  History e Settings o ícone fica na cor `accent` (pastas mantêm a cor escolhida). No alto contraste do Windows, onde
+  fundos somem, ele ganha uma borda. Sidebar e barra superior se separam do conteúdo pelo degrau das
+  camadas, sem linha; a busca fica centralizada na barra superior, com até 704 px de largura.
 - Nome da pasta da biblioteca só no app (`domain/folder_name.rs`, `rename_library_folder`); a pasta no disco nunca é
   renomeada. `LibraryFolder.name` é o nome exibido (o personalizado ou o da pasta), com `folderName` (do disco) e
   `customName`; o backend já devolve o nome exibido também em `HiddenFolder.name` e `SubfolderEntry.name` quando o

@@ -139,6 +139,18 @@ describe("library groups", () => {
         expect(callsOf(calls, "set_library_group_collapsed")[1]).toEqual({ id: 10, collapsed: false });
     });
 
+    it("shows a cut group name whole in a tooltip on focus", async () => {
+        // Every element measures taller than it shows, so the name counts as cut after its two lines.
+        vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(60);
+        vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(40);
+        mockLibrary(layout([dark, wire], [series]));
+        renderScreen(<LibraryNav currentPath={undefined} />);
+
+        const seriesHeader = await header("Series, 2 folders");
+        act(() => seriesHeader.focus());
+        expect(await screen.findByRole("tooltip")).toHaveTextContent("Series");
+    });
+
     it("marks a collapsed group that holds the folder being browsed", async () => {
         mockLibrary(layout([anime, dark], [{ ...series, collapsed: true }]));
         renderScreen(<LibraryNav currentPath={"D:\\Dark\\Season 1"} />);

@@ -19,7 +19,9 @@ export function TopBar() {
     const folderPath = pathname === "/folder" ? search.path : undefined;
 
     return (
-        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+        // Three columns keep the search centered whatever the sides hold. Set apart from the screen by its layer; the
+        // transparent edge shows in Windows high contrast mode.
+        <div className="grid h-14 shrink-0 grid-cols-[1fr_minmax(0,44rem)_1fr] items-center gap-3 border-b border-transparent px-4">
             <div className="flex items-center gap-1">
                 <IconButton
                     label="Back"
@@ -38,7 +40,13 @@ export function TopBar() {
             </div>
             {/* Each screen has its own field: a search typed on the screen being left, and not run yet, is dropped. */}
             <SearchField key={folderPath ?? pathname} folderPath={folderPath} urlQuery={search.q ?? ""} />
-            <IconButton label="Keyboard shortcuts" shortcut="?" icon={<Keyboard />} onClick={openShortcutsHelp} />
+            <IconButton
+                label="Keyboard shortcuts"
+                shortcut="?"
+                icon={<Keyboard />}
+                onClick={openShortcutsHelp}
+                className="justify-self-end"
+            />
         </div>
     );
 }
@@ -88,7 +96,7 @@ function SearchField({ folderPath, urlQuery }: { folderPath: string | undefined;
             placeholder={folderPath ? `Search in ${folderLabel}` : "Search titles, descriptions and tags"}
             value={value}
             onValueChange={changeValue}
-            className="ml-auto w-full max-w-md"
+            className="w-full"
         />
     );
 }

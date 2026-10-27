@@ -29,6 +29,8 @@ function NavLink({ to, label, icon, active, collapsed, className }: NavLinkProps
                 "relative flex h-9 items-center gap-2.5 [&_svg]:size-4 [&_svg]:shrink-0",
                 collapsed ? "w-10 justify-center" : "px-2.5",
                 sidebarItemClasses(active),
+                // The screens' own icons take the accent when current; folders keep the color the user chose.
+                active && "[&_svg]:text-accent",
                 className
             )}
         >
@@ -74,7 +76,8 @@ export function Sidebar() {
             collapsed={collapsed}
             collapsedClassName="w-14"
             className={cx(
-                "relative flex shrink-0 flex-col border-r border-border bg-surface",
+                // Set apart from the screen by its layer; the transparent edge shows in Windows high contrast mode.
+                "relative flex shrink-0 flex-col border-r border-transparent bg-surface",
                 !collapsed && "max-w-[calc(100vw/3)] min-w-50"
             )}
         >

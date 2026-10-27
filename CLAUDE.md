@@ -299,7 +299,8 @@ tratados por quem usa), `ChoiceGroup` (poucas opções exclusivas em botões, ex
 duplo clique para o padrão; com `collapsed`, anima a largura entre os estados e esconde a alça quando recolhido),
 `ColorSwatches` (amostras de cor como radiogroup: uma parada de `Tab`, setas e `Home`/`End`, nome acessível e
 tooltip por amostra, a escolhida com anel e ✓; usado nas legendas e nas pastas), `sidebarItemClasses` (estados dos
-itens da sidebar: a atual tem fundo elevado, barra `accent` à esquerda e, expandida, nome mais forte).
+itens da sidebar: a atual é uma pílula elevada com `shadow-raised`, barra `accent` à esquerda e, expandida, nome mais
+forte; no alto contraste do Windows ganha borda).
 `toast()` pode ser chamado fora do React. `IconButton` desabilitado usa `aria-disabled`: continua focável e com
 tooltip (muitas vezes o único lugar que diz por quê) e não age, nem como gatilho de menu. `Tooltip` aceita
 `disabled` (fica fechado sem mudar o gatilho, ex.: só mostrar o texto completo quando `useIsTruncated` indica corte). Features compõem esses primitivos; não recriam botões, modais

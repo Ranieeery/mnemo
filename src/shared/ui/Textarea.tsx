@@ -1,5 +1,6 @@
 import { type ComponentProps, useId } from "react";
 import { cx } from "../lib/cx";
+import { fieldFocusClasses } from "./Input";
 
 type TextareaProps = ComponentProps<"textarea"> & {
     label: string;
@@ -20,7 +21,8 @@ export function Textarea({ label, hint, id, className, ...props }: TextareaProps
                 className={cx(
                     "min-h-24 w-full resize-y rounded-control border border-control-border bg-surface px-3 py-2 text-body text-text",
                     "placeholder:text-text-subtle transition-colors duration-(--duration-fast) ease-standard",
-                    "hover:border-text-subtle focus-visible:border-focus-ring"
+                    "hover:border-text-subtle",
+                    fieldFocusClasses
                 )}
                 {...props}
             />
