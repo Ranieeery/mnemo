@@ -45,6 +45,11 @@ export function toast(options: ToastOptions): number {
     return useToastStore.getState().push(options);
 }
 
+/** Removes a toast before its time, e.g. one that a newer toast about the same thing replaces. */
+export function dismissToast(id: number) {
+    useToastStore.getState().dismiss(id);
+}
+
 const toneIcon = {
     info: <Info className="text-text-muted" />,
     success: <CircleCheck className="text-success" />,

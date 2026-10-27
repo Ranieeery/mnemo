@@ -125,7 +125,7 @@ src-tauri/src/
 │                       # settings, history, backup, hidden, groups, layout)
 └── domain/             # tipos e regras puras: extensões e mídia, limiar, ordem natural, faixas de pasta, modo de
                         # exibição, ordem, nome e cor das pastas da biblioteca, pastas escondidas, realocação, layout
-                        # da janela, player, estilo de legenda, atalhos, tags, versões de release, modelos (models/)
+                        # da janela, player, estilo de legenda, atalhos, zoom, tags, versões de release, modelos (models/)
 
 src/
 ├── app/                # entrada, router, RootLayout, layout (shell), rotas que compõem features, DialogHost

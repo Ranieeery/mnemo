@@ -46,7 +46,7 @@ export { Switch } from "./Switch";
 export { sidebarItemClasses } from "./sidebarItem";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { Textarea } from "./Textarea";
-export { resetToasts, Toaster, toast } from "./Toast";
+export { dismissToast, resetToasts, Toaster, toast } from "./Toast";
 export { Tooltip, TooltipProvider } from "./Tooltip";
 export { useColumns } from "./useColumns";
 export { elementNear, useFocusAfterRemoval } from "./useFocusAfterRemoval";

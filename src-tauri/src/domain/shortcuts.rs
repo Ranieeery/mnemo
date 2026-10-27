@@ -10,8 +10,19 @@ use specta::Type;
 
 use crate::error::AppError;
 
-/// Keys every screen needs for itself (leaving full screen, closing dialogs, the help, moving focus).
-pub const RESERVED_SHORTCUT_KEYS: [&str; 5] = ["Escape", "?", "Tab", "Shift+Tab", "Enter"];
+/// Keys every screen needs for itself (leaving full screen, closing dialogs, the help, moving focus, the zoom keys of
+/// `domain::zoom`).
+pub const RESERVED_SHORTCUT_KEYS: [&str; 9] = [
+    "Escape",
+    "?",
+    "Tab",
+    "Shift+Tab",
+    "Enter",
+    "Ctrl+=",
+    "Ctrl+Plus",
+    "Ctrl+-",
+    "Ctrl+0",
+];
 
 /// Most keys an action can have.
 pub const MAX_KEYS_PER_SHORTCUT: usize = 2;
@@ -335,6 +346,14 @@ mod tests {
                 panic!("{reserved} was accepted");
             };
             assert!(message.contains("reserved"), "{reserved}: {message}");
+        }
+    }
+
+    #[test]
+    fn the_zoom_keys_are_reserved() {
+        use crate::domain::zoom::{ZOOM_IN_KEYS, ZOOM_OUT_KEYS, ZOOM_RESET_KEYS};
+        for key in ZOOM_IN_KEYS.iter().chain(&ZOOM_OUT_KEYS).chain(&ZOOM_RESET_KEYS) {
+            assert!(RESERVED_SHORTCUT_KEYS.contains(key), "{key}");
         }
     }
 

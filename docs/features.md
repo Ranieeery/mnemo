@@ -389,9 +389,14 @@ teclado e mouse (ver `CLAUDE.md`).
   tecla entre ações. Ações novas entram no fim de `KeyboardShortcuts::actions()`: um valor salvo sem elas recebe o
   padrão, e uma tecla que o usuário já deu a outra ação fica com ela (a ação nova fica sem tecla). Gravação pela própria tecla (`Esc` cancela); conflito
   oferece "Use here instead"; reset por ação e "Restore all defaults" (com confirmação). Salvo na hora, com rollback.
-- Fixos: `Esc`, `?` (ajuda), `F2` (renomear a pasta da biblioteca focada, à frente de um atalho na mesma tecla) e os
-  botões laterais do mouse. Reservadas (não atribuíveis): `Esc`, `?`, `Tab`,
-  `Shift+Tab`, `Enter`.
+- Fixos: `Esc`, `?` (ajuda), `F2` (renomear a pasta da biblioteca focada, à frente de um atalho na mesma tecla), os
+  botões laterais do mouse e o zoom. Reservadas (não atribuíveis): `Esc`, `?`, `Tab`, `Shift+Tab`, `Enter` e as do zoom
+  (`Ctrl+=`, `Ctrl+Plus`, `Ctrl+-`, `Ctrl+0`; um atalho salvo com elas é descartado na leitura).
+- Zoom da interface (`domain/zoom.rs`, `shared/window/zoom.ts`), em qualquer tela, também em campos de texto, como no
+  navegador: `Ctrl +` (ou `Ctrl Shift =` e o `+` do teclado numérico), `Ctrl -`, `Ctrl 0` e `Ctrl` com a roda do
+  mouse (um passo por vez). Níveis 67–300% (`ZOOM_LEVELS`). O Rust grava o nível (`interface_zoom`) e o aplica ao
+  webview (`change_zoom`), e o restaura ao abrir o app. O zoom nativo do WebView2 continua desligado, então só esse
+  caminho muda o nível. Um toast "Zoom 125%" (com "Reset" fora de 100%) substitui o anterior a cada mudança.
 - `?` em qualquer tela (fora de campos de texto) ou o botão de teclado na barra superior e no player abre a ajuda com
   as teclas atuais; dela, "Customize in Settings" leva à aba.
 - Formato: modificadores na ordem `Ctrl+Alt+Shift+Meta` e a tecla do `KeyboardEvent.key` (segue o layout; letras em

@@ -13,6 +13,7 @@ use crate::domain::shortcuts::{KeyboardShortcuts, repair_shortcuts, validate_sho
 use crate::domain::subtitle_style::{SubtitleStyle, repair_subtitle_style, validate_subtitle_style};
 use crate::domain::updates::ReleaseTag;
 use crate::domain::watch::{DEFAULT_WATCHED_THRESHOLD, validate_threshold};
+use crate::domain::zoom::{DEFAULT_ZOOM, validate_zoom};
 use crate::error::{AppError, AppResult};
 
 /// A value kept in `app_settings` under a fixed key.
@@ -192,6 +193,23 @@ impl Setting for Sidebar {
             width: validate_sidebar_width(preferences.width).unwrap_or(SidebarPreferences::default().width),
             ..preferences
         })
+    }
+}
+
+/// The interface zoom, one of `ZOOM_LEVELS`. It belongs to this machine and its screens, like the sidebar's layout:
+/// not in backups.
+pub struct Zoom;
+
+impl Setting for Zoom {
+    const KEY: &'static str = "interface_zoom";
+    type Value = f64;
+
+    fn default_value() -> f64 {
+        DEFAULT_ZOOM
+    }
+
+    fn validate(zoom: f64) -> AppResult<f64> {
+        validate_zoom(zoom)
     }
 }
 
@@ -506,6 +524,21 @@ mod tests {
             Err(AppError::InvalidInput(_))
         ));
         assert_eq!(get::<Sidebar>(&connection).unwrap(), preferences);
+    }
+
+    #[test]
+    fn zoom_starts_at_100_percent_and_keeps_only_known_levels() {
+        let connection = test_support::connection();
+        assert_eq!(get::<Zoom>(&connection).unwrap(), DEFAULT_ZOOM);
+        assert_eq!(set::<Zoom>(&connection, 1.5).unwrap(), 1.5);
+        assert_eq!(get::<Zoom>(&connection).unwrap(), 1.5);
+        assert!(matches!(set::<Zoom>(&connection, 1.2), Err(AppError::InvalidInput(_))));
+
+        // A level this version does not offer reads as the default.
+        connection
+            .execute("UPDATE app_settings SET value = '7' WHERE key = 'interface_zoom'", [])
+            .unwrap();
+        assert_eq!(get::<Zoom>(&connection).unwrap(), DEFAULT_ZOOM);
     }
 
     #[test]

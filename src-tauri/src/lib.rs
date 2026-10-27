@@ -70,6 +70,7 @@ fn start(app: &AppHandle) -> AppResult<()> {
     asset_scope::allow(app, &state.paths.thumbnails)?;
     asset_scope::allow_all(app, library_folders)?;
     tracing::info!(database = %state.paths.database.display(), "database ready");
+    restore_zoom(app, &state.db);
     let sync = state.sync.clone();
     tauri::async_runtime::spawn(async move { sync.start() });
     tauri::async_runtime::spawn(
@@ -80,6 +81,19 @@ fn start(app: &AppHandle) -> AppResult<()> {
     );
     app.manage(state);
     Ok(())
+}
+
+/// Gives the window the interface zoom it was left with. A failure only leaves it at 100%, so it is logged.
+fn restore_zoom(app: &AppHandle, database: &db::Db) {
+    let restored =
+        tauri::async_runtime::block_on(database.call(|connection| db::settings::get::<db::settings::Zoom>(connection)))
+            .and_then(|zoom| match app.get_webview_window("main") {
+                Some(window) => Ok(window.set_zoom(zoom)?),
+                None => Ok(()),
+            });
+    if let Err(error) = restored {
+        tracing::warn!(%error, "could not restore the interface zoom");
+    }
 }
 
 /// The main window's minimum size from `tauri.conf.json`, given back after the mini player.

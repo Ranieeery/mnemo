@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ZOOM_IN_KEYS, ZOOM_OUT_KEYS, ZOOM_RESET_KEYS } from "../../../shared/ipc/bindings";
 import { useKeyboardShortcuts } from "../../../shared/ipc/queries";
 import { Button, Dialog, Kbd } from "../../../shared/ui";
 import { SHORTCUT_GROUPS } from "../lib/actions";
@@ -64,6 +65,18 @@ export function ShortcutsHelpDialog({ onClose, onCustomize }: ShortcutsHelpDialo
                         </Row>
                         <Row label="Rename the focused library folder">
                             <Kbd>F2</Kbd>
+                        </Row>
+                        <Row label="Zoom in">
+                            <ActionKeys keys={ZOOM_IN_KEYS} />
+                        </Row>
+                        <Row label="Zoom out">
+                            <ActionKeys keys={ZOOM_OUT_KEYS} />
+                        </Row>
+                        <Row label="Reset zoom">
+                            <ActionKeys keys={ZOOM_RESET_KEYS} />
+                        </Row>
+                        <Row label="Ctrl and the mouse wheel">
+                            <span className="text-small text-text">Zoom</span>
                         </Row>
                         <Row label="Mouse back button">
                             <span className="text-small text-text">Go back</span>

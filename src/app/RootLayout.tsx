@@ -9,7 +9,7 @@ import { comboFromEvent, hasCommandModifier, isOverlayOpen, isTextEntry } from "
 import { openShortcutsHelp } from "../shared/stores/dialogs";
 import { followProcessing } from "../shared/stores/processing";
 import { Toaster, TooltipProvider } from "../shared/ui";
-import { followWindowMode, useWindowActions, useWindowMode, WindowAnnouncer } from "../shared/window";
+import { followWindowMode, followZoomKeys, useWindowActions, useWindowMode, WindowAnnouncer } from "../shared/window";
 import { DialogHost } from "./DialogHost";
 import { useHistoryShortcuts } from "./navigation/useHistoryNavigation";
 
@@ -39,6 +39,7 @@ function GlobalShortcuts() {
     useEffect(() => followLibrary(), []);
     useEffect(() => followUpdates(), []);
     useEffect(() => followWindowMode(queryClient), []);
+    useEffect(() => followZoomKeys(), []);
 
     // "?" shows every shortcut, except while typing (where it is just a character) or over another dialog.
     useEffect(() => {

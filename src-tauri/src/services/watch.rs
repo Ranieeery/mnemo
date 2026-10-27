@@ -5,6 +5,7 @@ use crate::domain::layout::SidebarPreferences;
 use crate::domain::models::{AppSettings, DailyWatchTotal, HistoryCursor, HistoryPage, PlayerPreferences, Video};
 use crate::domain::shortcuts::KeyboardShortcuts;
 use crate::domain::subtitle_style::SubtitleStyle;
+use crate::domain::zoom::{ZoomStep, step_zoom};
 use crate::error::{AppError, AppResult};
 
 /// Largest page of watch history one call returns.
@@ -89,6 +90,15 @@ pub async fn update_sidebar_preferences(db: &Db, preferences: SidebarPreferences
         .await
 }
 
+/// Steps the stored interface zoom and returns the new level, for the caller to apply to the webview.
+pub async fn change_zoom(db: &Db, step: ZoomStep) -> AppResult<f64> {
+    db.call(move |connection| {
+        let current = settings::get::<settings::Zoom>(connection)?;
+        settings::set::<settings::Zoom>(connection, step_zoom(current, step))
+    })
+    .await
+}
+
 pub async fn keyboard_shortcuts(db: &Db) -> AppResult<KeyboardShortcuts> {
     db.call(|connection| settings::get::<settings::Shortcuts>(connection))
         .await
@@ -127,6 +137,21 @@ pub async fn update_settings(db: &Db, new_settings: AppSettings) -> AppResult<Ap
 mod tests {
     use super::*;
     use crate::db::videos::{self, NewVideo};
+
+    #[tokio::test]
+    async fn zoom_steps_from_the_stored_level_and_is_kept() {
+        let db = Db::open_in_memory().unwrap();
+        assert_eq!(change_zoom(&db, ZoomStep::In).await.unwrap(), 1.1);
+        assert_eq!(change_zoom(&db, ZoomStep::In).await.unwrap(), 1.25);
+        assert_eq!(change_zoom(&db, ZoomStep::Out).await.unwrap(), 1.1);
+        assert_eq!(
+            db.call(|connection| settings::get::<settings::Zoom>(connection))
+                .await
+                .unwrap(),
+            1.1
+        );
+        assert_eq!(change_zoom(&db, ZoomStep::Reset).await.unwrap(), 1.0);
+    }
 
     #[tokio::test]
     async fn progress_uses_the_configured_threshold() {

@@ -18,3 +18,4 @@ pub mod tags;
 pub mod updates;
 pub mod watch;
 pub mod window;
+pub mod zoom;

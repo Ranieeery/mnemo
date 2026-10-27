@@ -13,9 +13,10 @@ no `CLAUDE.md`.
   `library_folder_sort` (modo desconhecido vira `custom`). A leitura toma cada campo salvo que ainda é válido para o tipo (`merge_onto_default`), então um
   campo ilegível volta ao padrão sem perder os outros.
 - Settings da verificação de atualizações, locais da máquina (não vão no export, e o import não os toca, como as
-  preferências do player e da sidebar): `check_for_updates` (bool, padrão `true`), `last_update_check` (ms Unix da
+  preferências do player e da sidebar e o zoom): `check_for_updates` (bool, padrão `true`), `last_update_check` (ms Unix da
   última verificação com resposta, ou `null`; negativo ou não inteiro vira `null`) e `notified_update_version` (tag
-  já avisada, ou `null`; o que não for tag `X.Y.Z`, com ou sem `v`, vira `null`).
+  já avisada, ou `null`; o que não for tag `X.Y.Z`, com ou sem `v`, vira `null`). Também local: `interface_zoom` (um
+  dos `ZOOM_LEVELS`, padrão `1`; outro valor vira `1`).
 - **Migrações versionadas** (`rusqlite_migration`, em `db/migrations.rs`). A `1` é um baseline compatível com bancos
   das versões 1.x (adiciona colunas que versões antigas criavam depois); a `2` limpa órfãos, normaliza `is_watched`
   gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`; a `4` adiciona

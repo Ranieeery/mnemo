@@ -220,6 +220,8 @@ export const commands = {
 	exitMiniPlayer: () => typedError<WindowMode, IpcError>(__TAURI_INVOKE("exit_mini_player")),
 	/**  Fits the mini player to the video now playing. */
 	setMiniPlayerAspect: (videoWidth: number | null, videoHeight: number | null) => typedError<WindowMode, IpcError>(__TAURI_INVOKE("set_mini_player_aspect", { videoWidth, videoHeight })),
+	/**  Zooms the interface in or out, or back to 100%, and keeps the level for the next sessions on this machine. */
+	changeZoom: (step: ZoomStep) => typedError<InterfaceZoom, IpcError>(__TAURI_INVOKE("change_zoom", { step })),
 };
 
 /** Events */
@@ -280,11 +282,17 @@ export const NAMED_SHORTCUT_KEYS = ["Space","Plus","ArrowLeft","ArrowRight","Arr
 
 export const PLAYBACK_SPEED_STEP = 0.25 as const;
 
-export const RESERVED_SHORTCUT_KEYS = ["Escape","?","Tab","Shift+Tab","Enter"] as const;
+export const RESERVED_SHORTCUT_KEYS = ["Escape","?","Tab","Shift+Tab","Enter","Ctrl+=","Ctrl+Plus","Ctrl+-","Ctrl+0"] as const;
 
 export const SUBTITLE_SIZE_STEP = 10 as const;
 
 export const WATCHED_THRESHOLD_STEP = 0.05 as const;
+
+export const ZOOM_IN_KEYS = ["Ctrl+=","Ctrl+Plus"] as const;
+
+export const ZOOM_OUT_KEYS = ["Ctrl+-"] as const;
+
+export const ZOOM_RESET_KEYS = ["Ctrl+0"] as const;
 
 /* Types */
 /**  User-adjustable settings. */
@@ -431,6 +439,12 @@ export type ImportSummary = {
 	folders: number,
 	videos: number,
 	tags: number,
+};
+
+/**  The interface zoom after a change. */
+export type InterfaceZoom = {
+	/**  One of `ZOOM_LEVELS`; 1 is 100%. */
+	level: number,
 };
 
 /**  Wire format of [`AppError`]: a stable `kind` for the UI to branch on and a human-readable `message`. */
@@ -801,6 +815,9 @@ export type WindowMode = {
  *  player expands it).
  */
 export type WindowModeChanged = WindowMode;
+
+/**  Where a zoom key takes the interface. */
+export type ZoomStep = "in" | "out" | "reset";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

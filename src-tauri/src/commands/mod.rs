@@ -29,6 +29,7 @@ use crate::domain::tags::MAX_TAG_NAME_CHARS;
 use crate::domain::watch::{
     DEFAULT_WATCHED_THRESHOLD, MAX_WATCHED_THRESHOLD, MIN_WATCHED_THRESHOLD, WATCHED_THRESHOLD_STEP,
 };
+use crate::domain::zoom::{ZOOM_IN_KEYS, ZOOM_OUT_KEYS, ZOOM_RESET_KEYS};
 
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
@@ -127,6 +128,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             window::enter_mini_player,
             window::exit_mini_player,
             window::set_mini_player_aspect,
+            window::change_zoom,
         ])
         .constant("DEFAULT_WATCHED_THRESHOLD", DEFAULT_WATCHED_THRESHOLD)
         .constant("MIN_WATCHED_THRESHOLD", MIN_WATCHED_THRESHOLD)
@@ -147,6 +149,9 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("DEFAULT_SIDEBAR_PREFERENCES", SidebarPreferences::default())
         .constant("DEFAULT_KEYBOARD_SHORTCUTS", KeyboardShortcuts::default())
         .constant("RESERVED_SHORTCUT_KEYS", RESERVED_SHORTCUT_KEYS)
+        .constant("ZOOM_IN_KEYS", ZOOM_IN_KEYS)
+        .constant("ZOOM_OUT_KEYS", ZOOM_OUT_KEYS)
+        .constant("ZOOM_RESET_KEYS", ZOOM_RESET_KEYS)
         .constant("MAX_KEYS_PER_SHORTCUT", MAX_KEYS_PER_SHORTCUT)
         .constant("NAMED_SHORTCUT_KEYS", NAMED_SHORTCUT_KEYS)
         .constant("DEFAULT_SUBTITLE_STYLE", SubtitleStyle::default())

@@ -1,10 +1,13 @@
-use tauri::{Manager, State, Window, WindowEvent};
+use tauri::{Manager, State, WebviewWindow, Window, WindowEvent};
 use tauri_specta::Event;
 
 use super::events::WindowModeChanged;
 use crate::domain::window::{Size, WindowMode, aspect_or_default};
+use crate::domain::zoom::{InterfaceZoom, ZoomStep};
 use crate::error::AppResult;
+use crate::services::watch;
 use crate::services::window::WindowControl;
+use crate::state::AppState;
 
 /// Tells every listener about a mode change (the window may also change it on its own, see `lib.rs`).
 pub fn announce(window: &Window, mode: AppResult<WindowMode>) -> AppResult<WindowMode> {
@@ -91,6 +94,19 @@ pub async fn enter_mini_player(
 #[specta::specta]
 pub async fn exit_mini_player(window: Window, control: State<'_, WindowControl>) -> AppResult<WindowMode> {
     announce(&window, control.exit_mini(&window))
+}
+
+/// Zooms the interface in or out, or back to 100%, and keeps the level for the next sessions on this machine.
+#[tauri::command]
+#[specta::specta]
+pub async fn change_zoom(
+    webview: WebviewWindow,
+    state: State<'_, AppState>,
+    step: ZoomStep,
+) -> AppResult<InterfaceZoom> {
+    let zoom = watch::change_zoom(&state.db, step).await?;
+    webview.set_zoom(zoom)?;
+    Ok(InterfaceZoom { level: zoom })
 }
 
 /// Fits the mini player to the video now playing.
