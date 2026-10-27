@@ -18,6 +18,7 @@ import { entryFixture, videoFixture } from "../../shared/test/fixtures";
 import { callsOf, commandError, mockCommands } from "../../shared/test/ipc";
 import { loadMetadata, playToEnd } from "../../shared/test/media";
 import { renderScreen } from "../../shared/test/render";
+import { setWindowWidth } from "../../shared/test/window";
 import { PlayerPage } from "./components/PlayerPage";
 import { usePlayerStore } from "./store";
 
@@ -578,6 +579,21 @@ describe("PlayerPage", () => {
         expect(toggle).toHaveAccessibleName("Watched");
         expect(toggle).toHaveClass("bg-success");
         expect(toggle).toHaveAttribute("title", "Mark as unwatched");
+    });
+
+    it("moves the playlist under the details in a narrow window, keeping its saved width", async () => {
+        setWindowWidth(800);
+        renderPlayer({ preferences: { ...DEFAULT_PLAYER_PREFERENCES, upNextWidth: 360 } });
+        // After the title, in reading order.
+        const title = await screen.findByRole("heading", { name: "Pilot", level: 1 });
+        const panel = screen.getByRole("complementary", { name: "Playlist" });
+        expect(panel.style.width).toBe("");
+        expect(screen.queryByRole("separator", { name: "Resize playlist" })).not.toBeInTheDocument();
+        expect(title.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        act(() => setWindowWidth(1200));
+        expect(screen.getByRole("complementary", { name: "Playlist" })).toHaveStyle({ width: "360px" });
+        expect(screen.getByRole("separator", { name: "Resize playlist" })).toBeInTheDocument();
     });
 
     it("switches to theater mode with the button or T, without reloading the video", async () => {

@@ -4,6 +4,13 @@ import { ResizablePanel, ScrollContainer, VirtualList } from "../../../shared/ui
 import { playerPreferences, usePlayerStore } from "../store";
 import { PlaylistItem } from "./PlaylistItem";
 
+/**
+ * Where the playlist sits: `side`, beside the video, scrolling on its own; `details`, beside the details under the
+ * video (theater mode); `below`, under the details across the page (a narrow window). Only `side` and `details` have
+ * an edge to resize, and only `side` scrolls on its own.
+ */
+export type PlaylistPlacement = "side" | "details" | "below";
+
 type PlaylistPanelProps = {
     /** The whole playlist, in playback order. */
     entries: readonly VideoEntry[];
@@ -12,25 +19,18 @@ type PlaylistPanelProps = {
     /** Name of the folder the playlist comes from. */
     folderName: string;
     onSelect: (entry: VideoEntry) => void;
-    /** Below the video in theater mode, the list scrolls with the page instead of on its own. */
-    scrollsWithPage?: boolean;
+    placement: PlaylistPlacement;
 };
 
 /**
  * The playlist around the video playing now: what came before (watched ones marked), the current one and what comes
- * next. Opened beside the video, it scrolls to the current one; below it (theater mode) it does not, so the video
- * stays in view.
+ * next. Opened beside the video, it scrolls to the current one; under it, it does not, so the video stays in view.
  */
-export function PlaylistPanel({
-    entries,
-    position,
-    folderName,
-    onSelect,
-    scrollsWithPage = false,
-}: PlaylistPanelProps) {
+export function PlaylistPanel({ entries, position, folderName, onSelect, placement }: PlaylistPanelProps) {
     const width = usePlayerStore((state) => state.upNextWidth);
     const listRef = useRef<HTMLDivElement>(null);
     const currentPath = entries[position]?.path;
+    const scrollsWithPage = placement !== "side";
 
     useEffect(() => {
         if (!scrollsWithPage && currentPath) {
@@ -55,7 +55,28 @@ export function PlaylistPanel({
             )}
         </div>
     );
+    const header = (
+        <header className="flex items-baseline justify-between gap-2 px-4 py-3">
+            <h2 className="min-w-0 truncate text-body font-semibold text-text" title={folderName}>
+                {folderName}
+            </h2>
+            {position !== -1 && (
+                <span className="shrink-0 text-small text-text-subtle tabular-nums">
+                    {position + 1} of {entries.length}
+                </span>
+            )}
+        </header>
+    );
 
+    if (placement === "below") {
+        // The saved width is left alone for when the window widens again.
+        return (
+            <aside aria-label="Playlist" className="flex flex-col border-t border-transparent bg-surface">
+                {header}
+                {list}
+            </aside>
+        );
+    }
     return (
         // Follows the window until the user drags its edge; never more than half the window either way. The width
         // is saved with the player preferences, and double-clicking the edge goes back to the automatic width.
@@ -72,16 +93,7 @@ export function PlaylistPanel({
             aria-label="Playlist"
             className="relative flex max-w-[50vw] min-w-60 shrink-0 flex-col border-l border-transparent bg-surface"
         >
-            <header className="flex items-baseline justify-between gap-2 px-4 py-3">
-                <h2 className="min-w-0 truncate text-body font-semibold text-text" title={folderName}>
-                    {folderName}
-                </h2>
-                {position !== -1 && (
-                    <span className="shrink-0 text-small text-text-subtle tabular-nums">
-                        {position + 1} of {entries.length}
-                    </span>
-                )}
-            </header>
+            {header}
             {scrollsWithPage ? list : <ScrollContainer className="flex-1">{list}</ScrollContainer>}
         </ResizablePanel>
     );

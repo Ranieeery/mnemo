@@ -7,16 +7,19 @@ import { useFolderName } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { baseName, parentPath } from "../../../shared/lib/paths";
 import { openShortcutsHelp } from "../../../shared/stores/dialogs";
-import { ErrorState, IconButton, ScrollContainer, Skeleton } from "../../../shared/ui";
+import { ErrorState, IconButton, ScrollContainer, Skeleton, useMediaQuery } from "../../../shared/ui";
 import { useWindowMode } from "../../../shared/window";
 import { usePreferencesSession } from "../hooks/usePreferencesSession";
 import { useSubtitles } from "../hooks/useSubtitles";
 import { usePlaylist, useVideoRecord } from "../queries";
 import { usePlayerStore } from "../store";
 import { NextVideoDialog } from "./NextVideoDialog";
-import { PlaylistPanel } from "./PlaylistPanel";
+import { PlaylistPanel, type PlaylistPlacement } from "./PlaylistPanel";
 import { VideoInfo } from "./VideoInfo";
 import { stageHeight, VideoStage } from "./VideoStage";
+
+/** Below this window width the playlist leaves the side of the video, which keeps the whole width. */
+const NARROW_WINDOW = "(max-width: 899.98px)";
 
 type PlayerPageProps = {
     path: string;
@@ -33,6 +36,7 @@ export function PlayerPage({ path, videoTags }: PlayerPageProps) {
     const [nextPrompt, setNextPrompt] = useState<VideoEntry | null>(null);
     const theater = usePlayerStore((state) => state.theater);
     const { mini } = useWindowMode();
+    const narrow = useMediaQuery(NARROW_WINDOW);
     const preferencesReady = usePreferencesSession();
 
     const entries = playlist.data ?? [];
@@ -61,6 +65,7 @@ export function PlayerPage({ path, videoTags }: PlayerPageProps) {
     const folder = parentPath(path);
     const folderLabel = useFolderName(folder);
 
+    const placement: PlaylistPlacement = narrow ? "below" : theater ? "details" : "side";
     // The mini player shows the video alone; the list still decides what plays next.
     const playlistPanel = !mini && (
         <PlaylistPanel
@@ -68,7 +73,7 @@ export function PlayerPage({ path, videoTags }: PlayerPageProps) {
             position={position}
             folderName={folderLabel}
             onSelect={play}
-            scrollsWithPage={theater}
+            placement={placement}
         />
     );
 
@@ -119,9 +124,10 @@ export function PlayerPage({ path, videoTags }: PlayerPageProps) {
                             onClose={close}
                         />
                     )}
-                    {/* In theater mode the video spans the window and the playlist moves next to the details. */}
+                    {/* In theater mode the video spans the window and the playlist moves next to the details; in a
+                        narrow window it goes under them. */}
                     {!mini && (
-                        <div className="flex">
+                        <div className={cx("flex", placement === "below" && "flex-col")}>
                             <div className="min-w-0 flex-1">
                                 {record.isSuccess && (
                                     <VideoInfo
@@ -134,11 +140,11 @@ export function PlayerPage({ path, videoTags }: PlayerPageProps) {
                                     />
                                 )}
                             </div>
-                            {theater && playlistPanel}
+                            {placement !== "side" && playlistPanel}
                         </div>
                     )}
                 </ScrollContainer>
-                {!theater && playlistPanel}
+                {placement === "side" && playlistPanel}
             </div>
             {nextPrompt && (
                 <NextVideoDialog

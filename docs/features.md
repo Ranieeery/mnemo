@@ -290,7 +290,8 @@ teclado e mouse (ver `CLAUDE.md`).
   próximos; ao lado do vídeo ele abre rolado até o atual, e no modo teatro (abaixo do vídeo) não rola, para o vídeo
   continuar à vista. A coluna acompanha a janela (~¼ da largura, 256–448 px) até o usuário arrastar a borda ou usar
   `←`/`→` nela (240–800 px, no máximo metade da janela); duplo clique volta ao automático. A largura fica nas
-  preferências do player.
+  preferências do player. Com a janela abaixo de 900 px, a playlist vai para baixo dos detalhes, na largura toda e sem
+  borda para arrastar (também no modo teatro); a largura salva volta quando a janela alarga.
 - Barra do player: a pasta do vídeo (link para ela), sem repetir o título, que fica só abaixo do vídeo, com "Video 5 of
   12, 12:56", as ações ("Watched", "Details and tags", "Open externally" e "Show in file manager") e um bloco com a
   descrição e as tags do vídeo (`VideoTagList` da feature de tags, passada pela rota `app/routes/WatchRoute`), que

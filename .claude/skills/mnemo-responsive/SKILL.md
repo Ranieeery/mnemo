@@ -13,8 +13,9 @@ maximized, 4K, and the mini player. Every layout has to hold from the minimum wi
 | Width | What it stands for |
 |---|---|
 | 640×480 | the minimum window (`tauri.conf.json`, also read by the Rust window layout) |
-| ~900 | a small window; below 900 px the player's playlist goes under the video (stage 3b) |
+| ~900 | a small window; below 900 px the player playlist goes under the details (`PlaylistPanel` `placement="below"`) |
 | 1000 | below it the sidebar is always the rail, and expanding it opens a drawer (`useSidebarDrawer`) |
+| 1280×800 | the size Mnemo opens with (never saved): the home's "Also in progress" fits beside the highlighted video |
 | 1366 / 1920 | common laptop and desktop screens, maximized |
 
 ## Rules
