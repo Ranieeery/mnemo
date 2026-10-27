@@ -48,13 +48,52 @@ function renderSettings() {
     return renderScreen(<Settings />);
 }
 
+/** The one-sentence library summary, found by its start since its numbers sit in their own elements. */
+function findSummary() {
+    return screen.findByText(
+        (_, element) => element?.tagName === "P" && /^[\d,]+ videos? in/.test(element.textContent)
+    );
+}
+
 describe("SettingsPage", () => {
     it("shows the library statistics and the composed folder panel", async () => {
         mockSettings();
         renderSettings();
-        expect(await screen.findByText("10 (25%)")).toBeInTheDocument();
-        expect(screen.getByText("2:00:00")).toBeInTheDocument();
+        const summary = await findSummary();
+        expect(summary).toHaveTextContent("40 videos in 2 folders · 2 h in total · 10 watched (25%) · 3 tags");
         expect(screen.getByText("Folders panel")).toBeInTheDocument();
+    });
+
+    it("sums up a large library with thousands separators and singular nouns", async () => {
+        mockSettings({
+            get_library_stats: {
+                totalVideos: 1296,
+                watchedVideos: 1,
+                totalDurationSeconds: 1_584_978,
+                totalTags: 1,
+                totalFolders: 1,
+                orphanedVideos: 0,
+            },
+        });
+        renderSettings();
+        const summary = await findSummary();
+        expect(summary).toHaveTextContent("1,296 videos in 1 folder · 440 h 16 min in total · 1 watched (0%) · 1 tag");
+    });
+
+    it("leaves duration and watched out of the summary of an empty library", async () => {
+        mockSettings({
+            get_library_stats: {
+                totalVideos: 0,
+                watchedVideos: 0,
+                totalDurationSeconds: 0,
+                totalTags: 0,
+                totalFolders: 0,
+                orphanedVideos: 0,
+            },
+        });
+        renderSettings();
+        const summary = await findSummary();
+        expect(summary).toHaveTextContent(/^0 videos in 0 folders · 0 tags$/);
     });
 
     it("resets the watch status after confirmation, keeping tags", async () => {

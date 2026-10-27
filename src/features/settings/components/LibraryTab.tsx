@@ -4,8 +4,8 @@ import { type ReactNode, useState } from "react";
 import { errorMessage } from "../../../shared/ipc/client";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
 import { dayKey } from "../../../shared/lib/dayKey";
-import { formatDuration } from "../../../shared/lib/formatDuration";
-import { plural } from "../../../shared/lib/plural";
+import { formatTotalDuration } from "../../../shared/lib/formatTotalDuration";
+import { plural, pluralNoun } from "../../../shared/lib/plural";
 import { syncFolders } from "../../../shared/stores/processing";
 import { Button, Card, ConfirmDialog, ErrorState, Skeleton, Switch, toast } from "../../../shared/ui";
 import {
@@ -18,19 +18,25 @@ import {
 } from "../queries";
 import { SettingRow } from "./SettingRow";
 
-function Stat({ label, value }: { label: string; value: ReactNode }) {
+/** A number set apart from the sentence around it, with thousands separators. */
+function Figure({ children }: { children: number | string }) {
+    const text = typeof children === "number" ? children.toLocaleString("en-US") : children;
+    return <strong className="font-semibold text-text tabular-nums">{text}</strong>;
+}
+
+function Count({ value, noun }: { value: number; noun: string }) {
     return (
-        <div className="flex flex-col gap-1 rounded-card border border-border bg-surface px-4 py-3">
-            <span className="text-small text-text-muted">{label}</span>
-            <span className="text-heading font-semibold text-text tabular-nums">{value}</span>
-        </div>
+        <>
+            <Figure>{value}</Figure> {pluralNoun(value, noun)}
+        </>
     );
 }
 
-function LibraryStatsGrid() {
+/** The library in one sentence: "1,296 videos in 8 folders · 440 h 16 min in total · 1 watched (0%) · 0 tags". */
+function LibrarySummary() {
     const stats = useLibraryStats();
     if (stats.isPending) {
-        return <Skeleton className="h-20 w-full" />;
+        return <Skeleton className="h-5 w-96 max-w-full" />;
     }
     if (stats.isError) {
         return (
@@ -44,13 +50,18 @@ function LibraryStatsGrid() {
     const { totalVideos, watchedVideos, totalDurationSeconds, totalFolders, totalTags } = stats.data;
     const percent = totalVideos > 0 ? Math.round((watchedVideos / totalVideos) * 100) : 0;
     return (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
-            <Stat label="Videos" value={totalVideos} />
-            <Stat label="Watched" value={`${watchedVideos} (${percent}%)`} />
-            <Stat label="Total duration" value={formatDuration(totalDurationSeconds)} />
-            <Stat label="Folders" value={totalFolders} />
-            <Stat label="Tags" value={totalTags} />
-        </div>
+        <p className="text-body text-text-muted">
+            <Count value={totalVideos} noun="video" /> in <Count value={totalFolders} noun="folder" />
+            {totalVideos > 0 && (
+                <>
+                    {" · "}
+                    <Figure>{formatTotalDuration(totalDurationSeconds)}</Figure> in total ·{" "}
+                    <Figure>{watchedVideos}</Figure> watched ({percent}%)
+                </>
+            )}
+            {" · "}
+            <Count value={totalTags} noun="tag" />
+        </p>
     );
 }
 
@@ -129,7 +140,7 @@ export function LibraryTab({ foldersPanel }: { foldersPanel: ReactNode }) {
 
     return (
         <div className="flex flex-col gap-8">
-            <LibraryStatsGrid />
+            <LibrarySummary />
             {foldersPanel}
             <Card className="divide-y divide-border">
                 <WatchFoldersSwitch />

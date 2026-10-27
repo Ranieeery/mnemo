@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { libraryFolderFixture } from "../../shared/test/fixtures";
+import { libraryFolderFixture, libraryGroupFixture, libraryLayoutFixture } from "../../shared/test/fixtures";
 import { commandError, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { LibraryFoldersPanel } from "./components/LibraryFoldersPanel";
@@ -21,10 +21,40 @@ describe("LibraryFoldersPanel", () => {
         });
         renderScreen(<LibraryFoldersPanel />);
 
-        expect(await screen.findByText("Watching for changes")).toBeInTheDocument();
-        expect(screen.getByText("Checked every 10 minutes")).toBeInTheDocument();
+        // The expected state is only for screen readers; the deviations are shown.
+        expect(await screen.findByText("Watching for changes")).toHaveClass("sr-only");
+        expect(screen.getByText("Checked every 10 minutes")).not.toHaveClass("sr-only");
         expect(screen.getByText(": Watching is not supported here")).toBeInTheDocument();
         expect(screen.getByText(/Not connected\. Its videos and progress are kept/)).toBeInTheDocument();
+        expect(screen.queryByText(/Watching is off/)).not.toBeInTheDocument();
+    });
+
+    it("says once that watching is off instead of on every folder", async () => {
+        mockCommands({
+            list_library_folders: [series, share],
+            get_library_folder_statuses: [
+                { path: series.path, watch: "off", reason: null },
+                { path: share.path, watch: "off", reason: null },
+            ],
+        });
+        renderScreen(<LibraryFoldersPanel />);
+
+        expect(await screen.findByText(/^Watching is off/)).toBeInTheDocument();
+        for (const row of screen.getAllByText("Checked when Mnemo starts and when you sync")) {
+            expect(row).toHaveClass("sr-only");
+        }
+    });
+
+    it("names the group of a folder for screen readers too", async () => {
+        const grouped = { ...series, groupId: 7 };
+        mockCommands({
+            list_library_folders: [grouped],
+            get_library_folder_statuses: [],
+            get_library_layout: libraryLayoutFixture([grouped], [libraryGroupFixture({ id: 7, name: "Shows" })]),
+        });
+        renderScreen(<LibraryFoldersPanel />);
+
+        expect((await screen.findByText("Shows")).parentElement).toHaveTextContent("Group: Shows");
     });
 
     it("lists the folders in the order of the sidebar, pinned ones first", async () => {

@@ -390,8 +390,14 @@ teclado e mouse (ver `CLAUDE.md`).
   Valores salvos inválidos são reparados ação por ação. Os tooltips mostram a tecla configurada.
 
 ## Settings e manutenção
-- Estatísticas da biblioteca, pastas da biblioteca (com o status de cada uma: monitorada, verificada a cada 10 min e
-  por quê, ou desconectada), sincronizar tudo, exportar/importar em JSON (com confirmação).
+- Coluna centralizada de até 1024 px, com as abas na horizontal.
+- Estatísticas da biblioteca numa frase ("1,296 videos in 8 folders · 440 h 16 min in total · 1 watched (0%) ·
+  0 tags"; duração e assistidos só com vídeos), pastas da biblioteca, sincronizar tudo, exportar/importar em JSON
+  (com confirmação).
+- Na lista de pastas, o grupo aparece num chip ao lado do nome ("Group: …" para leitor de tela) e só os desvios do
+  status aparecem: verificada a cada 10 min (e por quê) ou desconectada (nome esmaecido). "Watching for changes" fica
+  só para leitor de tela, e com "Watch folders for changes" desligado uma nota única no cabeçalho do painel avisa.
+  "Sync" e "Remove" aparecem com o mouse sobre a linha ou o foco nela (continuam alcançáveis por `Tab`).
 - "Watch folders for changes" (ligado por padrão).
 - Limiar de "assistido".
 - Pastas escondidas da home e do histórico (lista, abrir e mostrar de novo).
