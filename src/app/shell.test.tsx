@@ -325,6 +325,9 @@ describe("sidebar", () => {
         const toggle = await screen.findByRole("button", { name: "Expand sidebar" });
         const sidebar = screen.getByRole("complementary", { name: "Sidebar" });
         expect(sidebar).toHaveClass("w-14");
+        // Regression: `relative` came after `absolute` in the CSS, so the rail stopped at its contents' height.
+        expect(sidebar).toHaveClass("absolute", "inset-y-0");
+        expect(sidebar).not.toHaveClass("relative");
         expect(document.querySelector("main")?.closest("[inert]")).toBeNull();
 
         await user.click(toggle);

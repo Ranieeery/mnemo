@@ -102,7 +102,9 @@ export function PlayerControls({
             )}
         >
             <SeekBar currentTime={playback.currentTime} duration={playback.duration} onSeek={playback.seekTo} />
-            <div className="flex items-center gap-1">
+            {/* With every button and the volume open the row needs ~730 px. A narrower video always splits it in two
+                rows, by its width rather than by what fits, so opening the volume never moves the buttons. */}
+            <div className="flex flex-wrap items-center gap-1">
                 <IconButton
                     label="Back 10 seconds"
                     shortcut={shortcutHint(shortcuts.seekBack10)}
@@ -156,7 +158,7 @@ export function PlayerControls({
                     {formatDuration(playback.currentTime)} / {formatDuration(playback.duration)}
                 </span>
 
-                <div className="ml-auto flex items-center gap-1">
+                <div className="ml-auto flex items-center gap-1 @max-[48rem]:basis-full @max-[48rem]:justify-end">
                     <AudioTrackMenu path={path} audio={audio} />
                     <SubtitlesMenu path={path} subtitles={subtitles} enabled={subtitlesEnabled} />
                     <DropdownMenu>

@@ -75,7 +75,8 @@ teclado e mouse (ver `CLAUDE.md`).
   - com a janela abaixo de 1000 px (`app/layout/useSidebarDrawer`) ela é sempre o rail, sem mudar o estado salvo, e
     "Expand sidebar" a abre por cima da tela, como gaveta (sombra e `bg-overlay` sobre a tela, que fica `inert`).
     Fecham a gaveta `Esc` (o foco volta ao botão), o clique fora, ir para outra tela e alargar a janela, que volta ao
-    estado salvo. A borda continua redimensionável, e a largura escolhida é salva.
+    estado salvo. A borda continua redimensionável, e a largura escolhida é salva; por cima da tela, a gaveta não
+    fica presa a ⅓ da janela (só deixa 64 px da tela à vista).
 - A janela abre com 1280×800 (cabe "Also in progress" ao lado do vídeo em destaque da home com a sidebar padrão) e
   a mínima é 640×480 (metade de uma tela de 1366 px). A margem lateral das telas é o token `--spacing-page`
   (`px-page`): 16 px na janela estreita até 40 px em telas largas.
@@ -258,7 +259,9 @@ teclado e mouse (ver `CLAUDE.md`).
 - Controles com auto-hide, tela cheia, modo teatro (vídeo na largura da janela, detalhes e playlist abaixo), volume,
   velocidade (0.25×–2×), botões ±10s, feedback visual dos atalhos. Volume, mudo, velocidade, legendas e modo teatro
   ficam salvos entre sessões e valem para todo vídeo. O auto-hide esconde os controles após 3 s sem atividade
-  durante a reprodução; foco de teclado dentro do player (`Tab`) os mostra e os mantém visíveis até sair dele.
+  durante a reprodução; foco de teclado dentro do player (`Tab`) os mostra e os mantém visíveis até sair dele. Com o
+  vídeo abaixo de 768 px de largura, os botões da direita (áudio, legendas, velocidade, frame, pin, mini, teatro, tela
+  cheia) ficam numa segunda linha, alinhados à direita (container query no palco); nada é escondido.
 - Legendas externas com o mesmo nome do vídeo (`.srt`, `.vtt`, `.sub`, `.ass`) e legendas embutidas no arquivo
   (MKV, MP4): o ffprobe lista as faixas (`list_media_tracks`) e o ffmpeg extrai a escolhida sob demanda
   (`extract_subtitle`; ASS/SSA como ASS, o resto como WebVTT), com cache na sessão. Menu de legendas: Off, arquivo

@@ -31,6 +31,8 @@ maximized, 4K, and the mini player. Every layout has to hold from the minimum wi
 - Long text truncates only where a tooltip or the accessible name keeps the full text (see the a11y checklist).
   Paths and names wrap or truncate; buttons and tabs never shrink below their label.
 - A panel that leaves the side in a narrow window (playlist, drawer) keeps its saved width for when it comes back.
+- Never put two utilities of the same property on one element (`relative` and `absolute`): Tailwind's CSS order
+  decides, not the class order. Pick one with a ternary.
 - Overlays over the screen (drawer) make the screen `inert` and close with `Esc`, a click outside and navigation,
   returning focus to what opened them.
 

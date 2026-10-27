@@ -95,9 +95,10 @@ export function Sidebar({ drawer }: { drawer: SidebarDrawer }) {
             }
             className={cx(
                 // Set apart from the screen by its layer; the transparent edge shows in Windows high contrast mode.
-                "relative flex shrink-0 flex-col border-r border-transparent bg-surface",
-                !collapsed && "max-w-[calc(100vw/3)] min-w-50",
-                drawer.narrow && "absolute inset-y-0 left-0 z-40",
+                "flex shrink-0 flex-col border-r border-transparent bg-surface",
+                drawer.narrow ? "absolute inset-y-0 left-0 z-40" : "relative",
+                // The drawer covers the screen, so it is not held to a third of the window to leave the screen room.
+                !collapsed && (drawer.narrow ? "max-w-[calc(100vw-4rem)] min-w-50" : "max-w-[calc(100vw/3)] min-w-50"),
                 drawer.open && "shadow-overlay"
             )}
         >

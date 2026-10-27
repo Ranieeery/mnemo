@@ -28,11 +28,11 @@ export function WatchTimeChart({ periods, label }: WatchTimeChartProps) {
     return (
         <div className="flex gap-3">
             {/* Y axis: tick labels aligned with the gridlines. */}
-            <div aria-hidden className="relative h-56 w-14 shrink-0">
+            <div aria-hidden className="relative h-56 w-16 shrink-0">
                 {ticks.map((tick) => (
                     <span
                         key={tick}
-                        className="absolute right-0 translate-y-1/2 text-caption text-text-subtle tabular-nums"
+                        className="absolute right-0 translate-y-1/2 text-caption whitespace-nowrap text-text-subtle tabular-nums"
                         style={{ bottom: `${(tick / top) * 100}%` }}
                     >
                         {formatWatchTime(tick)}
@@ -74,12 +74,10 @@ export function WatchTimeChart({ periods, label }: WatchTimeChartProps) {
                         ))}
                     </ul>
                 </div>
+                {/* In a narrow window a label breaks into two lines ("14" over "Tue") instead of being cut. */}
                 <ol aria-hidden className="flex gap-0.5">
                     {periods.map((period) => (
-                        <li
-                            key={period.key}
-                            className="min-w-0 flex-1 truncate text-center text-caption text-text-subtle"
-                        >
+                        <li key={period.key} className="min-w-0 flex-1 text-center text-caption text-text-subtle">
                             {period.label}
                         </li>
                     ))}
