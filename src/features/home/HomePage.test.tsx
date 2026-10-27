@@ -41,6 +41,41 @@ describe("HomePage", () => {
         expect(screen.getByRole("button", { name: "From the folder" })).toBeInTheDocument();
     });
 
+    it("highlights the first video in progress and lists the next ones beside it", async () => {
+        mockCommands({
+            list_library_folders: [libraryFolderFixture({ path: "D:\\Videos" })],
+            get_home: {
+                ...emptyHome,
+                continueWatching: [
+                    videoFixture({ id: 1, title: "Halfway there", durationSeconds: 1500, watchProgressSeconds: 1000 }),
+                    videoFixture({ id: 2, title: "Just started", durationSeconds: 600, watchProgressSeconds: 30 }),
+                ],
+            } satisfies HomeData,
+        });
+        renderHome();
+
+        const resume = await screen.findByRole("button", { name: "Halfway there" });
+        expect(resume).toHaveTextContent("Resume");
+        expect(resume).toHaveAccessibleDescription(/Show, 9 min left/);
+        expect(screen.getByRole("heading", { name: "Also in progress" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Just started" })).toHaveTextContent("10 min left");
+    });
+
+    it("shows the folder of each suggested and watched video", async () => {
+        mockCommands({
+            list_library_folders: [libraryFolderFixture({ path: "D:\\Videos\\Show", name: "My show" })],
+            get_home: {
+                ...emptyHome,
+                suggestions: [videoFixture({ id: 1, title: "Brand new" })],
+                recentlyWatched: [videoFixture({ id: 2, title: "Seen it", isWatched: true })],
+            } satisfies HomeData,
+        });
+        renderHome();
+
+        expect(await screen.findByRole("button", { name: "Brand new" })).toHaveTextContent("My show");
+        expect(screen.getByRole("button", { name: "Seen it, watched" })).toHaveTextContent("My show");
+    });
+
     it("previews the folders in the order of the sidebar, pinned ones first", async () => {
         const anime = libraryFolderFixture({ id: 1, path: "D:\\Anime", name: "Anime" });
         const series = libraryFolderFixture({ id: 2, path: "D:\\Series", name: "Series", pinned: true });

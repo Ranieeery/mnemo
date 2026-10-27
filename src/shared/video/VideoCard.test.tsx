@@ -73,4 +73,10 @@ describe("VideoCard", () => {
         const card = await screen.findByRole("button", { name: "Pilot" });
         expect(card).toHaveAccessibleDescription("50% watched, 25:00, Show › Season 1");
     });
+
+    it("says it was watched under the title when there is no other detail", async () => {
+        mockCommands({});
+        renderScreen(<VideoCard entry={toEntry(videoFixture({ title: "Pilot", isWatched: true }))} />);
+        expect(await screen.findByRole("button", { name: "Pilot, watched" })).toHaveTextContent("Watched");
+    });
 });

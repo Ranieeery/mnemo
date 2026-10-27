@@ -1,11 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Film, FolderOpen } from "lucide-react";
 import { type ReactNode, useRef } from "react";
+import type { LibraryFolder, Video } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
 import { useLibraryFolders } from "../../../shared/ipc/queries";
-import { EmptyState, ErrorState, FolderIcon, useColumns } from "../../../shared/ui";
+import { folderName } from "../../../shared/lib/folderName";
+import { parentPath } from "../../../shared/lib/paths";
+import { EmptyState, ErrorState, FolderIcon, Skeleton, useColumns } from "../../../shared/ui";
 import { VIDEO_CARD_MIN_WIDTH, VIDEO_GRID_GAP } from "../../../shared/video";
+import { greeting } from "../lib/greeting";
 import { useHome } from "../queries";
+import { ContinueWatching } from "./ContinueWatching";
 import { SectionHeading, VideoRow, VideoRowSkeleton } from "./VideoRow";
 
 type HomePageProps = {
@@ -21,11 +26,15 @@ export function HomePage({ addFolderAction }: HomePageProps) {
 
     return (
         <div ref={containerRef} className="flex flex-col gap-10 px-8 py-8">
-            <h1 className="text-display font-semibold text-text">Home</h1>
+            {/* Screen readers get the screen's name, which focus moves to on navigation; the eye gets a greeting. */}
+            <h1 className="sr-only">Home</h1>
+            <p className="text-display font-semibold text-text" aria-hidden>
+                {greeting(new Date().getHours())}
+            </p>
             <HomeContent
                 columns={columns}
                 home={home}
-                hasFolders={(folders.data?.length ?? 0) > 0}
+                libraryFolders={folders.data}
                 addFolderAction={addFolderAction}
             />
         </div>
@@ -35,15 +44,15 @@ export function HomePage({ addFolderAction }: HomePageProps) {
 type HomeContentProps = {
     columns: number;
     home: ReturnType<typeof useHome>;
-    hasFolders: boolean;
+    libraryFolders: readonly LibraryFolder[] | undefined;
     addFolderAction: ReactNode;
 };
 
-function HomeContent({ columns, home, hasFolders, addFolderAction }: HomeContentProps) {
+function HomeContent({ columns, home, libraryFolders, addFolderAction }: HomeContentProps) {
     if (home.isPending) {
         return (
             <>
-                <VideoRowSkeleton columns={columns} />
+                <Skeleton className="h-64 w-full rounded-dialog" />
                 <VideoRowSkeleton columns={columns} />
             </>
         );
@@ -59,8 +68,9 @@ function HomeContent({ columns, home, hasFolders, addFolderAction }: HomeContent
     }
     const { continueWatching, suggestions, recentlyWatched, folderPreviews } = home.data;
     const isEmpty = continueWatching.length + suggestions.length + recentlyWatched.length + folderPreviews.length === 0;
+    const folderOf = (video: Video) => folderName(parentPath(video.filePath), libraryFolders);
 
-    if (isEmpty && !hasFolders) {
+    if (isEmpty && (libraryFolders?.length ?? 0) === 0) {
         return (
             <EmptyState
                 icon={FolderOpen}
@@ -82,16 +92,18 @@ function HomeContent({ columns, home, hasFolders, addFolderAction }: HomeContent
 
     return (
         <>
+            <ContinueWatching videos={continueWatching} folderOf={folderOf} />
             <VideoRow
-                heading={<SectionHeading>Continue watching</SectionHeading>}
-                videos={continueWatching}
+                heading={<SectionHeading>Suggestions</SectionHeading>}
+                videos={suggestions}
                 columns={columns}
+                detail={folderOf}
             />
-            <VideoRow heading={<SectionHeading>Suggestions</SectionHeading>} videos={suggestions} columns={columns} />
             <VideoRow
                 heading={<SectionHeading>Recently watched</SectionHeading>}
                 videos={recentlyWatched}
                 columns={columns}
+                detail={folderOf}
             />
             {folderPreviews.map(({ folder, videos }) => (
                 <VideoRow

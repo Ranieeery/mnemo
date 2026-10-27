@@ -16,4 +16,9 @@ describe("VideoThumbnail", () => {
         rerender(<VideoThumbnail thumbnailPath="new.jpg" />);
         expect(container.querySelector("img")).toHaveAttribute("src", expect.stringContaining("new.jpg"));
     });
+
+    it("still says watched in words, so lists named by their content (Up next, history) keep it", () => {
+        const { container } = render(<VideoThumbnail thumbnailPath={null} watched />);
+        expect(container).toHaveTextContent("Watched");
+    });
 });

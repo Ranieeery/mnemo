@@ -210,6 +210,21 @@ teclado e mouse (ver `CLAUDE.md`).
 ## Home
 - Continuar assistindo, sugestões (não assistidos), assistidos recentemente e prévia de cada pasta da biblioteca.
   O número de cards se adapta à largura da tela.
+- No topo, uma saudação pela hora local ("Good morning" das 5 às 12 h, "Good afternoon" até as 18 h, "Good evening"
+  no resto); o `h1` "Home" fica só para leitores de tela (é ele que recebe o foco ao trocar de tela).
+- "Continue watching" (`ContinueWatching`): o primeiro vídeo em destaque (thumbnail grande, pasta, título, barra e
+  tempo restante, `shared/lib/formatRemaining`: "8 min left", minutos arredondados para cima) é um botão só, com
+  "Resume" desenhado dentro, que toca como qualquer card; ao lado, "Also in progress" com até três dos seguintes em
+  cards horizontais com o tempo restante. Todos mantêm o menu de contexto do vídeo.
+- Os cards de sugestões e de assistidos recentemente mostram a pasta do vídeo abaixo do título (o nome na biblioteca,
+  `folderName`); nas prévias de pasta não, pois o cabeçalho já diz.
+
+### Card de vídeo (`shared/video/VideoCard`)
+- Hover: a thumbnail sobe 2 px e ganha sombra, a imagem cresce 3% dentro da moldura e a barra de progresso engrossa
+  (durações dos tokens, zeradas com `prefers-reduced-motion`). `orientation="horizontal"` põe a thumbnail ao lado do
+  texto, para listas compactas.
+- Assistido: imagem esmaecida, barra cheia na cor `success` (com "Watched" para leitor de tela, que nomeia as listas
+  do "Up next" e do histórico) e um ✓ na linha abaixo do título, com o detalhe ou "Watched".
 - Prévia de pasta (`db/videos.rs` `folder_preview`; as pastas na ordem da sidebar, sem as vazias): vídeos não
   iniciados, depois em andamento, depois assistidos, cada grupo na ordem do modo contínuo (`ReadingKey`: os
   vídeos da pasta, depois cada subpasta seguida das suas), cortados no número de cards. Sem sumidos nem pastas

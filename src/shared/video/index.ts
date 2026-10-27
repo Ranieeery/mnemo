@@ -1,4 +1,4 @@
-export { entryTitle, toEntry, watchedFraction } from "./entry";
+export { entryDescription, entryTitle, toEntry, watchedFraction } from "./entry";
 export { folderVisibility, nearestHiddenFolder, useFolderVisibility, useSetFolderHidden } from "./folderVisibility";
 export { HiddenFolderMark, hiddenFolderLabel } from "./HiddenFolderMark";
 export { replaceVideo } from "./replaceVideo";

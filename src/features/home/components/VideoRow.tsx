@@ -7,10 +7,12 @@ type VideoRowProps = {
     heading: ReactNode;
     videos: readonly Video[];
     columns: number;
+    /** Secondary line of each card, e.g. its folder. */
+    detail?: (video: Video) => string;
 };
 
 /** One home section: a heading and a single row with as many cards as fit the width. */
-export function VideoRow({ heading, videos, columns }: VideoRowProps) {
+export function VideoRow({ heading, videos, columns, detail }: VideoRowProps) {
     if (videos.length === 0) {
         return null;
     }
@@ -19,7 +21,7 @@ export function VideoRow({ heading, videos, columns }: VideoRowProps) {
             {heading}
             <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                 {videos.slice(0, columns).map((video) => (
-                    <VideoCard key={video.id} entry={toEntry(video)} />
+                    <VideoCard key={video.id} entry={toEntry(video)} detail={detail?.(video)} />
                 ))}
             </div>
         </section>

@@ -1,5 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Check, Film } from "lucide-react";
+import { Film } from "lucide-react";
 import { useState } from "react";
 import { cx } from "../lib/cx";
 import { formatDuration } from "../lib/formatDuration";
@@ -9,13 +9,15 @@ type VideoThumbnailProps = {
     durationSeconds?: number;
     /** Fraction watched (0..1); shown as a strip while the video is in progress. */
     progress?: number;
+    /** A watched video is dimmed and gets a full strip in the watched color. */
     watched?: boolean;
     className?: string;
 };
 
 /**
  * 16:9 thumbnail with fixed dimensions (no layout shift), lazy loading and a placeholder when missing. The caller sets
- * the width through `className` (`w-full` in grids).
+ * the width through `className` (`w-full` in grids). Inside a `group` (a card), hovering it zooms the picture a little
+ * and thickens the strip.
  */
 export function VideoThumbnail({
     thumbnailPath,
@@ -39,7 +41,9 @@ export function VideoThumbnail({
                     decoding="async"
                     onError={() => setFailedPath(thumbnailPath)}
                     className={cx(
-                        "size-full object-cover transition-opacity duration-(--duration-base) ease-standard",
+                        // Inside a hovered card (a `group`), the picture grows slightly within its frame.
+                        "size-full object-cover transition-[opacity,scale] duration-(--duration-slow) ease-out",
+                        "group-hover:scale-103",
                         watched && "opacity-55"
                     )}
                 />
@@ -48,19 +52,21 @@ export function VideoThumbnail({
                     <Film className="size-8 text-text-subtle" strokeWidth={1.5} aria-hidden />
                 </div>
             )}
-            {watched && (
-                <span className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-success text-success-foreground">
-                    <Check className="size-3.5" strokeWidth={3} aria-label="Watched" />
-                </span>
-            )}
             {durationSeconds !== undefined && durationSeconds > 0 && (
                 <span className="absolute right-2 bottom-2 rounded-badge bg-scrim px-1.5 py-0.5 text-caption font-medium text-text tabular-nums">
                     {formatDuration(durationSeconds)}
                 </span>
             )}
-            {inProgress && (
-                <div className="absolute inset-x-0 bottom-0 h-1 bg-scrim">
-                    <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />
+            {(inProgress || watched) && (
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-scrim transition-[height] duration-(--duration-fast) ease-standard group-hover:h-1.5">
+                    {watched ? (
+                        // A full strip in the watched color; the word stays for screen readers.
+                        <div className="h-full bg-success">
+                            <span className="sr-only">Watched</span>
+                        </div>
+                    ) : (
+                        <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />
+                    )}
                 </div>
             )}
         </div>

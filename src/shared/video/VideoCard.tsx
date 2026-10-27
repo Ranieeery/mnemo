@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { useId } from "react";
 import type { VideoEntry } from "../ipc/bindings";
 import { cx } from "../lib/cx";
@@ -11,16 +12,19 @@ type VideoCardProps = {
     entry: VideoEntry;
     /** Secondary line under the title, e.g. the folder a search result comes from. */
     detail?: string;
+    /** `horizontal` puts a small thumbnail beside the text, for compact lists. */
+    orientation?: "vertical" | "horizontal";
     className?: string;
 };
 
-/** A video in a grid: plays on click, offers the video actions on right-click. */
-export function VideoCard({ entry, detail, className }: VideoCardProps) {
+/** A video in a grid or a list: plays on click, offers the video actions on right-click. */
+export function VideoCard({ entry, detail, orientation = "vertical", className }: VideoCardProps) {
     const { video } = entry;
     const title = entryTitle(entry);
     const playVideo = usePlayVideo();
     const descriptionId = useId();
     const description = entryDescription(entry, detail);
+    const horizontal = orientation === "horizontal";
 
     return (
         <VideoContextMenu entry={entry}>
@@ -30,8 +34,10 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
                 aria-label={video?.isWatched ? `${title}, watched` : title}
                 aria-describedby={description ? descriptionId : undefined}
                 className={cx(
-                    "group flex w-full min-w-0 flex-col gap-2 rounded-card text-left",
-                    "transition-transform duration-(--duration-fast) ease-standard active:scale-99",
+                    "group flex w-full min-w-0 rounded-card text-left",
+                    horizontal
+                        ? "items-center gap-3 p-2 transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-raised"
+                        : "flex-col gap-2 transition-transform duration-(--duration-fast) ease-standard active:scale-99",
                     className
                 )}
             >
@@ -40,19 +46,33 @@ export function VideoCard({ entry, detail, className }: VideoCardProps) {
                     durationSeconds={video?.durationSeconds}
                     progress={video ? watchedFraction(video) : 0}
                     watched={video?.isWatched}
-                    className="w-full transition-shadow duration-(--duration-fast) ease-standard group-hover:shadow-overlay"
+                    className={cx(
+                        // Hovered, a card's thumbnail lifts a little off the page.
+                        "transition-[translate,box-shadow] duration-(--duration-base) ease-out",
+                        horizontal
+                            ? "w-32 shrink-0 rounded-control"
+                            : "w-full group-hover:-translate-y-0.5 group-hover:shadow-overlay"
+                    )}
                 />
                 <div className="flex min-w-0 flex-col gap-0.5 px-0.5">
                     <span
                         className={cx(
-                            "line-clamp-2 text-body font-medium break-words",
+                            "line-clamp-2 font-medium break-words",
+                            horizontal ? "text-small" : "text-body",
                             video?.isWatched ? "text-text-muted" : "text-text"
                         )}
                         title={title}
                     >
                         {title}
                     </span>
-                    {detail && <span className="truncate text-small text-text-subtle">{detail}</span>}
+                    {video?.isWatched ? (
+                        <span className="flex min-w-0 items-center gap-1.5 text-small text-text-subtle">
+                            <Check className="size-3.5 shrink-0 text-success" strokeWidth={3} aria-hidden />
+                            <span className="truncate">{detail ?? "Watched"}</span>
+                        </span>
+                    ) : (
+                        detail && <span className="truncate text-small text-text-subtle">{detail}</span>
+                    )}
                     {!video && (
                         <Badge tone="neutral" className="mt-1 self-start">
                             Not processed
