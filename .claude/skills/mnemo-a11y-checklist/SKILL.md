@@ -1,6 +1,6 @@
 ---
 name: mnemo-a11y-checklist
-description: Accessibility checklist for any visual or UI change in Mnemo (tokens, shared/ui, cards, screens, hover or motion, the rework stages in MELHORIAS.md). Use it while planning a UI change and again before calling it done, even when the request only says "make it look better", "restyle", "new card" or "tweak the colors", and pair it with /check.
+description: Accessibility checklist for any visual or UI change in Mnemo (tokens, shared/ui, cards, screens, hover or motion). Use it while planning a UI change and again before calling it done, even when the request only says "make it look better", "restyle", "new card" or "tweak the colors", and pair it with /check.
 ---
 
 # Accessibility checklist

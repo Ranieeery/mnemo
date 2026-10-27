@@ -26,7 +26,7 @@ teclado e mouse (ver `CLAUDE.md`).
   card de vídeo tem como nome o título (e ", watched") e como descrição o resto do que mostra: progresso, duração,
   linha de detalhe e "Not processed". O botão "Watched" do player é um toggle de texto fixo (`aria-pressed`; o
   tooltip diz a ação). As prévias de pasta da home são cabeçalhos, como as outras seções.
-- Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura do "Up next" são preferências
+- Player (`features/player`): volume, mudo, velocidade, legendas, modo teatro e largura da playlist são preferências
   entre sessões (`get_player_preferences`/`update_player_preferences`), carregadas uma vez por sessão na store e
   salvas 400 ms após a última mudança e ao fechar o player; valem para todo vídeo. Progresso salvo no máximo a cada
   5 s e ao pausar, fechar e terminar; cada gravação invalida a lista de pastas da biblioteca e a home (a ordem
@@ -35,7 +35,7 @@ teclado e mouse (ver `CLAUDE.md`).
   (`get_sidebar_preferences`/`update_sidebar_preferences`, `app/layout/useSidebarPreferences`), mantidas no cache
   do TanStack Query e salvas 400 ms após a última mudança (recolher/expandir salva na hora). A sidebar só aparece
   depois que elas carregam, para não abrir expandida e recolher em seguida; se não puderem ser lidas, valem os padrões.
-- Painéis laterais redimensionáveis (sidebar e "Up next") usam `shared/ui/ResizablePanel`; o salvamento com atraso
+- Painéis laterais redimensionáveis (sidebar e playlist do player) usam `shared/ui/ResizablePanel`; o salvamento com atraso
   usa `shared/lib/debounce`.
 - Modos da janela (`shared/window`, `services/window`, `domain/window.rs`): o Rust é dono do estado (`WindowMode`:
   `pinned`, `mini`, `onTopSupported`), devolvido pelos comandos e enviado pelo evento `windowModeChanged`; o frontend
@@ -91,7 +91,7 @@ teclado e mouse (ver `CLAUDE.md`).
   renomeada. `LibraryFolder.name` é o nome exibido (o personalizado ou o da pasta), com `folderName` (do disco) e
   `customName`; o backend já devolve o nome exibido também em `HiddenFolder.name` e `SubfolderEntry.name` quando o
   caminho é uma pasta da biblioteca, e o frontend usa `shared/lib/folderName` (`useFolderName`) onde só tem o caminho
-  (título e "not connected" da tela da pasta, busca, "Up next"/player, histórico, processamento, "Locate folder…"):
+  (título e "not connected" da tela da pasta, busca, playlist/player, histórico, processamento, "Locate folder…"):
   - "Rename" no menu de contexto ou `F2` com a pasta focada: na sidebar expandida, edição no lugar (texto todo
     selecionado, nome da pasta como placeholder); no rail, um `Popover` ao lado do ícone com "Folder on disk: …".
     `Enter` salva, `Esc` cancela (sem propagar), clicar fora salva; `Enter`/`Esc` devolvem o foco à pasta;
@@ -249,7 +249,7 @@ teclado e mouse (ver `CLAUDE.md`).
   (durações dos tokens, zeradas com `prefers-reduced-motion`). `orientation="horizontal"` põe a thumbnail ao lado do
   texto, para listas compactas.
 - Assistido: imagem esmaecida, barra cheia na cor `success` (com "Watched" para leitor de tela, que nomeia as listas
-  do "Up next" e do histórico) e um ✓ na linha abaixo do título, com o detalhe ou "Watched".
+  da playlist e do histórico) e um ✓ na linha abaixo do título, com o detalhe ou "Watched".
 - Prévia de pasta (`db/videos.rs` `folder_preview`; as pastas na ordem da sidebar, sem as vazias): vídeos não
   iniciados, depois em andamento, depois assistidos, cada grupo na ordem do modo contínuo (`ReadingKey`: os
   vídeos da pasta, depois cada subpasta seguida das suas), cortados no número de cards. Sem sumidos nem pastas
@@ -318,7 +318,7 @@ teclado e mouse (ver `CLAUDE.md`).
     proporção mantém a largura e muda a altura, presa ao canto da área mais próximo.
   - Só o vídeo e os controles essenciais (`MiniPlayerControls`: barra de progresso, play/pause, tempo, "Expand" e
     "Close player"), que aparecem ao passar o mouse e ficam visíveis com foco de teclado; sem cabeçalho, detalhes nem
-    coluna "Up next", mas a lista continua decidindo o próximo vídeo: ao terminar, um cartão compacto
+    playlist, mas a lista continua decidindo o próximo vídeo: ao terminar, um cartão compacto
     (`NextVideoDialog` `compact`, um `dialog` não modal) faz a mesma contagem de 5 s, com "Play now" focado e `Esc`
     cancelando. Legendas no estilo do usuário, escalando com o vídeo. Todos os atalhos do player continuam; `F` sai
     do mini e entra em tela cheia; `T` muda o modo teatro (que reaparece ao sair) e diz o novo estado no flash.

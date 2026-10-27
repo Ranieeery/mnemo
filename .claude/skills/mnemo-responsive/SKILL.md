@@ -1,6 +1,6 @@
 ---
 name: mnemo-responsive
-description: Responsive layout rules for Mnemo screens and panels (window sizes, sidebar rail and drawer, player layout, page margins, grids). Use when adding or changing a screen, a header, a side panel or anything whose layout depends on width, when the request mentions a small/half-screen/narrow window, snap, 4K or "it breaks when I resize", and during stage 3 of MELHORIAS.md. Pair it with mnemo-a11y-checklist and /check.
+description: Responsive layout rules for Mnemo screens and panels (window sizes, sidebar rail and drawer, player layout, page margins, grids). Use when adding or changing a screen, a header, a side panel or anything whose layout depends on width, when the request mentions a small/half-screen/narrow window, snap, 4K or "it breaks when I resize". Pair it with mnemo-a11y-checklist and /check.
 ---
 
 # Responsive layout
