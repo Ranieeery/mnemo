@@ -301,8 +301,10 @@ duplo clique para o padrão; com `collapsed`, anima a largura entre os estados e
 `ColorSwatches` (amostras de cor como radiogroup: uma parada de `Tab`, setas e `Home`/`End`, nome acessível e
 tooltip por amostra, a escolhida com anel e ✓; usado nas legendas e nas pastas), `sidebarItemClasses` (estados dos
 itens da sidebar: a atual é uma pílula elevada com `shadow-raised`, barra `accent` à esquerda e, expandida, nome mais
-forte; no alto contraste do Windows ganha borda).
-`toast()` pode ser chamado fora do React. `IconButton` desabilitado usa `aria-disabled`: continua focável e com
+forte; no alto contraste do Windows ganha borda), `forcedTrackClasses`/`forcedFillClasses`/`forcedKnobClasses`
+(`shared/ui/forcedColors.ts`: trilho, preenchimento e bolinha em cores do sistema no alto contraste do Windows,
+onde fundos somem; usados em `Slider`, `Switch` e `Progress`).
+`toast()` e `dismissToast()` podem ser chamados fora do React. `IconButton` desabilitado usa `aria-disabled`: continua focável e com
 tooltip (muitas vezes o único lugar que diz por quê) e não age, nem como gatilho de menu. `Tooltip` aceita
 `disabled` (fica fechado sem mudar o gatilho, ex.: só mostrar o texto completo quando `useIsTruncated` indica corte). Features compõem esses primitivos; não recriam botões, modais
 ou menus.

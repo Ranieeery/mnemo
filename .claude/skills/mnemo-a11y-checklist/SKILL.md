@@ -15,7 +15,8 @@ checked and how).
    listed there). Text over thumbnails sits on `bg-scrim`, never directly on the image.
 2. **Windows high contrast (`forced-colors`).** Backgrounds and shadows disappear in that mode. Anything that marks
    state or an edge only with a fill (current item, selection, progress, a card edge) needs a border, outline or text
-   that survives it: `border-transparent` turns visible there, so prefer it to removing a border.
+   that survives it: `border-transparent` turns visible there, so prefer it to removing a border. Bars, tracks and
+   knobs that are only a fill use the classes in `shared/ui/forcedColors.ts` (system colors).
 3. **Zoom and text size.** The layout has to hold at 200% zoom without cutting text or scrolling sideways: no fixed
    heights on text containers, truncation only where a tooltip or the accessible name gives the full text.
 4. **Target size.** Controls are at least 24×24 px (WCAG 2.5.8). Watch `IconButton size="sm"` and icons placed

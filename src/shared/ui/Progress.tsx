@@ -1,5 +1,6 @@
 import { Progress as Primitive } from "radix-ui";
 import { cx } from "../lib/cx";
+import { forcedFillClasses, forcedTrackClasses } from "./forcedColors";
 
 type ProgressProps = {
     /** `null` shows an indeterminate bar (work started, total unknown). */
@@ -21,6 +22,7 @@ export function Progress({ value, max = 100, label, tone = "accent", size = "reg
             aria-label={label}
             className={cx(
                 "relative w-full overflow-hidden rounded-full bg-surface-hover",
+                forcedTrackClasses,
                 size === "thin" ? "h-1" : "h-1.5",
                 className
             )}
@@ -29,6 +31,7 @@ export function Progress({ value, max = 100, label, tone = "accent", size = "reg
                 className={cx(
                     "h-full rounded-full transition-[width] duration-(--duration-base) ease-standard",
                     tone === "success" ? "bg-success" : "bg-accent",
+                    forcedFillClasses,
                     percent === null && "w-2/5 animate-indeterminate motion-reduce:w-full motion-reduce:animate-none"
                 )}
                 style={percent === null ? undefined : { width: `${percent}%` }}

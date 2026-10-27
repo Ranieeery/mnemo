@@ -1,6 +1,7 @@
 import { Switch as Primitive } from "radix-ui";
 import { useId } from "react";
 import { cx } from "../lib/cx";
+import { forcedKnobClasses, forcedTrackClasses } from "./forcedColors";
 
 type SwitchProps = {
     checked: boolean;
@@ -36,10 +37,19 @@ export function Switch({ checked, onCheckedChange, label, description, disabled,
                     // thumb turns dark to stand out against it.
                     "relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-surface-hover ring-1 ring-control-border ring-inset",
                     "transition-colors duration-(--duration-fast) ease-standard",
-                    "data-[state=checked]:bg-accent data-[state=checked]:ring-transparent disabled:opacity-50"
+                    "data-[state=checked]:bg-accent data-[state=checked]:ring-transparent disabled:opacity-50",
+                    // In high contrast, on fills the track with the highlight color, like the accent does.
+                    forcedTrackClasses,
+                    "forced-colors:data-[state=checked]:bg-[Highlight] forced-colors:data-[state=checked]:outline-[Highlight]"
                 )}
             >
-                <Primitive.Thumb className="block size-4 translate-x-0.5 rounded-full bg-text shadow-raised transition-[translate,background-color] duration-(--duration-fast) ease-standard data-[state=checked]:translate-x-4.5 data-[state=checked]:bg-accent-foreground" />
+                <Primitive.Thumb
+                    className={cx(
+                        "block size-4 translate-x-0.5 rounded-full bg-text shadow-raised transition-[translate,background-color] duration-(--duration-fast) ease-standard data-[state=checked]:translate-x-4.5 data-[state=checked]:bg-accent-foreground",
+                        forcedKnobClasses,
+                        "forced-colors:data-[state=checked]:bg-[HighlightText]"
+                    )}
+                />
             </Primitive.Root>
         </div>
     );

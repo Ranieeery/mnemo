@@ -1,5 +1,6 @@
 import { Slider as Primitive } from "radix-ui";
 import { cx } from "../lib/cx";
+import { forcedFillClasses, forcedKnobClasses, forcedTrackClasses } from "./forcedColors";
 
 type SliderProps = {
     value: number;
@@ -52,18 +53,20 @@ export function Slider({
             <Primitive.Track
                 className={cx(
                     "relative grow overflow-hidden rounded-full bg-surface-hover",
+                    forcedTrackClasses,
                     compact
                         ? "h-0.5"
                         : "h-1 transition-[height] duration-(--duration-fast) ease-standard group-hover/slider:h-1.5"
                 )}
             >
-                <Primitive.Range className="absolute h-full bg-accent" />
+                <Primitive.Range className={cx("absolute h-full bg-accent", forcedFillClasses)} />
             </Primitive.Track>
             <Primitive.Thumb
                 aria-label={label}
                 aria-valuetext={valueText}
                 className={cx(
                     "block rounded-full bg-text shadow-raised transition-transform duration-(--duration-fast) ease-standard hover:scale-110",
+                    forcedKnobClasses,
                     compact ? "size-3" : "size-3.5"
                 )}
             />
