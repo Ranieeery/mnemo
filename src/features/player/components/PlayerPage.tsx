@@ -1,8 +1,9 @@
-import { useNavigate, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Keyboard } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, Folder, Keyboard } from "lucide-react";
+import { type ReactNode, useCallback, useState } from "react";
 import type { VideoEntry } from "../../../shared/ipc/bindings";
 import { errorMessage } from "../../../shared/ipc/client";
+import { useFolderName } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { baseName, parentPath } from "../../../shared/lib/paths";
 import { openShortcutsHelp } from "../../../shared/stores/dialogs";
@@ -13,11 +14,17 @@ import { useSubtitles } from "../hooks/useSubtitles";
 import { usePlaylist, useVideoRecord } from "../queries";
 import { usePlayerStore } from "../store";
 import { NextVideoDialog } from "./NextVideoDialog";
-import { UpNextPanel } from "./UpNextPanel";
+import { PlaylistPanel } from "./PlaylistPanel";
 import { VideoInfo } from "./VideoInfo";
 import { stageHeight, VideoStage } from "./VideoStage";
 
-export function PlayerPage({ path }: { path: string }) {
+type PlayerPageProps = {
+    path: string;
+    /** The tags of a video, shown with its description; composed by the route, since tags are another feature. */
+    videoTags?: (videoId: number) => ReactNode;
+};
+
+export function PlayerPage({ path, videoTags }: PlayerPageProps) {
     const router = useRouter();
     const navigate = useNavigate();
     const record = useVideoRecord(path);
@@ -51,16 +58,34 @@ export function PlayerPage({ path }: { path: string }) {
     const handleEnded = useCallback(() => setNextPrompt(next), [next]);
     const playNext = useCallback(() => nextPrompt && play(nextPrompt), [nextPrompt, play]);
     const title = record.data?.title ?? baseName(path).replace(/\.[^.]+$/, "");
+    const folder = parentPath(path);
+    const folderLabel = useFolderName(folder);
 
     // The mini player shows the video alone; the list still decides what plays next.
-    const upNext = !mini && <UpNextPanel entries={following} onSelect={play} scrollsWithPage={theater} />;
+    const playlistPanel = !mini && (
+        <PlaylistPanel
+            entries={entries}
+            position={position}
+            folderName={folderLabel}
+            onSelect={play}
+            scrollsWithPage={theater}
+        />
+    );
 
     return (
         <div className="flex h-screen flex-col bg-background text-text">
             {!mini && (
-                <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+                // The title is under the video; up here, the folder it comes from.
+                <header className="flex h-14 shrink-0 items-center gap-3 border-b border-transparent px-4">
                     <IconButton label="Close player" shortcut="Esc" icon={<ArrowLeft />} onClick={close} />
-                    <span className="min-w-0 flex-1 truncate text-lead font-medium">{title}</span>
+                    <Link
+                        to="/folder"
+                        search={{ path: folder }}
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-control text-small text-text-muted hover:text-text"
+                    >
+                        <Folder aria-hidden className="size-4 shrink-0" />
+                        <span className="truncate">{folderLabel}</span>
+                    </Link>
                     <IconButton
                         label="Keyboard shortcuts"
                         shortcut="?"
@@ -98,13 +123,22 @@ export function PlayerPage({ path }: { path: string }) {
                     {!mini && (
                         <div className="flex">
                             <div className="min-w-0 flex-1">
-                                {record.isSuccess && <VideoInfo path={path} title={title} video={record.data} />}
+                                {record.isSuccess && (
+                                    <VideoInfo
+                                        path={path}
+                                        title={title}
+                                        video={record.data}
+                                        position={position}
+                                        total={entries.length}
+                                        tags={record.data && videoTags?.(record.data.id)}
+                                    />
+                                )}
                             </div>
-                            {theater && upNext}
+                            {theater && playlistPanel}
                         </div>
                     )}
                 </ScrollContainer>
-                {!theater && upNext}
+                {!theater && playlistPanel}
             </div>
             {nextPrompt && (
                 <NextVideoDialog

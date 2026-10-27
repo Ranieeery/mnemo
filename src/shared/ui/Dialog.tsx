@@ -56,8 +56,9 @@ export function Dialog({ open, onOpenChange, title, description, footer, size = 
                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                             <DialogPrimitive.Title className="text-title font-semibold">{title}</DialogPrimitive.Title>
                             {description && (
-                                <DialogPrimitive.Description className="text-body text-text-muted">
-                                    {description}
+                                // A `div`, so a description can hold more than text (the next video's thumbnail).
+                                <DialogPrimitive.Description asChild>
+                                    <div className="text-body text-text-muted">{description}</div>
                                 </DialogPrimitive.Description>
                             )}
                         </div>

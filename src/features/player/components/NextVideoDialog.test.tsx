@@ -30,6 +30,23 @@ describe("NextVideoDialog", () => {
         expect(screen.getByRole("dialog", { name: "Up next in 0s" })).toBeInTheDocument();
     });
 
+    it("shows the next video's thumbnail beside its title, which stays the dialog's description", () => {
+        const pictured = entryFixture(videoFixture({ id: 3, title: "Pictured", thumbnailPath: "next.jpg" }));
+        renderWithUi(<NextVideoDialog next={pictured} onPlay={() => {}} onCancel={() => {}} />);
+        const dialog = screen.getByRole("dialog", { name: "Up next in 5s" });
+        expect(dialog.querySelector("img")).toHaveAttribute("src", expect.stringContaining("next.jpg"));
+        // The picture is decorative: the description is the title alone, not its duration too.
+        expect(dialog).toHaveAccessibleDescription("Pictured");
+    });
+
+    it("shows the thumbnail in the mini player's card too", () => {
+        const pictured = entryFixture(videoFixture({ id: 3, title: "Pictured", thumbnailPath: "next.jpg" }));
+        renderWithUi(<NextVideoDialog next={pictured} compact onPlay={() => {}} onCancel={() => {}} />);
+        const card = screen.getByRole("dialog", { name: "Up next in 5s" });
+        expect(card.querySelector("img")).toHaveAttribute("src", expect.stringContaining("next.jpg"));
+        expect(card).toHaveTextContent("Pictured");
+    });
+
     it("cancels with Escape without playing", () => {
         const onPlay = vi.fn();
         const onCancel = vi.fn();

@@ -40,16 +40,22 @@ type TagProps = {
     children: string;
     /** When given, the tag shows a remove button labelled "Remove tag <name>". */
     onRemove?: () => void;
+    /**
+     * `outline` (default) for tags on a raised surface such as a dialog; `filled` for tags on a `surface` block, where
+     * an outline in the same color as the block would be all that shows.
+     */
+    tone?: "outline" | "filled";
     className?: string;
 };
 
 /** A user-defined label attached to a video. */
-export function Tag({ children, onRemove, className }: TagProps) {
+export function Tag({ children, onRemove, tone = "outline", className }: TagProps) {
     return (
         <span
             className={cx(
-                "inline-flex h-6 items-center gap-1 rounded-full border border-border bg-surface pr-1 pl-2.5",
-                "text-small text-text",
+                "inline-flex items-center gap-1 rounded-full border pr-1 pl-2.5 text-small text-text",
+                // The filled tag keeps a transparent edge, which Windows high contrast mode draws.
+                tone === "filled" ? "h-6.5 border-transparent bg-surface-raised" : "h-6 border-border bg-surface",
                 !onRemove && "pr-2.5",
                 className
             )}

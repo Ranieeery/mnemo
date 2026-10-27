@@ -35,6 +35,7 @@ import type { PlaybackState } from "../hooks/usePlayback";
 import type { SubtitlesState } from "../hooks/useSubtitles";
 import { playerPreferences, SPEEDS, usePlayerStore } from "../store";
 import { AudioTrackMenu } from "./AudioTrackMenu";
+import { SeekBar } from "./SeekBar";
 import { SubtitlesMenu } from "./SubtitlesMenu";
 
 type PlayerControlsProps = {
@@ -100,15 +101,7 @@ export function PlayerControls({
                 visible ? "opacity-100" : "pointer-events-none opacity-0"
             )}
         >
-            <Slider
-                label="Seek"
-                value={playback.currentTime}
-                max={playback.duration || 1}
-                step={1}
-                onValueChange={playback.seekTo}
-                valueText={`${formatDuration(playback.currentTime)} of ${formatDuration(playback.duration)}`}
-                className="w-full"
-            />
+            <SeekBar currentTime={playback.currentTime} duration={playback.duration} onSeek={playback.seekTo} />
             <div className="flex items-center gap-1">
                 <IconButton
                     label="Back 10 seconds"
@@ -164,16 +157,6 @@ export function PlayerControls({
                 </span>
 
                 <div className="ml-auto flex items-center gap-1">
-                    {frameCapture && (
-                        <IconButton
-                            label={frameCapture.unavailable ?? "Use frame as thumbnail"}
-                            icon={frameCapture.busy ? <Spinner /> : <ImagePlus />}
-                            variant="overlay"
-                            aria-busy={frameCapture.busy || undefined}
-                            disabled={frameCapture.busy || frameCapture.unavailable !== undefined}
-                            onClick={frameCapture.onCapture}
-                        />
-                    )}
                     <AudioTrackMenu path={path} audio={audio} />
                     <SubtitlesMenu path={path} subtitles={subtitles} enabled={subtitlesEnabled} />
                     <DropdownMenu>
@@ -201,6 +184,18 @@ export function PlayerControls({
                             </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    {/* What is heard and read on the left; the frame and the window on the right. */}
+                    <span aria-hidden className="mx-1.5 h-5 w-px bg-text/25" />
+                    {frameCapture && (
+                        <IconButton
+                            label={frameCapture.unavailable ?? "Use frame as thumbnail"}
+                            icon={frameCapture.busy ? <Spinner /> : <ImagePlus />}
+                            variant="overlay"
+                            aria-busy={frameCapture.busy || undefined}
+                            disabled={frameCapture.busy || frameCapture.unavailable !== undefined}
+                            onClick={frameCapture.onCapture}
+                        />
+                    )}
                     <PinWindowButton variant="overlay" />
                     <IconButton
                         label={

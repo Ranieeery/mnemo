@@ -531,6 +531,42 @@ describe("PlayerPage", () => {
         await waitFor(() => expect(callsOf(calls, "get_video")).toContainEqual({ path: next.filePath }));
     });
 
+    it("lists the whole playlist with the current video marked, and its place under the title", async () => {
+        renderPlayer();
+        const panel = await screen.findByRole("complementary", { name: "Playlist" });
+        expect(within(panel).getByRole("heading", { name: "Show" })).toBeInTheDocument();
+        expect(await within(panel).findByText("1 of 2")).toBeInTheDocument();
+        // The video playing now is marked, and is not a button: choosing it would do nothing.
+        const playing = within(panel).getByText("Now playing").closest("[aria-current]");
+        expect(playing).toHaveTextContent("Pilot");
+        expect(within(panel).queryByRole("button", { name: /Pilot/ })).not.toBeInTheDocument();
+        expect(within(panel).getByRole("button", { name: /The Second One/ })).toBeInTheDocument();
+
+        expect(screen.getByRole("heading", { name: "Pilot", level: 1 })).toBeInTheDocument();
+        expect(screen.getByText("Video 1 of 2, 25:00")).toBeInTheDocument();
+        // The bar above shows where the video comes from, not its title again.
+        expect(screen.getByRole("link", { name: "Show" })).toHaveAttribute("href", expect.stringContaining("folder"));
+        expect(screen.getByRole("button", { name: "Open externally" })).toBeInTheDocument();
+    });
+
+    it("shows the time under the pointer above the seek bar", async () => {
+        renderPlayer();
+        await playingAt(0);
+        const bar = screen.getByRole("slider", { name: "Seek" }).closest(".relative.flex")?.parentElement;
+        if (!bar) {
+            throw new Error("no seek bar");
+        }
+        vi.spyOn(bar, "getBoundingClientRect").mockReturnValue(
+            DOMRect.fromRect({ x: 0, y: 0, width: 200, height: 20 })
+        );
+
+        fireEvent.pointerMove(bar, { clientX: 50 });
+        // A quarter of the 25 minutes.
+        expect(bar).toHaveTextContent("6:15");
+        fireEvent.pointerLeave(bar);
+        expect(bar).not.toHaveTextContent("6:15");
+    });
+
     it("shows a toggle that turns green once the video is watched", async () => {
         const { user } = renderPlayer();
         const toggle = await screen.findByRole("button", { name: "Watched" });
@@ -553,7 +589,7 @@ describe("PlayerPage", () => {
         await user.click(theater);
         expect(screen.getByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "true");
         expect(document.querySelector("video")).toBe(element);
-        expect(screen.getByRole("complementary", { name: "Up next" })).toBeInTheDocument();
+        expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
 
         await user.keyboard("t");
         expect(screen.getByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "false");
@@ -581,15 +617,15 @@ describe("PlayerPage", () => {
         // Subtitles were left off: the file's cue is not shown.
         expect(screen.queryByText("Hello there")).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "true");
-        expect(screen.getByRole("complementary", { name: "Up next" })).toHaveStyle({ width: "360px" });
+        expect(screen.getByRole("complementary", { name: "Playlist" })).toHaveStyle({ width: "360px" });
     });
 
-    describe("Up next width", () => {
+    describe("Playlist width", () => {
         it("follows the window until its edge is moved, with the keyboard or the pointer", async () => {
             const { user } = renderPlayer({ preferences: { ...DEFAULT_PLAYER_PREFERENCES, upNextWidth: 320 } });
             const element = await playingAt(60);
-            const panel = screen.getByRole("complementary", { name: "Up next" });
-            const edge = screen.getByRole("separator", { name: "Resize Up next" });
+            const panel = screen.getByRole("complementary", { name: "Playlist" });
+            const edge = screen.getByRole("separator", { name: "Resize playlist" });
             expect(edge).toHaveAttribute("aria-valuenow", "320");
 
             // Left widens the column; the player's own arrow keys (seek) are not triggered.
@@ -610,8 +646,8 @@ describe("PlayerPage", () => {
         it("stays between its limits and never takes more than half the window", async () => {
             renderPlayer({ preferences: { ...DEFAULT_PLAYER_PREFERENCES, upNextWidth: 300 } });
             await videoElement();
-            const edge = screen.getByRole("separator", { name: "Resize Up next" });
-            const panel = screen.getByRole("complementary", { name: "Up next" });
+            const edge = screen.getByRole("separator", { name: "Resize playlist" });
+            const panel = screen.getByRole("complementary", { name: "Playlist" });
 
             fireEvent.pointerDown(edge, { clientX: 500 });
             fireEvent.pointerMove(window, { clientX: 900, buttons: 1 });
@@ -624,9 +660,9 @@ describe("PlayerPage", () => {
         it("goes back to the automatic width on double-click", async () => {
             const { user } = renderPlayer({ preferences: { ...DEFAULT_PLAYER_PREFERENCES, upNextWidth: 500 } });
             await videoElement();
-            await user.dblClick(screen.getByRole("separator", { name: "Resize Up next" }));
+            await user.dblClick(screen.getByRole("separator", { name: "Resize playlist" }));
             expect(usePlayerStore.getState().upNextWidth).toBeNull();
-            expect(screen.getByRole("complementary", { name: "Up next" }).style.width).toBe("");
+            expect(screen.getByRole("complementary", { name: "Playlist" }).style.width).toBe("");
         });
     });
 
@@ -812,7 +848,7 @@ describe("PlayerPage", () => {
             for (const gone of ["Keyboard shortcuts", "Watched", "Theater mode", "Full screen", "Mute", "Pin window"]) {
                 expect(screen.queryByRole("button", { name: gone })).not.toBeInTheDocument();
             }
-            expect(screen.queryByRole("complementary", { name: "Up next" })).not.toBeInTheDocument();
+            expect(screen.queryByRole("complementary", { name: "Playlist" })).not.toBeInTheDocument();
 
             // Every control is reachable from the keyboard, and shows while focused.
             await user.tab();
@@ -895,7 +931,7 @@ describe("PlayerPage", () => {
             await user.keyboard("t");
             await user.keyboard("i");
             await screen.findByRole("button", { name: "Expand" });
-            expect(screen.queryByRole("complementary", { name: "Up next" })).not.toBeInTheDocument();
+            expect(screen.queryByRole("complementary", { name: "Playlist" })).not.toBeInTheDocument();
 
             await user.keyboard("t");
             expect(
@@ -905,7 +941,7 @@ describe("PlayerPage", () => {
 
             await user.click(screen.getByRole("button", { name: "Expand" }));
             expect(await screen.findByRole("button", { name: "Theater mode" })).toHaveAttribute("aria-pressed", "true");
-            expect(screen.getByRole("complementary", { name: "Up next" })).toBeInTheDocument();
+            expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
         });
 
         it("still plays the next video on its own, from a compact card", async () => {

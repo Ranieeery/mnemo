@@ -44,12 +44,18 @@ export function Slider({
             step={step}
             disabled={disabled}
             className={cx(
-                "relative flex h-5 touch-none select-none items-center data-[disabled]:opacity-40",
+                "group/slider relative flex h-5 touch-none select-none items-center data-[disabled]:opacity-40",
                 className
             )}
         >
+            {/* A regular track thickens under the pointer, like the progress strip of a hovered card. */}
             <Primitive.Track
-                className={cx("relative grow overflow-hidden rounded-full bg-surface-hover", compact ? "h-0.5" : "h-1")}
+                className={cx(
+                    "relative grow overflow-hidden rounded-full bg-surface-hover",
+                    compact
+                        ? "h-0.5"
+                        : "h-1 transition-[height] duration-(--duration-fast) ease-standard group-hover/slider:h-1.5"
+                )}
             >
                 <Primitive.Range className="absolute h-full bg-accent" />
             </Primitive.Track>

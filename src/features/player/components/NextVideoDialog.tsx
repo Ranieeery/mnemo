@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { VideoEntry } from "../../../shared/ipc/bindings";
+import { cx } from "../../../shared/lib/cx";
 import { Button, Dialog } from "../../../shared/ui";
-import { entryTitle } from "../../../shared/video";
+import { entryTitle, VideoThumbnail } from "../../../shared/video";
 
 /** Seconds before the next video starts on its own. */
 const NEXT_VIDEO_COUNTDOWN = 5;
@@ -39,7 +40,12 @@ export function NextVideoDialog({ next, compact = false, onPlay, onCancel }: Nex
             open
             onOpenChange={(open) => !open && onCancel()}
             title={title}
-            description={entryTitle(next)}
+            description={
+                <div className="flex items-center gap-3 pt-2">
+                    <NextThumbnail next={next} className="w-36" />
+                    <span className="line-clamp-3 font-medium break-words text-text">{entryTitle(next)}</span>
+                </div>
+            }
             size="sm"
             footer={
                 <>
@@ -52,6 +58,19 @@ export function NextVideoDialog({ next, compact = false, onPlay, onCancel }: Nex
                 </>
             }
         />
+    );
+}
+
+/** The next video's picture beside its title. Decorative: the title already names it. */
+function NextThumbnail({ next, className }: { next: VideoEntry; className: string }) {
+    return (
+        <div aria-hidden className={cx("shrink-0", className)}>
+            <VideoThumbnail
+                thumbnailPath={next.video?.thumbnailPath ?? null}
+                durationSeconds={next.video?.durationSeconds}
+                className="w-full rounded-control"
+            />
+        </div>
     );
 }
 
@@ -83,6 +102,7 @@ function NextVideoCard({ title, next, onPlay, onCancel }: NextVideoCardProps) {
             aria-labelledby={titleId}
             className="fixed inset-x-2 bottom-2 flex animate-appear items-center gap-2 rounded-card bg-surface-raised p-2 shadow-overlay"
         >
+            <NextThumbnail next={next} className="w-20" />
             <div className="min-w-0 flex-1">
                 <p id={titleId} className="text-small font-semibold text-text">
                     {title}

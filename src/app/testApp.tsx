@@ -32,6 +32,8 @@ export function renderApp(path = "/", extraCommands: Record<string, unknown> = {
         },
         get_sidebar_preferences: DEFAULT_SIDEBAR_PREFERENCES,
         update_sidebar_preferences: ({ preferences }: { preferences: unknown }) => preferences,
+        // The player shows a video's tags with its description.
+        get_video_tags: [],
         get_window_mode: normalWindow,
         set_window_pinned: ({ pinned }: { pinned: boolean }) => ({ ...normalWindow, pinned }),
         ...extraCommands,

@@ -276,9 +276,21 @@ teclado e mouse (ver `CLAUDE.md`).
   `subtitle_style` (`domain/subtitle_style.rs`); `shared/lib/subtitleStyle.ts` gera o CSS e `shared/video/SubtitleLine`
   desenha a linha no player e na prévia. Os padrões reproduzem o visual anterior. Estilos próprios de ASS são
   ignorados.
-- Playlist ("Up next") e diálogo "Up next" com contagem regressiva de 5s ao terminar, na mesma ordem. A coluna
-  acompanha a janela (~¼ da largura, 256–448 px) até o usuário arrastar a borda ou usar `←`/`→` nela (240–800 px,
-  no máximo metade da janela); duplo clique volta ao automático. A largura fica nas preferências do player.
+- Playlist (`PlaylistPanel`, landmark "Playlist") e diálogo "Up next" com contagem regressiva de 5s ao terminar, na
+  mesma ordem; o diálogo e o cartão do mini player mostram a thumbnail do próximo vídeo (com a duração) ao lado do
+  título, que continua sendo a descrição acessível (a imagem é decorativa). O painel mostra a playlist inteira: o nome da pasta e "5 of 12" no topo, os anteriores (assistidos com
+  ✓), o atual marcado ("Now playing", barra `accent`, `aria-current`, borda no alto contraste; não é botão) e os
+  próximos; ao lado do vídeo ele abre rolado até o atual, e no modo teatro (abaixo do vídeo) não rola, para o vídeo
+  continuar à vista. A coluna acompanha a janela (~¼ da largura, 256–448 px) até o usuário arrastar a borda ou usar
+  `←`/`→` nela (240–800 px, no máximo metade da janela); duplo clique volta ao automático. A largura fica nas
+  preferências do player.
+- Barra do player: a pasta do vídeo (link para ela), sem repetir o título, que fica só abaixo do vídeo, com "Video 5 of
+  12, 12:56", as ações ("Watched", "Details and tags", "Open externally" e "Show in file manager") e um bloco com a
+  descrição e as tags do vídeo (`VideoTagList` da feature de tags, passada pela rota `app/routes/WatchRoute`), que
+  some quando não há nenhuma das duas.
+- Controles: a barra de progresso engrossa no hover e mostra acima dela o tempo sob o ponteiro (só para o mouse; o
+  teclado ouve o tempo pelo valor do slider); à direita, legendas, áudio e velocidade, um separador e depois frame
+  como thumbnail, fixar, mini player, teatro e tela cheia.
 - Retomada do ponto onde parou.
 - Atalhos padrão (configuráveis, ver "Atalhos de teclado"): `Espaço`/`K` play/pause · `J`/`L` ±10s · `←`/`→` ±5s ·
   `↑`/`↓` volume ±5% · `[`/`]` velocidade ±0.25× · `Backspace` volta para 1× · `F` tela cheia · `T` modo teatro ·
