@@ -287,7 +287,9 @@ teclado e mouse (ver `CLAUDE.md`).
   visíveis) e fonte (a do app ou as famílias genéricas do sistema: sans, serif, mono; nada embutido). Setting tipado
   `subtitle_style` (`domain/subtitle_style.rs`); `shared/lib/subtitleStyle.ts` gera o CSS e `shared/video/SubtitleLine`
   desenha a linha no player e na prévia. Os padrões reproduzem o visual anterior. Estilos próprios de ASS são
-  ignorados.
+  ignorados: letreiros aparecem só como texto, junto do diálogo e sem repetir cópias simultâneas do mesmo texto
+  (camadas de contorno e preenchimento); desenhos vetoriais (`\p1`) e as linhas geradas por karaokê (efeito `fx`,
+  uma por sílaba) ficam de fora (`shared/lib/subtitles/ass.ts`).
 - Playlist (`PlaylistPanel`, landmark "Playlist") e diálogo "Up next" com contagem regressiva de 5s ao terminar, na
   mesma ordem; o diálogo e o cartão do mini player mostram a thumbnail do próximo vídeo (com a duração) ao lado do
   título, que continua sendo a descrição acessível (a imagem é decorativa). O painel mostra a playlist inteira: o nome da pasta e "5 of 12" no topo, os anteriores (assistidos com

@@ -20,7 +20,8 @@ export function parseSubtitles(format: SubtitleFormat, content: string): Cue[] {
 }
 
 /**
- * Text visible at `time`: every cue active at that moment, joined by line breaks (formats allow overlaps).
+ * Text visible at `time`: every cue active at that moment, joined by line breaks (formats allow overlaps). The same
+ * text shows once: ASS signs are often several simultaneous events (layers for outline and fill).
  * `cues` must be sorted by start time.
  */
 export function cueTextAt(cues: readonly Cue[], time: number): string {
@@ -42,5 +43,6 @@ export function cueTextAt(cues: readonly Cue[], time: number): string {
             active.unshift(cue.text);
         }
     }
-    return active.join("\n");
+    // A Set keeps the first copy, in start order.
+    return [...new Set(active)].join("\n");
 }

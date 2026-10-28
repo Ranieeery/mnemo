@@ -96,6 +96,25 @@ describe("parseSubtitles: ass", () => {
         ]);
     });
 
+    it("keeps the text of signs and leaves out drawings and karaoke fragments", () => {
+        // Regression: in a fansub release the masks were shown as drawing commands and the karaoke as loose
+        // syllables; signs must still show their text, once, without the styling.
+        const content = [
+            "[Events]",
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+            "Dialogue: 0,0:00:00.00,0:00:02.00,Masks,,0,0,0,,{\\an7\\pos(0,0)\\p1\\c&HE8EEED&}m 392 641.6 l 1078.4 587.2 1086.4 822.4 384 849.6",
+            "Dialogue: 0,0:00:00.00,0:00:02.00,Placas,,0,0,0,,{\\bord8\\fnMotion Control\\pos(709.6,554.4)}CAIXA DE \\NSUGESTÕES",
+            "Dialogue: 1,0:00:00.00,0:00:02.00,Placas,,0,0,0,,{\\fs160\\fnMotion Control\\frz1.525\\pos(709.6,554.4)}CAIXA DE \\NSUGESTÕES",
+            "Dialogue: 1,0:00:00.00,0:00:02.00,Placas,,0,0,0,,{\\bord7\\fnSatoro\\move(787.2,240.8,776,184.8,19,937)}empolgada",
+            "Dialogue: 1,0:00:00.00,0:00:02.00,ED-Romaji,,0,0,0,Effector [fx],{Kara Effector 3.6 legacy: Template Leading Syl \\an5\\pos(1232.98,45.01)}ga",
+            "Dialogue: 10,0:00:00.00,0:00:02.00,Diálogo,,0,0,0,,Uma caixa de sugestões?",
+            "Dialogue: 10,0:00:01.00,0:00:02.00,Diálogo,,0,0,0,,{\\an8}Por favor, mandem suas sugestões!",
+        ].join("\n");
+        expect(cueTextAt(parseSubtitles("ass", content), 1.5)).toBe(
+            "CAIXA DE \nSUGESTÕES\nempolgada\nUma caixa de sugestões?\nPor favor, mandem suas sugestões!"
+        );
+    });
+
     it("ignores dialogue outside the events section", () => {
         expect(parseSubtitles("ass", "[Styles]\nDialogue: 0,0:00:01.00,0:00:02.00,a,,0,0,0,,x")).toEqual([]);
     });
@@ -118,6 +137,15 @@ describe("cueTextAt", () => {
         [12, ""],
     ])("at %s shows %j", (time, text) => {
         expect(cueTextAt(cues, time)).toBe(text);
+    });
+
+    it("shows simultaneous copies of the same text once", () => {
+        const copies = [
+            { start: 1, end: 3, text: "sign" },
+            { start: 1, end: 3, text: "line" },
+            { start: 2, end: 3, text: "sign" },
+        ];
+        expect(cueTextAt(copies, 2.5)).toBe("sign\nline");
     });
 
     it("handles an empty list", () => {
