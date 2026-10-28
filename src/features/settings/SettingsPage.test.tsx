@@ -1,10 +1,13 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_PLAYABLE_COPY_SETTINGS } from "../../shared/ipc/bindings";
 import { libraryFolderFixture, videoFixture } from "../../shared/test/fixtures";
 import { callsOf, commandError, mockCommands } from "../../shared/test/ipc";
 import { renderScreen } from "../../shared/test/render";
 import { SettingsPage, type SettingsTab } from "./components/SettingsPage";
+
+const GB = 1024 ** 3;
 
 function mockSettings(extra: Record<string, unknown> = {}) {
     return mockCommands({
@@ -26,6 +29,8 @@ function mockSettings(extra: Record<string, unknown> = {}) {
         list_orphaned_videos: [videoFixture({ filePath: "E:\\Old\\gone.mkv" })],
         list_missing_videos: { videos: [videoFixture({ filePath: "D:\\Series\\deleted.mkv" })], hiddenCount: 0 },
         get_update_status: { automatic: true, lastCheckedMs: null, running: "2.6.0", available: null },
+        get_playable_copy_settings: DEFAULT_PLAYABLE_COPY_SETTINGS,
+        get_playable_copies_usage: { usedBytes: 1.5 * GB, limitBytes: 5 * GB, count: 2 },
         ...extra,
     });
 }
@@ -173,6 +178,64 @@ describe("SettingsPage", () => {
         fireEvent.keyDown(slider, { key: "ArrowLeft" });
         expect(await screen.findByText("Could not save the setting")).toBeInTheDocument();
         await waitFor(() => expect(slider).toHaveAttribute("aria-valuenow", "90"));
+    });
+
+    describe("playable copies", () => {
+        it("chooses whether to make copies, keeping the limit", async () => {
+            const calls = mockSettings({
+                update_playable_copy_settings: ({ settings }: Record<string, unknown>) => settings,
+            });
+            const { user } = renderSettings();
+            await user.click(await screen.findByRole("tab", { name: "Playback" }));
+            const modes = await screen.findByRole("group", { name: "Make playable copies" });
+            expect(within(modes).getByRole("button", { name: "Ask" })).toHaveAttribute("aria-pressed", "true");
+
+            await user.click(within(modes).getByRole("button", { name: "Always" }));
+            await waitFor(() =>
+                expect(callsOf(calls, "update_playable_copy_settings")).toEqual([
+                    { settings: { mode: "always", limitGb: 5 } },
+                ])
+            );
+            expect(within(modes).getByRole("button", { name: "Always" })).toHaveAttribute("aria-pressed", "true");
+        });
+
+        it("saves the disk limit when the slider is released and reads the usage again", async () => {
+            const calls = mockSettings({
+                update_playable_copy_settings: ({ settings }: Record<string, unknown>) => settings,
+            });
+            const { user } = renderSettings();
+            await user.click(await screen.findByRole("tab", { name: "Playback" }));
+            const slider = await screen.findByRole("slider", { name: "Disk space for playable copies" });
+            expect(slider).toHaveAttribute("aria-valuetext", "5 GB");
+
+            slider.focus();
+            fireEvent.keyDown(slider, { key: "ArrowRight" });
+            await waitFor(() =>
+                expect(callsOf(calls, "update_playable_copy_settings")).toEqual([
+                    { settings: { mode: "ask", limitGb: 6 } },
+                ])
+            );
+            await waitFor(() => expect(callsOf(calls, "get_playable_copies_usage")).toHaveLength(2));
+        });
+
+        it("shows the disk usage and clears the copies", async () => {
+            const calls = mockSettings({ clear_playable_copies: { freedBytes: 1.5 * GB, kept: 0 } });
+            const { user } = renderSettings();
+            await user.click(await screen.findByRole("tab", { name: "Playback" }));
+            expect(await screen.findByText(/^1\.5 GB of 5\.0 GB used by 2 copies\./)).toBeInTheDocument();
+
+            await user.click(screen.getByRole("button", { name: "Clear copies" }));
+            expect(await screen.findByText("Freed 1.5 GB")).toBeInTheDocument();
+            expect(callsOf(calls, "clear_playable_copies")).toHaveLength(1);
+        });
+
+        it("says when the copy open in the player was kept", async () => {
+            mockSettings({ clear_playable_copies: { freedBytes: 0, kept: 1 } });
+            const { user } = renderSettings();
+            await user.click(await screen.findByRole("tab", { name: "Playback" }));
+            await user.click(await screen.findByRole("button", { name: "Clear copies" }));
+            expect(await screen.findByText("The copy open in the player was kept.")).toBeInTheDocument();
+        });
     });
 
     it("turns folder watching off, keeping the other settings", async () => {

@@ -353,6 +353,17 @@ teclado e mouse (ver `CLAUDE.md`).
   "Restore default thumbnail" no diálogo de detalhes volta ao frame automático. Reprocessar a pasta não sobrescreve.
 - Abrir no player externo do sistema ou revelar no gerenciador de arquivos; formatos que o webview não toca oferecem
   abrir no player externo.
+- Cópias tocáveis (Settings → Playback → Unsupported files): quando o `<video>` falha ao abrir o arquivo, o player
+  pergunta ao backend se uma cópia ajuda (`check_playable_copy`: o contêiner não abre no webview, mas o vídeo é
+  H.264, HEVC, VP9 ou AV1, como um MPEG-TS salvo como `.mp4`). Se não ajuda (XviD/MPEG-4 Part 2 num AVI, vídeo maior
+  que o limite), o aviso "This video can't be played here" mostra a causa. Se ajuda, segue o setting `playable_copies`:
+  `ask` (padrão) mostra sobre o vídeo o contêiner, o espaço em disco e "Make playable copy" / "Not now" / "Open in
+  default player", com "Remember my choice" (lembrar grava `always` ou `never`); `always` faz a cópia direto; `never`
+  mostra o aviso dizendo que as cópias estão desligadas, com o botão para fazer uma mesmo assim. Uma cópia já feita
+  toca sem perguntar. Durante a cópia ("Making a playable copy…", com Cancel; fechar o player também cancela), o
+  `src` troca para a cópia ao terminar e a retomada, o progresso, o histórico, as legendas e os atalhos seguem presos
+  ao arquivo original. Se a cópia falhar ou também não tocar, o aviso mostra a causa. Em Settings: Ask/Always/Never,
+  o limite de disco (1 a 200 GB, padrão 5) e o uso atual com "Clear copies" (sem confirmação: as cópias se refazem).
 
 ## Status de visualização
 - Marcar/desmarcar como assistido por vídeo, ou em massa por pasta (com confirmação).

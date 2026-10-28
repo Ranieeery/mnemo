@@ -16,7 +16,9 @@ no `CLAUDE.md`.
   preferências do player e da sidebar e o zoom): `check_for_updates` (bool, padrão `true`), `last_update_check` (ms Unix da
   última verificação com resposta, ou `null`; negativo ou não inteiro vira `null`) e `notified_update_version` (tag
   já avisada, ou `null`; o que não for tag `X.Y.Z`, com ou sem `v`, vira `null`). Também local: `interface_zoom` (um
-  dos `ZOOM_LEVELS`, padrão `1`; outro valor vira `1`).
+  dos `ZOOM_LEVELS`, padrão `1`; outro valor vira `1`). Também local: `playable_copies` (`{ mode, limitGb }`:
+  `ask` | `always` | `never`, padrão `ask`, e o limite das cópias tocáveis em GB, de 1 a 200, padrão 5; limite fora
+  da faixa volta ao padrão mantendo o modo).
 - **Migrações versionadas** (`rusqlite_migration`, em `db/migrations.rs`). A `1` é um baseline compatível com bancos
   das versões 1.x (adiciona colunas que versões antigas criavam depois); a `2` limpa órfãos, normaliza `is_watched`
   gravado como texto, cria índices e as tabelas de settings; a `3` indexa `watch_history.watched_at`; a `4` adiciona

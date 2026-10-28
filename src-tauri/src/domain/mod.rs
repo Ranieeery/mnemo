@@ -10,6 +10,7 @@ pub mod media;
 pub mod models;
 pub mod natural_order;
 pub mod paths;
+pub mod playable_copy;
 pub mod player;
 pub mod relocation;
 pub mod shortcuts;

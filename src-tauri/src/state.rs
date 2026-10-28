@@ -6,6 +6,7 @@ use crate::db::{Db, settings};
 use crate::domain::media::processing_concurrency;
 use crate::error::{AppError, AppResult};
 use crate::services::media::Ffmpeg;
+use crate::services::media::playable_copy::PlayableCopies;
 use crate::services::media::processing::{Notifier, Processor};
 use crate::services::search::SearchGate;
 use crate::services::sync::{LibrarySync, SyncNotifier, Timing};
@@ -13,10 +14,13 @@ use crate::services::updates::{self, UpdateChecker};
 
 const DATABASE_FILE: &str = "mnemo.db";
 const THUMBNAILS_DIR: &str = "thumbnails";
+const PLAYABLE_COPIES_DIR: &str = "playable-copies";
 
 pub struct AppPaths {
     pub database: PathBuf,
     pub thumbnails: PathBuf,
+    /// MP4 copies of videos the player cannot open as they are (`services::media::playable_copy`).
+    pub playable_copies: PathBuf,
 }
 
 impl AppPaths {
@@ -26,12 +30,14 @@ impl AppPaths {
         let config_dir = app.path().app_config_dir()?;
         let data_dir = app.path().app_data_dir()?;
         let thumbnails = data_dir.join(THUMBNAILS_DIR);
-        for dir in [&config_dir, &thumbnails] {
+        let playable_copies = data_dir.join(PLAYABLE_COPIES_DIR);
+        for dir in [&config_dir, &thumbnails, &playable_copies] {
             std::fs::create_dir_all(dir).map_err(|error| AppError::io(dir, error))?;
         }
         Ok(Self {
             database: config_dir.join(DATABASE_FILE),
             thumbnails,
+            playable_copies,
         })
     }
 }
@@ -45,6 +51,7 @@ pub struct AppState {
     /// Keeps the library in step with the disk; see `services::sync`.
     pub sync: LibrarySync<Ffmpeg>,
     pub search: SearchGate,
+    pub playable_copies: PlayableCopies<Ffmpeg>,
     /// Looks for a newer release on GitHub; see `services::updates`.
     pub updates: UpdateChecker,
 }
@@ -71,6 +78,7 @@ impl AppState {
             Timing::APP,
             notify_sync,
         );
+        let playable_copies = PlayableCopies::new(db.clone(), Ffmpeg, paths.playable_copies.clone());
         let running = app.package_info().version.clone();
         let updates = UpdateChecker::new(db.clone(), updates::release_source(&running), running);
         Ok(Self {
@@ -79,6 +87,7 @@ impl AppState {
             processor,
             sync,
             search: SearchGate::default(),
+            playable_copies,
             updates,
         })
     }

@@ -1,4 +1,3 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import type { AudioTrack, Video } from "../../../shared/ipc/bindings";
@@ -6,10 +5,10 @@ import { useMediaTools, useSubtitleStyle } from "../../../shared/ipc/queries";
 import { cx } from "../../../shared/lib/cx";
 import { formatDuration } from "../../../shared/lib/formatDuration";
 import { cueTextAt } from "../../../shared/lib/subtitles";
-import { Button, ErrorState } from "../../../shared/ui";
 import { openInDefaultPlayer, SubtitleLine, useSetVideoThumbnail } from "../../../shared/video";
 import { useAudioTracks } from "../hooks/useAudioTracks";
 import { useMiniPlayer } from "../hooks/useMiniPlayer";
+import { usePlayableSource } from "../hooks/usePlayableSource";
 import { usePlayback } from "../hooks/usePlayback";
 import { usePlayerShortcuts } from "../hooks/usePlayerShortcuts";
 import { useProgressSaver } from "../hooks/useProgressSaver";
@@ -22,6 +21,7 @@ import { useMediaTracks } from "../queries";
 import { playerPreferences, usePlayerStore } from "../store";
 import { MiniPlayerControls } from "./MiniPlayerControls";
 import { NoSoundNotice } from "./NoSoundNotice";
+import { PlayableCopyOverlay } from "./PlayableCopyOverlay";
 import { PlayerControls } from "./PlayerControls";
 
 type VideoStageProps = {
@@ -70,7 +70,7 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
     const silentFormats =
         audio.problem === "no-playable-audio" ? audioFormatsOf(audio.tracks.map((entry) => entry.track)) : null;
     const [noSoundDismissed, setNoSoundDismissed] = useState(false);
-    const [unplayable, setUnplayable] = useState(false);
+    const playable = usePlayableSource(path);
     // The record changes after every save and the callbacks may too; the element listeners read the latest ones.
     const latestVideo = useRef(video);
     latestVideo.current = video;
@@ -207,14 +207,14 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
             {/* biome-ignore lint/a11y/useMediaCaption: external subtitles are drawn by the overlay below. */}
             <video
                 ref={videoRef}
-                src={convertFileSrc(path)}
+                src={playable.src}
                 autoPlay
                 preload="metadata"
                 onClick={playback.togglePlay}
-                onError={() => setUnplayable(true)}
+                onError={playable.onError}
                 className="size-full object-contain"
             />
-            {silentFormats && !noSoundDismissed && !unplayable && (
+            {silentFormats && !noSoundDismissed && playable.playing && (
                 <NoSoundNotice
                     formats={silentFormats}
                     onOpenExternally={() => {
@@ -225,18 +225,13 @@ export function VideoStage({ path, video, subtitles, onEnded, onClose }: VideoSt
                     onDismiss={() => setNoSoundDismissed(true)}
                 />
             )}
-            {unplayable && (
-                <div className="absolute inset-0 flex items-center justify-center bg-backdrop">
-                    <ErrorState
-                        title="This video can't be played here"
-                        message="Its format is not supported by the built-in player. It may still play in another app."
-                    >
-                        <Button className="mt-2" onClick={() => openInDefaultPlayer(path)}>
-                            Open in default player
-                        </Button>
-                    </ErrorState>
-                </div>
-            )}
+            <PlayableCopyOverlay
+                source={playable.source}
+                onAnswer={playable.answer}
+                onMakeCopy={playable.makeCopy}
+                onCancel={playable.cancel}
+                onOpenExternally={() => void openInDefaultPlayer(path)}
+            />
             {subtitle && <SubtitleLine text={subtitle} style={subtitleStyle} aboveControls={visible} />}
             {/* What a key did, for screen readers. Always present so changes are announced; a new node per flash
                 repeats even the same text ("+10s" twice). */}

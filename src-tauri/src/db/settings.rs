@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use crate::domain::folder_order::LibraryFolderSort;
 use crate::domain::layout::{SidebarPreferences, validate_sidebar_width};
 use crate::domain::models::{AppSettings, PlayerPreferences};
+use crate::domain::playable_copy::{PlayableCopySettings, validate_limit_gb};
 use crate::domain::player::{validate_speed, validate_up_next_width, validate_volume};
 use crate::domain::shortcuts::{KeyboardShortcuts, repair_shortcuts, validate_shortcuts};
 use crate::domain::subtitle_style::{SubtitleStyle, repair_subtitle_style, validate_subtitle_style};
@@ -290,6 +291,36 @@ impl Setting for CheckForUpdates {
     }
 }
 
+/// Whether the player makes playable copies of videos whose container it cannot open, and the disk space they may
+/// use. Local to this machine, like the update settings below.
+pub struct PlayableCopies;
+
+impl Setting for PlayableCopies {
+    const KEY: &'static str = "playable_copies";
+    type Value = PlayableCopySettings;
+
+    fn default_value() -> PlayableCopySettings {
+        PlayableCopySettings::default()
+    }
+
+    fn decode(stored: serde_json::Value) -> Option<PlayableCopySettings> {
+        merge_onto_default(PlayableCopySettings::default(), stored)
+    }
+
+    fn validate(settings: PlayableCopySettings) -> AppResult<PlayableCopySettings> {
+        validate_limit_gb(settings.limit_gb)?;
+        Ok(settings)
+    }
+
+    /// A limit out of range falls back to the default, keeping the chosen mode.
+    fn repair(settings: PlayableCopySettings) -> Option<PlayableCopySettings> {
+        Some(PlayableCopySettings {
+            limit_gb: validate_limit_gb(settings.limit_gb).unwrap_or(PlayableCopySettings::default().limit_gb),
+            ..settings
+        })
+    }
+}
+
 /// When an update check last got an answer from GitHub, in Unix milliseconds.
 pub struct LastUpdateCheck;
 
@@ -372,6 +403,7 @@ pub fn remember_folder_icon(connection: &Connection, icon: &str) -> AppResult<()
 mod tests {
     use super::*;
     use crate::db::test_support;
+    use crate::domain::playable_copy::PlayableCopyMode;
 
     fn store_raw(connection: &Connection, key: &str, value: &str) {
         connection
@@ -696,5 +728,27 @@ mod tests {
                 up_next_width: None,
             }
         );
+    }
+
+    #[test]
+    fn repairs_a_playable_copy_limit_out_of_range_and_keeps_the_mode() {
+        let connection = test_support::connection();
+        assert_eq!(
+            get::<PlayableCopies>(&connection).unwrap(),
+            PlayableCopySettings::default()
+        );
+        store_raw(&connection, "playable_copies", r#"{"mode":"always","limitGb":0}"#);
+        assert_eq!(
+            get::<PlayableCopies>(&connection).unwrap(),
+            PlayableCopySettings {
+                mode: PlayableCopyMode::Always,
+                limit_gb: 5,
+            }
+        );
+        let too_large = PlayableCopySettings {
+            limit_gb: 500,
+            ..PlayableCopySettings::default()
+        };
+        assert!(set::<PlayableCopies>(&connection, too_large).is_err());
     }
 }

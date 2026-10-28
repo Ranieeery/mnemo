@@ -8,6 +8,7 @@ import {
     DEFAULT_KEYBOARD_SHORTCUTS,
     DEFAULT_SUBTITLE_STYLE,
     type LibraryFolderStatus,
+    type PlayableCopySettings,
     type SubtitleStyle,
 } from "./bindings";
 import { call, errorMessage } from "./client";
@@ -95,6 +96,31 @@ export function useKeyboardShortcutsQuery() {
         queryKey: queryKeys.keyboardShortcuts(),
         queryFn: () => call(commands.getKeyboardShortcuts()),
         staleTime: Number.POSITIVE_INFINITY,
+    });
+}
+
+/** Whether the player makes playable copies, and their size limit; read by the player and Settings. */
+export const playableCopySettingsQuery = {
+    queryKey: queryKeys.playableCopySettings(),
+    queryFn: () => call(commands.getPlayableCopySettings()),
+    staleTime: Number.POSITIVE_INFINITY,
+};
+
+export function usePlayableCopySettings() {
+    return useQuery(playableCopySettingsQuery);
+}
+
+/** Saves the playable copy settings. A lower limit may delete copies, so the disk usage is read again. */
+export function useSavePlayableCopySettings() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (settings: PlayableCopySettings) => call(commands.updatePlayableCopySettings(settings)),
+        onSuccess: async (saved) => {
+            queryClient.setQueryData(queryKeys.playableCopySettings(), saved);
+            await queryClient.invalidateQueries({ queryKey: queryKeys.playableCopiesUsage() });
+        },
+        onError: (error) =>
+            toast({ title: "Could not save the setting", description: errorMessage(error), tone: "danger" }),
     });
 }
 

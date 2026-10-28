@@ -18,6 +18,7 @@ use crate::domain::folder_color::FolderColor;
 use crate::domain::folder_name::MAX_FOLDER_NAME_CHARS;
 use crate::domain::layout::{DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, SidebarPreferences};
 use crate::domain::models::PlayerPreferences;
+use crate::domain::playable_copy::{MAX_PLAYABLE_COPY_LIMIT_GB, MIN_PLAYABLE_COPY_LIMIT_GB, PlayableCopySettings};
 use crate::domain::player::{
     MAX_PLAYBACK_SPEED, MAX_UP_NEXT_WIDTH, MIN_PLAYBACK_SPEED, MIN_UP_NEXT_WIDTH, PLAYBACK_SPEED_STEP,
 };
@@ -99,6 +100,9 @@ pub fn builder() -> Builder<tauri::Wry> {
             media::find_subtitle,
             media::list_media_tracks,
             media::extract_subtitle,
+            media::check_playable_copy,
+            media::make_playable_copy,
+            media::cancel_playable_copy,
             settings::get_settings,
             settings::update_settings,
             settings::get_player_preferences,
@@ -109,6 +113,10 @@ pub fn builder() -> Builder<tauri::Wry> {
             settings::update_keyboard_shortcuts,
             settings::get_subtitle_style,
             settings::update_subtitle_style,
+            settings::get_playable_copy_settings,
+            settings::update_playable_copy_settings,
+            settings::get_playable_copies_usage,
+            settings::clear_playable_copies,
             settings::get_library_stats,
             settings::export_library,
             settings::import_library,
@@ -159,6 +167,9 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("MAX_SUBTITLE_SIZE", MAX_SUBTITLE_SIZE)
         .constant("SUBTITLE_SIZE_STEP", SUBTITLE_SIZE_STEP)
         .constant("MAX_SUBTITLE_POSITION", MAX_SUBTITLE_POSITION)
+        .constant("DEFAULT_PLAYABLE_COPY_SETTINGS", PlayableCopySettings::default())
+        .constant("MIN_PLAYABLE_COPY_LIMIT_GB", MIN_PLAYABLE_COPY_LIMIT_GB)
+        .constant("MAX_PLAYABLE_COPY_LIMIT_GB", MAX_PLAYABLE_COPY_LIMIT_GB)
         // Every integer crossing IPC is a row id, a count, a byte size or a time in milliseconds, all far below 2^53,
         // so JavaScript numbers represent them exactly.
         .dangerously_cast_bigints_to_number()

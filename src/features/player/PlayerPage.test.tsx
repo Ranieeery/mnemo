@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     type AudioTrack,
     DEFAULT_KEYBOARD_SHORTCUTS,
+    DEFAULT_PLAYABLE_COPY_SETTINGS,
     DEFAULT_PLAYER_PREFERENCES,
     DEFAULT_SUBTITLE_STYLE,
     type PlayerPreferences,
@@ -26,6 +27,7 @@ const SHOW = "D:\\Videos\\Show";
 const current = videoFixture({ id: 1, title: "Pilot", filePath: `${SHOW}\\Ep 1.mkv`, watchProgressSeconds: 300 });
 const next = videoFixture({ id: 2, title: "The Second One", filePath: `${SHOW}\\Ep 2.mkv` });
 const NL = String.fromCharCode(10);
+const COPY_PATH = "C:\\AppData\\playable-copies\\0123456789abcdef.mp4";
 const SUBTITLE = "1\n00:00:00,500 --> 00:00:10,000\nHello there\n";
 
 type Options = {
@@ -49,6 +51,8 @@ type Options = {
     pinFails?: boolean;
     /** Restoring the window after the mini player fails. */
     exitMiniFails?: boolean;
+    /** Replaces or adds command mocks. */
+    commands?: Record<string, unknown>;
 };
 
 /** The player as the app's watch route mounts it: a new one for each video. */
@@ -71,6 +75,7 @@ function renderPlayer({
     onTopSupported = true,
     pinFails = false,
     exitMiniFails = false,
+    commands = {},
 }: Options = {}) {
     const path = video?.filePath ?? `${SHOW}\\Raw.mkv`;
     const playlist: VideoEntry[] = video ? [entryFixture(video), entryFixture(next)] : [];
@@ -134,6 +139,13 @@ function renderPlayer({
             ...current,
             watchProgressSeconds: positionSeconds,
         }),
+        get_playable_copy_settings: DEFAULT_PLAYABLE_COPY_SETTINGS,
+        update_playable_copy_settings: ({ settings }: Record<string, unknown>) => settings,
+        get_playable_copies_usage: { usedBytes: 0, limitBytes: 0, count: 0 },
+        check_playable_copy: { container: "MPEG-TS (MPEG-2 Transport Stream)", sizeBytes: 96_000_000, ready: false },
+        make_playable_copy: COPY_PATH,
+        cancel_playable_copy: null,
+        ...commands,
     });
     const rendered = renderScreen(<WatchScreen />, ["/", `/watch?path=${encodeURIComponent(path)}`]);
     /** Changes the record the backend keeps, as reading the video does. */
@@ -837,6 +849,169 @@ describe("PlayerPage", () => {
             expect(pin).toHaveAttribute("aria-disabled", "true");
             await user.click(pin);
             expect(callsOf(calls, "set_window_pinned")).toEqual([]);
+        });
+    });
+
+    describe("files the player cannot open", () => {
+        /** The player fails to open the file, as with an MPEG-TS saved as `.mp4`. */
+        async function failToOpen(): Promise<HTMLVideoElement> {
+            const element = await videoElement();
+            fireEvent.error(element);
+            return element;
+        }
+
+        it("asks before making a playable copy, then plays from it", async () => {
+            const { user, calls } = renderPlayer();
+            const element = await failToOpen();
+            const question = await screen.findByRole("region", { name: "Play from a playable copy?" });
+            expect(question).toHaveTextContent("MPEG-TS (MPEG-2 Transport Stream)");
+            expect(question).toHaveTextContent("91.6 MB");
+
+            await user.click(within(question).getByRole("button", { name: "Make playable copy" }));
+            await waitFor(() => expect(element.getAttribute("src")).toContain("0123456789abcdef.mp4"));
+            expect(callsOf(calls, "make_playable_copy")).toEqual([{ path: current.filePath }]);
+            expect(callsOf(calls, "update_playable_copy_settings")).toEqual([]);
+            expect(screen.queryByRole("region", { name: "Play from a playable copy?" })).not.toBeInTheDocument();
+        });
+
+        it("resumes the copy from the saved position", async () => {
+            const { user } = renderPlayer();
+            const element = await failToOpen();
+            await user.click(await screen.findByRole("button", { name: "Make playable copy" }));
+            await waitFor(() => expect(element.getAttribute("src")).toContain("0123456789abcdef.mp4"));
+            act(() => loadMetadata(element, 1500));
+            expect(element.currentTime).toBe(300);
+        });
+
+        it("remembers to always make copies when asked to", async () => {
+            const { user, calls } = renderPlayer();
+            await failToOpen();
+            await user.click(await screen.findByRole("switch", { name: "Remember my choice" }));
+            await user.click(screen.getByRole("button", { name: "Make playable copy" }));
+            await waitFor(() =>
+                expect(callsOf(calls, "update_playable_copy_settings")).toEqual([
+                    { settings: { ...DEFAULT_PLAYABLE_COPY_SETTINGS, mode: "always" } },
+                ])
+            );
+        });
+
+        it("remembers a refusal, and still offers a copy from the error", async () => {
+            const { user, calls } = renderPlayer();
+            await failToOpen();
+            await user.click(await screen.findByRole("switch", { name: "Remember my choice" }));
+            await user.click(screen.getByRole("button", { name: "Not now" }));
+            expect(await screen.findByText("This video can't be played here")).toBeInTheDocument();
+            expect(callsOf(calls, "update_playable_copy_settings")).toEqual([
+                { settings: { ...DEFAULT_PLAYABLE_COPY_SETTINGS, mode: "never" } },
+            ]);
+            expect(callsOf(calls, "make_playable_copy")).toEqual([]);
+
+            await user.click(screen.getByRole("button", { name: "Make playable copy" }));
+            await waitFor(() => expect(callsOf(calls, "make_playable_copy")).toHaveLength(1));
+        });
+
+        it("makes the copy without asking when told to always", async () => {
+            const { calls } = renderPlayer({
+                commands: { get_playable_copy_settings: { ...DEFAULT_PLAYABLE_COPY_SETTINGS, mode: "always" } },
+            });
+            const element = await failToOpen();
+            await waitFor(() => expect(element.getAttribute("src")).toContain("0123456789abcdef.mp4"));
+            expect(callsOf(calls, "make_playable_copy")).toHaveLength(1);
+        });
+
+        it("plays a copy made before without asking", async () => {
+            const { calls } = renderPlayer({
+                commands: { check_playable_copy: { container: "MPEG-TS", sizeBytes: 1, ready: true } },
+            });
+            const element = await failToOpen();
+            await waitFor(() => expect(element.getAttribute("src")).toContain("0123456789abcdef.mp4"));
+            expect(callsOf(calls, "make_playable_copy")).toHaveLength(1);
+        });
+
+        it("says copies are turned off when told never to make them", async () => {
+            const { calls } = renderPlayer({
+                commands: { get_playable_copy_settings: { ...DEFAULT_PLAYABLE_COPY_SETTINGS, mode: "never" } },
+            });
+            await failToOpen();
+            expect(
+                await screen.findByText("Playable copies are turned off in Settings > Playback.")
+            ).toBeInTheDocument();
+            expect(callsOf(calls, "make_playable_copy")).toEqual([]);
+        });
+
+        it("explains why a copy cannot help, without offering one", async () => {
+            renderPlayer({
+                commands: {
+                    check_playable_copy: () => {
+                        throw commandError(
+                            "invalidInput",
+                            "its video is MPEG-4 part 2, which the built-in player can't decode, in any container"
+                        );
+                    },
+                },
+            });
+            await failToOpen();
+            expect(await screen.findByText(/its video is MPEG-4 part 2/)).toBeInTheDocument();
+            expect(screen.getByText("This video can't be played here")).toBeInTheDocument();
+            expect(screen.queryByRole("button", { name: "Make playable copy" })).not.toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Open in default player" })).toBeInTheDocument();
+        });
+
+        it("shows the cause when the copy cannot be made", async () => {
+            const { user } = renderPlayer({
+                commands: {
+                    make_playable_copy: () => {
+                        throw commandError("io", "not enough free disk space for the playable copy: C:\\copies");
+                    },
+                },
+            });
+            await failToOpen();
+            await user.click(await screen.findByRole("button", { name: "Make playable copy" }));
+            expect(
+                await screen.findByText(
+                    "Could not make a playable copy: not enough free disk space for the playable copy: C:\\copies"
+                )
+            ).toBeInTheDocument();
+        });
+
+        it("cancels the copy being made", async () => {
+            let rejectCopy: (error: unknown) => void = () => {};
+            const { user, calls } = renderPlayer({
+                commands: {
+                    make_playable_copy: () =>
+                        new Promise((_, reject) => {
+                            rejectCopy = reject;
+                        }),
+                    cancel_playable_copy: () => rejectCopy(commandError("cancelled", "operation cancelled")),
+                },
+            });
+            await failToOpen();
+            await user.click(await screen.findByRole("button", { name: "Make playable copy" }));
+            expect(await screen.findByText("Making a playable copy…")).toBeInTheDocument();
+            await user.click(screen.getByRole("button", { name: "Cancel" }));
+            expect(await screen.findByText("This video can't be played here")).toBeInTheDocument();
+            expect(callsOf(calls, "cancel_playable_copy")).toHaveLength(1);
+            expect(screen.getByRole("button", { name: "Make playable copy" })).toBeInTheDocument();
+        });
+
+        it("cancels the copy being made when the player closes", async () => {
+            const { user, calls } = renderPlayer({
+                commands: { make_playable_copy: () => new Promise(() => {}) },
+            });
+            await failToOpen();
+            await user.click(await screen.findByRole("button", { name: "Make playable copy" }));
+            await screen.findByText("Making a playable copy…");
+            cleanup();
+            await waitFor(() => expect(callsOf(calls, "cancel_playable_copy")).toHaveLength(1));
+        });
+
+        it("gives up when even the copy cannot be played", async () => {
+            const { user } = renderPlayer();
+            const element = await failToOpen();
+            await user.click(await screen.findByRole("button", { name: "Make playable copy" }));
+            await waitFor(() => expect(element.getAttribute("src")).toContain("0123456789abcdef.mp4"));
+            fireEvent.error(element);
+            expect(await screen.findByText("Its playable copy could not be played either.")).toBeInTheDocument();
         });
     });
 

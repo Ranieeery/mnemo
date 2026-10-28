@@ -27,6 +27,25 @@ dos dados) estão no `CLAUDE.md`.
 - A limpeza de órfãos também apaga thumbnails que nenhum vídeo usa, com mais de 1 h (deixadas por um processamento
   interrompido; as recentes podem ser de um vídeo prestes a ser gravado).
 
+## Cópias tocáveis
+
+- `services/media/playable_copy.rs` (`PlayableCopies` no `AppState`, regras puras em `domain/playable_copy.rs`):
+  cópia MP4 de um vídeo cujo contêiner o webview não abre, feita com `ffmpeg -c copy` (primeiro stream de vídeo e
+  todos os de áudio; legendas e dados ficam de fora e o player continua lendo-as do original; HEVC recebe a tag
+  `hvc1`; `+faststart`), sem recodificar. Só vale para vídeo H.264, HEVC, VP9 ou AV1; outros codecs (XviD/MPEG-4
+  Part 2) precisariam de recodificação e são recusados com a causa. `CopyToolkit` abstrai o ffprobe e o ffmpeg nos
+  testes.
+- Ficam em `<appDataDir>/playable-copies/`, servidas pelo asset protocol. O nome é o xxh3 do caminho, do tamanho e
+  da data de modificação do original: um arquivo alterado ganha cópia nova e a antiga envelhece. A cópia é escrita
+  como `<nome>.<run>.part` e renomeada ao terminar; um pedido novo (ou `cancel_playable_copy`, ou fechar o player)
+  cancela o anterior, matando o ffmpeg e apagando o parcial. Timeout de 30 min. "No space left on device" do ffmpeg
+  vira um erro de disco cheio.
+- A data de modificação da cópia marca quando ela foi tocada pela última vez (o Windows não atualiza a data de
+  acesso). A limpeza roda ao iniciar, depois de cada cópia feita e ao mudar o limite: apaga as cópias sem uso há
+  30 dias, depois as menos usadas até caber no limite (nunca a que vai tocar), e os `.part` mais velhos que o
+  timeout (de um app fechado no meio). Um vídeo maior que o limite é recusado antes de copiar. "Clear copies" apaga
+  todas; uma aberta no player não pode ser apagada no Windows e é mantida (o toast avisa).
+
 ## Sincronização
 
 - Realocação de pasta da biblioteca (`services/relocation.rs`, regras puras em `domain/relocation.rs`): só para

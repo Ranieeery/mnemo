@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
 use crate::domain::models::{AudioTrack, MediaTracks, SubtitleTrack};
+use crate::domain::playable_copy::{Codec, ContainerStreams};
 use crate::error::{AppError, AppResult};
 
 fn parse_json<T: DeserializeOwned>(json: &[u8]) -> AppResult<T> {
@@ -21,6 +22,8 @@ struct ProbeOutput {
 #[derive(Deserialize)]
 struct ProbeStream {
     codec_type: Option<String>,
+    codec_name: Option<String>,
+    codec_long_name: Option<String>,
     #[serde(default)]
     disposition: Disposition,
 }
@@ -32,9 +35,11 @@ impl ProbeStream {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 struct ProbeFormat {
     duration: Option<String>,
+    format_name: Option<String>,
+    format_long_name: Option<String>,
 }
 
 /// Extracts the duration from `ffprobe -print_format json -show_format -show_streams` output. Files without a video
@@ -53,6 +58,25 @@ pub fn parse_duration(json: &[u8]) -> AppResult<f64> {
         .and_then(|duration| duration.parse::<f64>().ok())
         .filter(|duration| duration.is_finite() && *duration > 0.0)
         .unwrap_or(0.0))
+}
+
+/// Reads the container and the first video stream from `ffprobe -print_format json -show_format -show_streams`
+/// output, with the human-readable names ffprobe gives them.
+pub fn parse_container_streams(json: &[u8]) -> AppResult<ContainerStreams> {
+    let output: ProbeOutput = parse_json(json)?;
+    let format = output.format.unwrap_or_default();
+    let container = format
+        .format_long_name
+        .or(format.format_name)
+        .unwrap_or_else(|| "an unknown container".into());
+    let video = output.streams.into_iter().find(ProbeStream::is_video).map(|stream| {
+        let name = stream.codec_name.unwrap_or_else(|| "unknown".into());
+        Codec {
+            long_name: stream.codec_long_name.unwrap_or_else(|| name.clone()),
+            name,
+        }
+    });
+    Ok(ContainerStreams { container, video })
 }
 
 #[derive(Deserialize)]
@@ -133,6 +157,29 @@ pub fn parse_tracks(json: &[u8]) -> AppResult<MediaTracks> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_container_and_the_first_real_video_stream() {
+        // Trimmed output for an MPEG-TS saved as `.mp4`, with cover art before the video stream.
+        let json = br#"{ "streams": [
+            { "codec_name": "aac", "codec_long_name": "AAC (Advanced Audio Coding)", "codec_type": "audio" },
+            { "codec_name": "mjpeg", "codec_type": "video", "disposition": { "attached_pic": 1 } },
+            { "codec_name": "h264", "codec_long_name": "H.264 / AVC", "codec_type": "video" }
+        ], "format": { "format_name": "mpegts", "format_long_name": "MPEG-TS (MPEG-2 Transport Stream)" } }"#;
+        assert_eq!(
+            parse_container_streams(json).unwrap(),
+            ContainerStreams {
+                container: "MPEG-TS (MPEG-2 Transport Stream)".into(),
+                video: Some(Codec {
+                    name: "h264".into(),
+                    long_name: "H.264 / AVC".into(),
+                }),
+            }
+        );
+        let audio_only = parse_container_streams(br#"{ "streams": [{ "codec_type": "audio" }] }"#).unwrap();
+        assert_eq!(audio_only.video, None);
+        assert_eq!(audio_only.container, "an unknown container");
+    }
 
     /// Trimmed `ffprobe` output of an anime release: two audio tracks, text and image subtitles, a font attachment.
     const MKV_STREAMS: &[u8] = br#"{ "streams": [

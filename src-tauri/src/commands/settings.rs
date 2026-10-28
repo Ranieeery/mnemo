@@ -6,6 +6,7 @@ use crate::domain::layout::SidebarPreferences;
 use crate::domain::models::{
     AppSettings, DatabaseInfo, ImportSummary, LibraryStats, MissingVideos, PlayerPreferences, Video,
 };
+use crate::domain::playable_copy::{ClearedPlayableCopies, PlayableCopiesUsage, PlayableCopySettings};
 use crate::domain::shortcuts::KeyboardShortcuts;
 use crate::domain::subtitle_style::SubtitleStyle;
 use crate::error::AppResult;
@@ -88,6 +89,36 @@ pub async fn get_subtitle_style(state: State<'_, AppState>) -> AppResult<Subtitl
 #[specta::specta]
 pub async fn update_subtitle_style(state: State<'_, AppState>, style: SubtitleStyle) -> AppResult<SubtitleStyle> {
     watch::update_subtitle_style(&state.db, style).await
+}
+
+/// Whether the player makes playable copies of videos it cannot open, and the disk space they may use.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_playable_copy_settings(state: State<'_, AppState>) -> AppResult<PlayableCopySettings> {
+    state.playable_copies.settings().await
+}
+
+/// Stores the playable copy settings; rejects a limit out of range. Copies over a lower limit are deleted.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_playable_copy_settings(
+    state: State<'_, AppState>,
+    settings: PlayableCopySettings,
+) -> AppResult<PlayableCopySettings> {
+    state.playable_copies.update_settings(settings).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_playable_copies_usage(state: State<'_, AppState>) -> AppResult<PlayableCopiesUsage> {
+    state.playable_copies.usage().await
+}
+
+/// Deletes every playable copy; they are made again when needed.
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_playable_copies(state: State<'_, AppState>) -> AppResult<ClearedPlayableCopies> {
+    state.playable_copies.clear().await
 }
 
 #[tauri::command]

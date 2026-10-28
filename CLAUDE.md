@@ -118,14 +118,15 @@ src-tauri/src/
 ├── state.rs            # AppState (banco, caminhos, processador em segundo plano, busca em andamento)
 ├── error.rs            # AppError (thiserror), serializado como { kind, message }
 ├── commands/           # camada fina: recebe input, chama serviços. Lista de comandos e constantes dos bindings.
-├── services/           # regras: biblioteca e navegação, ordem das pastas, scanner, mídia (ffprobe/ffmpeg e pipeline), sync com o
+├── services/           # regras: biblioteca e navegação, ordem das pastas, scanner, mídia (ffprobe/ffmpeg, pipeline e cópias tocáveis), sync com o
 │                       # disco (watcher e reconciliação), busca, visualização, pastas escondidas, grupos, tags, backup, manutenção,
 │                       # legendas, sistema, escopo de assets, aviso de atualização (GitHub)
 ├── db/                 # conexão, migrations.rs e repositórios (videos, presence, watch, orphans, tags, folders,
 │                       # settings, history, backup, hidden, groups, layout)
 └── domain/             # tipos e regras puras: extensões e mídia, limiar, ordem natural, faixas de pasta, modo de
                         # exibição, ordem, nome e cor das pastas da biblioteca, pastas escondidas, realocação, layout
-                        # da janela, player, estilo de legenda, atalhos, zoom, tags, versões de release, modelos (models/)
+                        # da janela, player, estilo de legenda, atalhos, zoom, tags, versões de release, cópias
+                        # tocáveis, modelos (models/)
 
 src/
 ├── app/                # entrada, router, RootLayout, layout (shell), rotas que compõem features, DialogHost
@@ -201,8 +202,11 @@ src/
 - `ffmpeg`/`ffprobe` são exigidos no `PATH`; sem eles o app avisa e explica como instalar.
 - Processos externos com `CREATE_NO_WINDOW` no Windows e timeout; saída do `ffprobe` lida como JSON via `serde`.
 - Thumbnails em `<appDataDir>/thumbnails/`, exibidas via asset protocol.
-- `MediaToolkit` (probe e thumbnail, usado pelo pipeline) e `TrackToolkit` (faixas e extração de legendas) abstraem
-  o ffmpeg para os testes. Comandos que entregam caminhos ao ffmpeg ou ao sistema usam `library::library_file`.
+- Cópias tocáveis (`services/media/playable_copy.rs`) em `<appDataDir>/playable-copies/`: MP4 sem recodificar de
+  vídeos cujo contêiner o webview não abre, com limite de disco e limpeza após 30 dias sem uso
+  (`docs/media-and-sync.md`).
+- `MediaToolkit` (probe e thumbnail, usado pelo pipeline), `TrackToolkit` (faixas e extração de legendas) e
+  `CopyToolkit` (contêiner e remux das cópias tocáveis) abstraem o ffmpeg para os testes. Comandos que entregam caminhos ao ffmpeg ou ao sistema usam `library::library_file`.
 - Pipeline (`services/media/processing`): jobs por pasta, um pool fixo de workers e um único escritor em lote,
   cancelável sem deixar nada pela metade.
 
@@ -235,8 +239,8 @@ src/
 ## Segurança
 
 - CSP real em `tauri.conf.json` (a `devCsp` libera scripts inline e o websocket do Vite).
-- Escopo do asset protocol vazio na config e liberado em tempo de execução só para as pastas da biblioteca e as
-  thumbnails. Pastas removidas deixam de ser servidas no próximo início (a API do Tauri só amplia escopos).
+- Escopo do asset protocol vazio na config e liberado em tempo de execução só para as pastas da biblioteca, as
+  thumbnails e as cópias tocáveis. Pastas removidas deixam de ser servidas no próximo início (a API do Tauri só amplia escopos).
 - WebView2 recebe `--enable-blink-features=AudioVideoTracks` (troca de faixa de áudio) além das flags padrão do wry
   (`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`), que precisam continuar na lista.
 - Capability mínima: `core:default`, `dialog:allow-open`, `dialog:allow-save`. Comandos que recebem caminhos validam

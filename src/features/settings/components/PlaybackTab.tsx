@@ -8,6 +8,7 @@ import {
 import { errorMessage } from "../../../shared/ipc/client";
 import { Card, ErrorState, Skeleton, Slider } from "../../../shared/ui";
 import { useAppSettings, useUpdateSettings } from "../queries";
+import { PlayableCopiesSection } from "./PlayableCopiesSection";
 import { SettingRow } from "./SettingRow";
 import { SubtitleStyleSection } from "./SubtitleStyleSection";
 
@@ -76,6 +77,12 @@ export function PlaybackTab() {
                     Subtitles
                 </h2>
                 <SubtitleStyleSection />
+            </section>
+            <section aria-labelledby="playable-copies-heading" className="flex flex-col gap-3">
+                <h2 id="playable-copies-heading" className="text-title font-semibold text-text">
+                    Unsupported files
+                </h2>
+                <PlayableCopiesSection />
             </section>
         </div>
     );

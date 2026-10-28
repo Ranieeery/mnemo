@@ -68,11 +68,14 @@ fn start(app: &AppHandle) -> AppResult<()> {
     )?;
     let library_folders = tauri::async_runtime::block_on(state.db.call(|connection| db::folders::paths(connection)))?;
     asset_scope::allow(app, &state.paths.thumbnails)?;
+    asset_scope::allow(app, &state.paths.playable_copies)?;
     asset_scope::allow_all(app, library_folders)?;
     tracing::info!(database = %state.paths.database.display(), "database ready");
     restore_zoom(app, &state.db);
     let sync = state.sync.clone();
     tauri::async_runtime::spawn(async move { sync.start() });
+    let playable_copies = state.playable_copies.clone();
+    tauri::async_runtime::spawn(async move { playable_copies.clean_up(None).await });
     tauri::async_runtime::spawn(
         state
             .updates

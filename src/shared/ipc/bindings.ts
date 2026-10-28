@@ -172,6 +172,14 @@ export const commands = {
 	 *  WebVTT otherwise. Reads the whole file, so it can take a few seconds on large videos.
 	 */
 	extractSubtitle: (path: string, index: number) => typedError<SubtitleFile, IpcError>(__TAURI_INVOKE("extract_subtitle", { path, index })),
+	/**  Whether a library video the player could not open can get a playable copy; fails with the reason when it cannot. */
+	checkPlayableCopy: (path: string) => typedError<PlayableCopyCheck, IpcError>(__TAURI_INVOKE("check_playable_copy", { path })),
+	/**
+	 *  The path of a library video's playable copy, made first if needed (seconds to minutes, at disk speed). A new call
+	 *  or `cancel_playable_copy` cancels the copy being made.
+	 */
+	makePlayableCopy: (path: string) => typedError<string, IpcError>(__TAURI_INVOKE("make_playable_copy", { path })),
+	cancelPlayableCopy: () => __TAURI_INVOKE<void>("cancel_playable_copy"),
 	getSettings: () => typedError<AppSettings, IpcError>(__TAURI_INVOKE("get_settings")),
 	updateSettings: (settings: AppSettings) => typedError<AppSettings, IpcError>(__TAURI_INVOKE("update_settings", { settings })),
 	/**  Volume, speed, subtitles and layout of the player, as it was last left. */
@@ -189,6 +197,13 @@ export const commands = {
 	getSubtitleStyle: () => typedError<SubtitleStyle, IpcError>(__TAURI_INVOKE("get_subtitle_style")),
 	/**  Stores how subtitles look; rejects sizes, opacities and positions out of range. */
 	updateSubtitleStyle: (style: SubtitleStyle) => typedError<SubtitleStyle, IpcError>(__TAURI_INVOKE("update_subtitle_style", { style })),
+	/**  Whether the player makes playable copies of videos it cannot open, and the disk space they may use. */
+	getPlayableCopySettings: () => typedError<PlayableCopySettings, IpcError>(__TAURI_INVOKE("get_playable_copy_settings")),
+	/**  Stores the playable copy settings; rejects a limit out of range. Copies over a lower limit are deleted. */
+	updatePlayableCopySettings: (settings: PlayableCopySettings) => typedError<PlayableCopySettings, IpcError>(__TAURI_INVOKE("update_playable_copy_settings", { settings })),
+	getPlayableCopiesUsage: () => typedError<PlayableCopiesUsage, IpcError>(__TAURI_INVOKE("get_playable_copies_usage")),
+	/**  Deletes every playable copy; they are made again when needed. */
+	clearPlayableCopies: () => typedError<ClearedPlayableCopies, IpcError>(__TAURI_INVOKE("clear_playable_copies")),
 	getLibraryStats: () => typedError<LibraryStats, IpcError>(__TAURI_INVOKE("get_library_stats")),
 	/**  Writes the whole library to a JSON file chosen in the native save dialog. */
 	exportLibrary: (path: string) => typedError<null, IpcError>(__TAURI_INVOKE("export_library", { path })),
@@ -238,6 +253,8 @@ export const events = {
 /* Constants */
 export const DEFAULT_KEYBOARD_SHORTCUTS = {"fullscreen":["F"],"historyBack":["Alt+ArrowLeft"],"historyForward":["Alt+ArrowRight"],"miniPlayer":["I"],"mute":["M"],"pinWindow":[],"playPause":["Space","K"],"seekBack10":["J"],"seekBack5":["ArrowLeft"],"seekForward10":["L"],"seekForward5":["ArrowRight"],"speedDown":["["],"speedReset":["Backspace"],"speedUp":["]"],"subtitles":["C"],"theater":["T"],"volumeDown":["ArrowDown"],"volumeUp":["ArrowUp"]} as const;
 
+export const DEFAULT_PLAYABLE_COPY_SETTINGS = {"limitGb":5,"mode":"ask"} as const;
+
 export const DEFAULT_PLAYER_PREFERENCES = {"muted":false,"speed":1.0,"subtitlesEnabled":true,"theater":false,"upNextWidth":null,"volume":1.0} as const;
 
 export const DEFAULT_SIDEBAR_PREFERENCES = {"collapsed":false,"width":240} as const;
@@ -254,6 +271,8 @@ export const MAX_FOLDER_NAME_CHARS = 100 as const;
 
 export const MAX_KEYS_PER_SHORTCUT = 2 as const;
 
+export const MAX_PLAYABLE_COPY_LIMIT_GB = 200 as const;
+
 export const MAX_PLAYBACK_SPEED = 2.0 as const;
 
 export const MAX_SIDEBAR_WIDTH = 400 as const;
@@ -267,6 +286,8 @@ export const MAX_TAG_NAME_CHARS = 100 as const;
 export const MAX_UP_NEXT_WIDTH = 800 as const;
 
 export const MAX_WATCHED_THRESHOLD = 1.0 as const;
+
+export const MIN_PLAYABLE_COPY_LIMIT_GB = 1 as const;
 
 export const MIN_PLAYBACK_SPEED = 0.25 as const;
 
@@ -311,6 +332,12 @@ export type AudioTrack = {
 	codec: string,
 	channels: number | null,
 	isDefault: boolean,
+};
+
+/**  What clearing the copies did. Copies open in the player cannot be deleted and are kept. */
+export type ClearedPlayableCopies = {
+	freedBytes: number,
+	kept: number,
 };
 
 /**  How much was watched on one local day: the videos that became watched and their total length. */
@@ -559,6 +586,33 @@ export type MediaTracks = {
 export type MissingVideos = {
 	videos: Video[],
 	hiddenCount: number,
+};
+
+/**  Size of the copies folder, for Settings. */
+export type PlayableCopiesUsage = {
+	usedBytes: number,
+	limitBytes: number,
+	count: number,
+};
+
+/**  Whether a video can get a playable copy, before asking the person. */
+export type PlayableCopyCheck = {
+	/**  Human-readable container name of the original. */
+	container: string,
+	sizeBytes: number,
+	/**  A copy was already made: playing it costs nothing. */
+	ready: boolean,
+};
+
+/**  What the player does when a video's container cannot be opened. */
+export type PlayableCopyMode = 
+/**  Explains the situation and asks before making a copy. */
+"ask" | "always" | "never";
+
+export type PlayableCopySettings = {
+	mode: PlayableCopyMode,
+	/**  Disk space the copies may use together, in GB (binary). */
+	limitGb: number,
 };
 
 /**

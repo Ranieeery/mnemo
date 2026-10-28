@@ -4,6 +4,7 @@ use tauri::State;
 
 use crate::domain::models::{MediaToolsStatus, MediaTracks, ProcessingStatus, SubtitleFile, Video};
 use crate::domain::paths::is_within;
+use crate::domain::playable_copy::PlayableCopyCheck;
 use crate::error::AppResult;
 use crate::services::library::ensure_all_in_library;
 use crate::services::media::processing::Priority;
@@ -84,6 +85,27 @@ pub async fn list_media_tracks(state: State<'_, AppState>, path: String) -> AppR
 #[specta::specta]
 pub async fn extract_subtitle(state: State<'_, AppState>, path: String, index: i64) -> AppResult<SubtitleFile> {
     media::tracks::extract_subtitle(&state.db, &media::Ffmpeg, path, index).await
+}
+
+/// Whether a library video the player could not open can get a playable copy; fails with the reason when it cannot.
+#[tauri::command]
+#[specta::specta]
+pub async fn check_playable_copy(state: State<'_, AppState>, path: String) -> AppResult<PlayableCopyCheck> {
+    state.playable_copies.check(path).await
+}
+
+/// The path of a library video's playable copy, made first if needed (seconds to minutes, at disk speed). A new call
+/// or `cancel_playable_copy` cancels the copy being made.
+#[tauri::command]
+#[specta::specta]
+pub async fn make_playable_copy(state: State<'_, AppState>, path: String) -> AppResult<String> {
+    state.playable_copies.make(path).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_playable_copy(state: State<'_, AppState>) {
+    state.playable_copies.cancel();
 }
 
 /// The external subtitle next to a library video, if any.

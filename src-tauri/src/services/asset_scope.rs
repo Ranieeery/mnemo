@@ -1,5 +1,5 @@
-//! Runtime scope of the asset protocol, which serves videos and thumbnails to the webview. Only the library folders
-//! and the thumbnails directory are readable. Tauri can only widen a scope (`forbid` would also block re-adding the
+//! Runtime scope of the asset protocol, which serves videos and thumbnails to the webview. Only the library folders,
+//! the thumbnails directory and the playable copies directory are readable. Tauri can only widen a scope (`forbid` would also block re-adding the
 //! folder later in the session), so removed folders stop being served on the next start.
 
 use std::path::Path;

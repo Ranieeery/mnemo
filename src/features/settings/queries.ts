@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type AppSettings, commands, type HomeData, type SubtitleStyle } from "../../shared/ipc/bindings";
 import { call, errorMessage } from "../../shared/ipc/client";
 import { queryKeys } from "../../shared/ipc/queryKeys";
+import { formatBytes } from "../../shared/lib/formatBytes";
 import { plural } from "../../shared/lib/plural";
 import { toast } from "../../shared/ui";
 
@@ -141,6 +142,32 @@ export function useSampleFrame() {
         queryKey: queryKeys.home(SAMPLE_FRAME_LIMIT),
         queryFn: () => call(commands.getHome(SAMPLE_FRAME_LIMIT)),
         select: firstThumbnail,
+    });
+}
+
+/** Disk space the playable copies use now. */
+export function usePlayableCopiesUsage() {
+    return useQuery({
+        queryKey: queryKeys.playableCopiesUsage(),
+        queryFn: () => call(commands.getPlayableCopiesUsage()),
+    });
+}
+
+/** Deletes every playable copy. One open in the player is kept and the toast says so. */
+export function useClearPlayableCopies() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => call(commands.clearPlayableCopies()),
+        onSuccess: async ({ freedBytes, kept }) => {
+            await queryClient.invalidateQueries({ queryKey: queryKeys.playableCopiesUsage() });
+            toast({
+                title: `Freed ${formatBytes(freedBytes)}`,
+                description: kept > 0 ? "The copy open in the player was kept." : undefined,
+                tone: "success",
+            });
+        },
+        onError: (error) =>
+            toast({ title: "Could not clear the playable copies", description: errorMessage(error), tone: "danger" }),
     });
 }
 
